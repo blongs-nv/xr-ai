@@ -27,8 +27,9 @@ async def test_sample_does_not_register_model_health_probes(
     service = SimpleNamespace(
         health=AsyncMock(side_effect=AssertionError("unexpected model health probe")),
         chat=AsyncMock(),
+        close=AsyncMock(),
     )
-    for factory in ("make_llm", "make_vlm", "make_stt", "make_tts"):
+    for factory in ("make_llm", "make_vlm", "make_stt", "make_tts", "make_decision"):
         if hasattr(app, factory):
             monkeypatch.setattr(app, factory, lambda *_args: service)
     monkeypatch.setattr(app, "setup_logging", Mock())
@@ -112,7 +113,7 @@ async def test_shipped_speaker_mode_never_constructs_batch_client(
     monkeypatch.setattr(app, "setup_logging", Mock())
     monkeypatch.setattr(_runtime, "make_stt", lambda *_args: pytest.fail("unused batch client constructed"))
     service = SimpleNamespace(chat=AsyncMock(), close=AsyncMock())
-    for factory in ("make_llm", "make_vlm", "make_tts"):
+    for factory in ("make_llm", "make_vlm", "make_tts", "make_decision"):
         if hasattr(app, factory):
             monkeypatch.setattr(app, factory, lambda *_args: service)
     monkeypatch.setattr(app, "HubVoiceTransport", Mock())

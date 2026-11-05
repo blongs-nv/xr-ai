@@ -20,11 +20,16 @@ from ...spatial_ops import TurnGuard, make_appearance_tools
 
 _PROMPT = Path(__file__).with_name("prompt.txt")
 DESCRIPTION = (
-    "Change only the color of existing XR objects: every recolor of an existing object is this "
-    "agent, whatever the verb, never object_agent. The instruction keeps the user's color "
-    "source words verbatim: a color word, an XR object to copy (\"same as capsule-8\"), or a "
-    "physical-world phrase (\"match my jacket\") whose color this agent reads from the camera "
-    "itself; never guess a physical color and never send vision_agent to look one up."
+    "Recolor existing XR objects. This agent owns the entire color change, including reading "
+    "physical color sources through its own camera tool. Delegate physical sources verbatim "
+    "(for example, match my jacket); no separate vision_agent call is needed. For an XR color "
+    "source, identify the object to copy. For a conversational color reference, resolve the "
+    "color from recent dialogue and include it with the target's stable id in the instruction. "
+    "A color qualifying the target selects the object; the requested color or color reference "
+    "supplies its new value. "
+    "Naming an existing object with a color or resolved color reference requests recoloring "
+    "even when the verb is omitted. If a conversational reference is unresolved, clarify it "
+    "without changing the scene. This agent preserves position, size, and shape."
 )
 
 

@@ -28,6 +28,7 @@ shared model services.
 | tts | reused | `services/pocket-tts/` | `pocket_tts_server` | 8105 |
 | omni | reused | `services/nemotron-omni-llm/` | `nemotron_omni_llm_server` | 8108 (LLM) |
 | vlm | reused | `services/vlm-server/` | `vlm_server` | 8100 (Cosmos VLM) |
+| clef | reused | `services/clef-server/` | `clef_server` | 8120 (routing decisions) |
 | video-memory | sample | `services/video-memory-service/` | `video_memory_service` | 8310 (recorded-video typed RPC) |
 | scene | sample | `agent-samples/xr-render-demo/scene/` | `xr_render_scene` | 8320 (typed RPC) |
 | openxr-service | sample | `services/openxr-service/` | `openxr_service` | 8330 (typed RPC) |
@@ -46,8 +47,9 @@ Before starting the stack, the orchestrator runs two setup steps:
 ## Source map and extension points
 
 `main.py` is the orchestrator. `worker/xr_render_demo_worker/app.py` composes
-the SDK tools and `RenderAgent`; `agent.py` receives participant turns;
-`supervisor.py` owns the top-level tool loop; and `scene.py` owns snapshots,
+the SDK tools, `AgentRouter`, and conversation context; `agent.py` implements
+the scene and conversation destinations; `supervisor.py` owns the scene tool
+loop; and `scene.py` owns snapshots,
 diffs, and move history. The `agents/` packages contain placement, appearance,
 object, vision, and memory subagents. The separately packaged `scene/` process
 owns LOVR and scene state, while `eval/` owns offline and live regression tiers.
@@ -134,7 +136,7 @@ settings are independent and must be planned together. Keep
 `allow_sim_pose: false` outside the live eval harness.
 
 Each default `models.json` entry maps a logical role (`llm`, `tts`,
-or `vlm`) to an adapter and endpoint. Editing it changes which
+`vlm`, or `routing`) to an adapter and endpoint. Editing it changes which
 operator-owned endpoint the demo consumes; it does not reconfigure or restart
 the shared model. Refer to {doc}`/guides/customizing-model-servers` for
 server-side model, port, GPU, or memory changes, then restart the persistent
@@ -213,8 +215,10 @@ launch configuration changed.
 `--reasoning-parser nemotron_v3`. The launcher selects NVFP4 on Blackwell and
 FP8 on Ada, Hopper, or Ampere, with BF16 available as an explicit fallback.
 
-The `llm` entry in `yaml/models.json` runs the supervisor and subagent
-tool-calling loops. Thinking stays off unless a call explicitly enables it.
+The `llm` entry in `yaml/models.json` runs conversation, context compaction,
+and the supervisor and subagent tool-calling loops. The supervisor enables
+thinking for reference resolution and planning across tool descriptions.
+Conversation and subagent calls use the endpoint default, which disables thinking.
 
 ## VLM — Cosmos3 Nano Reasoner
 
@@ -289,8 +293,9 @@ NeMo model is not reentrant.
 (tts-piper)=
 ## TTS — Pocket TTS
 
-Served on port 8105. The voice runtime streams the supervisor's final
-reply to Pocket TTS and returns the audio to the participant.
+Served on port 8105. The voice runtime sends conversation chunks or the
+supervisor's verified final reply to Pocket TTS and returns the audio to the
+participant.
 
 ```
 voice.output topic (final response)
@@ -303,9 +308,11 @@ voice.output topic (final response)
 `VoiceAgent` owns interruption handling. A new utterance while TTS is playing
 triggers `ReturnAudioFlush`, so the hub clears the LiveKit audio queue for that
 participant. Its interruption callback also cancels the participant's active
-render-agent task without waiting on its cleanup in the media processor. Each
-turn publishes one complete reply to its request on `voice.output`; a superseded
-turn is cancelled before its reply is published, so no partial stream is left open.
+router-owned turn without waiting on its cleanup in the media processor.
+Conversation replies stream on `voice.output`; scene replies publish after
+verification. Cancellation closes an open conversation stream without adding
+text or recording the partial exchange. Both destinations preserve the
+originating request ID and participant.
 An XR display start failure is spoken as an update.
 
 ## Agent runtime and voice topology
@@ -314,7 +321,8 @@ An XR display start failure is spoken as an update.
 VoiceAgent → private media session → selected speech processor ─→ voice.transcript topic
                                   └→ VoiceGate ─┐
            → typed hub text ingress ────────────┴→ xr-render.user-query topic
-  → RenderAgent → SceneSupervisor → five focused subagents → voice.output topic
+  → AgentRouter ┬→ Conversation → voice.output topic
+                └→ RenderAgent → SceneSupervisor → five focused subagents → voice.output topic
   → VoiceAgent → private media-session TTS → hub return audio
 ```
 
@@ -323,12 +331,49 @@ input, participant-scoped agent execution, and voice output use public SDK contr
 An XR start failure sends `render.failed` (with the reason) on the data
 channel and speaks a short failure notice through `voice.output`.
 
+## Conversation routing and context
+
+`AgentRouter` uses the `routing` decision endpoint to choose a destination for
+each participant's turn. The local model stack includes Clef-Flash on port 8120.
+Refer to {doc}`clef-flash` for the service's model, memory, and endpoint
+requirements. The sample GPU profiles place Clef on GPU 0; account for its model
+memory alongside the existing inference and compositor workloads when selecting
+a profile.
+
+General questions, explanations, greetings, and casual conversation go to
+`ConversationAgent`, which streams through the SDK's `Conversation`
+implementation. Its prompt is `conversation_prompt.txt`. It has no scene or
+camera tools. Scene questions, mutations, camera observations, exact transcript
+recall, and compound requests containing any of those tasks go to
+`SceneSupervisor` as a complete request. The supervisor retains its five
+subagents, scene lock, undo state, and mutation verification. Route descriptions
+in `agent.py` define the selection boundary; model selection can still misroute
+a request.
+
+The router supplies bounded completed history to route decisions and the
+conversation destination. Conversation owns a `ContextManager` that reconciles
+that history and summarizes older dialogue. Both destinations persist completed
+exchanges through `transcript.py` to `TextMemoryTools`, so the supervisor's
+existing recent-history block includes general conversation. Its working-history
+window remains eight transcript entries within ten minutes; it does not use the
+conversation context manager. Exact and older recall remains the memory
+subagent's responsibility.
+
+The router owns per-participant supersession, interruption, and departure.
+Departure drains the participant's turn, releases frame and supervisor state,
+and clears conversation context. A join readmits the participant with fresh
+routing and conversation history; persistent transcripts remain available for
+explicit recall. Shutdown drains the router while the runtime and model clients
+are still open, then closes conversation context before closing the model
+clients. General conversation does not acquire the supervisor's shared scene
+lock.
+
 ## Agentic loop
 
 `SceneSupervisor` coordinates five focused subagent tools (placement,
 appearance, object, vision, memory) over `xr_ai_tools.tool_calling.run_tool_loop`.
 Each subagent runs its own inner tool loop against the scene and tracking
-services. On each accepted `xr-render.user-query` event:
+services. On each turn routed to the scene destination:
 
 1. **Recent conversation** is recalled from `TextMemoryTools` and injected
    as context so the model understands references like "fix that" or "undo".
@@ -400,23 +445,31 @@ in one place:
   a closed grammar (`VISIBLE r g b` or `UNKNOWN`) and fails closed on
   anything else. The same source type drives the object tools' creations.
 - **Object tools** create and retire objects: `create_user_relative`,
+  `create_in_view` (unspecified positions),
   `create_object_relative` (one anchor, or the midpoint of two),
   `create_at`, `change_shape` (the scene replaces the object and returns
   its new id), `resize_object`, and `remove_object`.
 
+Unpositioned creation uses the current tracked head position and full
+orientation. The tool searches a central 50-degree cone, 1.5 metres ahead, for
+positions whose conservative angular footprints do not overlap existing scene
+objects. This is a placement policy, not a measured client field of view. If
+all requested copies cannot fit, it asks for a position or more space before
+adding them. Explicit directions, anchors, and world coordinates keep their
+specified placement.
+
 ## Prompt structure
 
 Each agent has its own prompt file under
-`worker/xr_render_demo_worker/` (supervisor plus five subagents, six files total).
+`worker/xr_render_demo_worker/` (conversation, supervisor, and five subagents, seven files total).
 The supervisor prompt carries only cross-cutting turn discipline; the
 routing rules and ownership boundaries live in each subagent's tool
 `DESCRIPTION` constant (`agents/<name>/agent.py`), the surface the
 supervisor's model reads when selecting a tool. The vision agent selects
 between two descriptions at construction time: the full one when video
 memory is wired, and a live-only variant that disclaims past-moment
-questions when it is not. A few rules are stated in
-both places on purpose: descriptions alone are under-weighted mid-loop, so
-the supervisor prompt keeps a short backstop copy. Each subagent prompt is
+questions when it is not. Delegations resolve conversational references into
+self-contained instructions; unresolved intent prompts clarification. Each subagent prompt is
 worked-example heavy and opens with pronoun and reference resolution.
 
 The placement agent's prompt maps utterance shapes to tools with contrast
@@ -447,12 +500,14 @@ a streaming client connects. LOVR cannot start before then.
 
 ## Eval harness
 
-The evaluation project derives schemas from the worker's native tools. Offline
+The evaluation project derives schemas from the worker's native tools. Scene
 tiers call the live agent LLM but apply tool effects to deterministic fixtures,
-so they do not mutate the LOVR scene.
+so they do not mutate the LOVR scene. The front-end tier calls the decision
+model and uses fixed destination answers.
 
 | Tier | Command | Runs against | Approximate cost |
 |---|---|---|---|
+| Front-end routing | `xr_render_demo_eval_routing` | Live decision model with production route descriptions and fixed destination answers | Seconds per case |
 | Supervisor routing | `xr_render_demo_eval_supervisor` | Fake subagents that record delegations | 15 seconds per case |
 | Subagent components | `xr_render_demo_eval_subagents` | One real subagent over fake leaf functions | 30 seconds per case |
 | End-to-end offline | `xr_render_demo_eval` | Supervisor and subagents over deterministic services | 30 minutes for the full corpus |
@@ -480,9 +535,19 @@ uv run xr_render_demo_eval move_left_one_meter between_two_spheres
 # Routing and component tiers; the component command accepts an agent or case
 uv run xr_render_demo_eval_supervisor
 uv run xr_render_demo_eval_subagents placement
+
+# Front-end selection only; requires Clef, with no scene or generation model
+uv run xr_render_demo_eval_routing
 ```
 
-The offline tiers require only the agent LLM, which defaults to
+The front-end routing tier exercises the real router and decision endpoint
+against general questions, scene actions, mixed requests, camera questions,
+exact recall, and follow-ups across destinations. It uses fixed conversation and
+scene answers and does not evaluate generated answer quality or tool execution.
+Supply `--models-config PATH` to use a different profile containing a `routing`
+entry. Case names select a subset.
+
+The remaining offline tiers require only the agent LLM, which defaults to
 `http://localhost:8108`. They do not require the demo stack, capability
 services, or LOVR.
 
@@ -583,9 +648,8 @@ or real camera perception. Use a live tier for those boundaries.
 
 ## Tracing and debugging
 
-Every turn carries a `trace_id` derived from the runtime's `message_id`
-(set by `xr-ai-runtime` when it dispatches the `UserQuery`). The id is
-logged at supervisor entry:
+Every routed turn carries the runtime's `message_id` as its turn ID. Scene
+turns pass that ID to the supervisor as `trace_id`, logged at supervisor entry:
 
 ```
 [worker] DEBUG supervisor turn participant=alice trace=<uuid> transcript="make a red sphere"
@@ -610,7 +674,8 @@ logs at DEBUG; all other exceptions log at ERROR with full traceback via
 `logger.exception`) propagate so the runtime remains fail-fast and the
 turn is recorded as failed in the runtime event log.
 
-**Concurrent participants.** Each participant's turns are serialized by
+**Concurrent participants.** Each participant's turns are serialized and
+superseded by the router. Scene turns also use
 the supervisor's per-participant lock, and a global scene lock serializes
 the snapshot, mutation, and verification window across participants, so scene
 turns from different participants queue rather than interleave.

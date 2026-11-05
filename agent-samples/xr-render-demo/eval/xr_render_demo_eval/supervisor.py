@@ -59,6 +59,52 @@ class RoutingCase:
 
 CASES = (
     RoutingCase(
+        name="color_reference_with_colored_target",
+        request="The blue box that color.",
+        scene=({"id": "box-7", "type": "box", "pos": [0, 1.6, -1.5], "color": [0, 0.4, 1], "size": 0.1},),
+        history=(("What color is a ripe tomato?", "It is red."),),
+        expect_agent="appearance_agent",
+        instruction_contains=("box-7", "red"),
+        forbid_agents=("placement_agent", "object_agent", "vision_agent"),
+    ),
+    RoutingCase(
+        name="create_at_explicit_user_relative_position",
+        request="Add a white sphere half a metre behind me.",
+        expect_agent="object_agent",
+        instruction_contains=("behind",),
+        forbid_agents=("placement_agent", "vision_agent", "memory_agent"),
+    ),
+    RoutingCase(
+        name="color_reference_after_general_answer",
+        request="Make the box that color.",
+        scene=(
+            {"id": "box-7", "type": "box", "pos": [0.3, 1.4, -1.8], "color": [1, 1, 1], "size": 0.1},
+        ),
+        history=(("What color is a clear daytime sky?", "It is blue."),),
+        expect_agent="appearance_agent",
+        instruction_contains=("box-7", "blue"),
+        forbid_agents=("placement_agent", "object_agent", "vision_agent"),
+    ),
+    RoutingCase(
+        name="color_reference_without_verb",
+        request="The box that color.",
+        scene=(
+            {"id": "box-7", "type": "box", "pos": [-0.3, 1.4, -1.8], "color": [1, 1, 1], "size": 0.1},
+        ),
+        history=(("What color is an amethyst?", "It is purple."),),
+        expect_agent="appearance_agent",
+        instruction_contains=("box-7", "purple"),
+        forbid_agents=("placement_agent", "object_agent", "vision_agent"),
+    ),
+    RoutingCase(
+        name="unresolved_color_reference",
+        request="The box that color.",
+        scene=(
+            {"id": "box-7", "type": "box", "pos": [0.3, 1.4, -1.8], "color": [1, 1, 1], "size": 0.1},
+        ),
+        forbid_agents=("placement_agent", "appearance_agent", "object_agent", "vision_agent", "memory_agent"),
+    ),
+    RoutingCase(
         name="pronoun_resize_after_creation",
         request="Now double its size.",
         scene=(

@@ -34,6 +34,17 @@ must include the fixes for CVE-2026-114050 and CVE-2026-114055 independently of
 the host Python environment. Refer to {doc}`/components/ai-services` for runtime
 selection and container replacement.
 
+### Render demo requires a routing decision endpoint
+
+Users upgrading `xr-render-demo` from `v0.3.0-beta` must add the checked-in
+`routing` entry to custom `yaml/models.json` profiles. It uses `category:
+decision`, `kind: systemone`, model `Cloudflare/clef-flash`, and `base_url:
+http://localhost:8120`. The sample's model-server launcher now includes
+Clef-Flash. Stop the old model stack before updating, then start the updated
+stack; custom GPU profiles must include a `clef` mapping and reserve memory for
+its model. Refer to {doc}`xr-render-demo` and {doc}`clef-flash` for placement
+and endpoint configuration.
+
 ### Interaction messages move to xr-ai-interaction
 
 Code that imports `UserQuery`, `VoiceOutput`, `VoiceParticipantJoined`,

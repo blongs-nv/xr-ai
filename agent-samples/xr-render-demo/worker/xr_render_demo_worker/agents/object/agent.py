@@ -20,8 +20,6 @@ from ...scene import SceneContext
 from ...spatial_ops import CreationLedger, TurnGuard, make_object_tools
 
 _PROMPT = Path(__file__).with_name("prompt.txt")
-# The creation-always-new rule intentionally duplicates supervisor_prompt.txt; see
-# docs/source/reference/xr-render-demo.md ("stated in both places on purpose").
 DESCRIPTION = (
     "Create new XR objects at their requested initial positions, and remove, resize, duplicate, "
     "or reshape existing ones; never moves or recolors an existing object. Moving includes "
@@ -29,7 +27,11 @@ DESCRIPTION = (
     "to appearance_agent. A creation request always makes a new object, even when SCENE OBJECTS "
     "already lists an identical one. Creation carries its position in the same single call, "
     "whether user-relative, anchored on scene objects, or between two of them; this agent "
-    "resolves tracking and anchor geometry itself. Phrase creation as: Create <count, when more "
+    "resolves tracking and anchor geometry itself. User-relative directions are measured from "
+    "the current tracked headset, which this agent reads itself; its instruction needs no "
+    "world coordinates or separate tracking call. Unpositioned creation uses clear space near "
+    "the center of the current tracked view; do not add a spatial instruction for it. "
+    "Phrase creation as: Create <count, when more "
     "than one> <color> <shape>(s) <the user's own spatial words>, with the user's color words "
     "verbatim (a color word, \"same as capsule-8\", or a physical phrase like \"the color of my "
     "apron\") and every requested copy in the one instruction. When the user named no position "

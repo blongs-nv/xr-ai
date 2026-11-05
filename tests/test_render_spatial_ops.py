@@ -11,7 +11,7 @@ directly.
 import pytest
 from xr_ai_tools import Tool
 from xr_ai_tools.types import EmptyRequest, SpatialFrame, Vector3
-from xr_render_demo_worker.spatial_ops import CreationLedger, TurnGuard, _Leaves
+from xr_render_demo_worker.spatial_ops import CreationLedger, TurnGuard, _Leaves, make_object_tools
 from xr_render_scene import (
     AddPrimitiveRequest,
     AddPrimitiveResult,
@@ -119,6 +119,78 @@ def _leaves(objects, guard=None, ledger=None):
 async def test_exact_id_wins():
     leaves, _ = _leaves([_obj("sphere-0", "sphere", (0, 0, 1))])
     assert (await leaves.find("sphere-0")).id == "sphere-0"
+
+
+def _creation_tools(objects=(), frame=None):
+    fake = _FakeScene(objects)
+    tools = make_object_tools(_FakeSceneTools(fake), _FakeTrackingTools(frame), ledger=CreationLedger())
+    return {tool.name: tool for tool in tools}, fake
+
+
+async def test_default_creation_uses_current_full_view():
+    frame = SpatialFrame(
+        origin=Vector3(x=2, y=1.6, z=-1),
+        forward=Vector3(x=0.6, y=-0.8, z=0),
+        right=Vector3(x=0, y=0, z=1),
+        up=Vector3(x=0.8, y=0.6, z=0),
+    )
+    tools, fake = _creation_tools(frame=frame)
+    tool = tools["create_in_view"]
+    result = await tool.execute(tool.request_model(prim_type="sphere", color_value="blue"))
+    created = fake._objects[result.objects[0].id]
+    assert created.position.model_dump() == {"x": 2.9, "y": 0.4, "z": -1.0}
+
+
+async def test_default_creation_avoids_object_on_same_view_line():
+    foreground = _obj("sphere-0", "sphere", (0, 0.4, 1), position=(0, 1.6, -1), size=0.05)
+    tools, fake = _creation_tools([foreground])
+    tool = tools["create_in_view"]
+    result = await tool.execute(tool.request_model(prim_type="box", color_value="red"))
+    created = fake._objects[result.objects[0].id]
+    assert fake._objects[foreground.id] == foreground
+    assert created.position.z == -1.5
+    # Even the cube's nearest horizontal silhouette edge clears the sphere.
+    assert (created.position.x - created.size) / (1.5 + created.size) > 0.05 / (1 - 0.05)
+
+
+async def test_default_creation_ignores_objects_behind_head():
+    tools, fake = _creation_tools([
+        _obj("sphere-0", "sphere", (1, 0, 0), position=(0, 1.6, 2)),
+    ])
+    tool = tools["create_in_view"]
+    result = await tool.execute(tool.request_model(prim_type="sphere"))
+    assert fake._objects[result.objects[0].id].position.model_dump() == {"x": 0.0, "y": 1.6, "z": -1.5}
+
+
+async def test_default_creation_batch_and_retry_do_not_duplicate():
+    tools, fake = _creation_tools()
+    tool = tools["create_in_view"]
+    request = tool.request_model(prim_type="sphere", count=3)
+    first = await tool.execute(request)
+    second = await tool.execute(request)
+    alias = await tool.execute(tool.request_model(prim_type="ball", count=3))
+    assert first == second
+    assert first == alias
+    assert len(fake._objects) == 3
+    assert len({(obj.position.x, obj.position.y, obj.position.z) for obj in fake._objects.values()}) == 3
+    assert [call[0] for call in fake.calls] == ["add_primitive"] * 3
+
+
+async def test_default_creation_checks_space_before_mutating():
+    tools, fake = _creation_tools([
+        _obj("box-0", "box", (1, 0, 0), position=(0, 1.6, -1.5), size=2),
+    ])
+    tool = tools["create_in_view"]
+    with pytest.raises(ValueError, match="enough clear space"):
+        await tool.execute(tool.request_model(prim_type="sphere", count=2))
+    assert not fake.calls
+
+
+async def test_explicit_creation_keeps_occupied_destination():
+    tools, fake = _creation_tools([_obj("sphere-0", "sphere", (1, 0, 0))])
+    tool = tools["create_at"]
+    result = await tool.execute(tool.request_model(prim_type="box", x=0, y=1.6, z=-1.5))
+    assert fake._objects[result.id].position.model_dump() == {"x": 0.0, "y": 1.6, "z": -1.5}
 
 
 async def test_unicode_dash_id_normalizes():

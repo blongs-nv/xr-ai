@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from pydantic import BaseModel
 from xr_ai_hub import DataMessage
 from xr_ai_interaction import Interrupted, ParticipantLeft, ResponseOutput, UserQuery
+from xr_ai_routing import AgentRouter
 from xr_ai_runtime import (
     Agent,
     AgentRuntime,
@@ -33,6 +35,7 @@ sys.path.insert(0, str(_WORKER_DIR))
 
 from xr_render_demo_worker.agent import (  # noqa: E402
     INTERRUPTED_TOPIC,
+    PARTICIPANT_JOINED_TOPIC,
     PARTICIPANT_LEFT_TOPIC,
     USER_QUERY_TOPIC,
     RenderAgent,
@@ -163,14 +166,35 @@ class _VoiceRecorder(Agent):
         self.open_responses.clear()
 
 
+@asynccontextmanager
+async def _render_runtime(supervisor, output, *, on_participant_left=None):
+    runtime = AgentRuntime()
+
+    async def cleanup(participant_id):
+        if on_participant_left is not None:
+            on_participant_left(participant_id)
+
+    router = AgentRouter(
+        {"scene": RenderAgent(supervisor, runtime)}, None, default_destination="scene",
+        query_topic=USER_QUERY_TOPIC, output_topic=VOICE_OUTPUT_TOPIC,
+        participant_joined_topic=PARTICIPANT_JOINED_TOPIC,
+        participant_left_topic=PARTICIPANT_LEFT_TOPIC,
+        interrupted_topic=INTERRUPTED_TOPIC,
+        cleanup_participant=cleanup,
+    )
+    runtime.register("router", router.runtime_subscriber())
+    runtime.register("test-output", output)
+    async with runtime:
+        try:
+            yield runtime
+        finally:
+            await router.stop()
+
+
 async def test_render_agent_publishes_voice_output() -> None:
     supervisor = _QuickSupervisor(reply="hello")
     output = _VoiceRecorder()
-    runtime = AgentRuntime()
-    runtime.register("xr-render", RenderAgent(supervisor))
-    runtime.register("test-output", output)
-
-    async with runtime:
+    async with _render_runtime(supervisor, output) as runtime:
         await runtime.publish(
             USER_QUERY_TOPIC,
             UserQuery(text="hello", timestamp_us=1),
@@ -191,11 +215,7 @@ async def test_render_agent_publishes_voice_output() -> None:
 async def test_render_agent_supersedes_a_participant_turn() -> None:
     supervisor = _StubSupervisor()
     output = _VoiceRecorder()
-    runtime = AgentRuntime()
-    runtime.register("xr-render", RenderAgent(supervisor))
-    runtime.register("test-output", output)
-
-    async with runtime:
+    async with _render_runtime(supervisor, output) as runtime:
         await runtime.publish(
             USER_QUERY_TOPIC,
             UserQuery(text="first", timestamp_us=1),
@@ -215,11 +235,7 @@ async def test_render_agent_supersedes_a_participant_turn() -> None:
 async def test_interruption_cancels_participant_turn() -> None:
     supervisor = _StubSupervisor()
     output = _VoiceRecorder()
-    runtime = AgentRuntime()
-    runtime.register("xr-render", RenderAgent(supervisor))
-    runtime.register("test-output", output)
-
-    async with runtime:
+    async with _render_runtime(supervisor, output) as runtime:
         await runtime.publish(
             USER_QUERY_TOPIC,
             UserQuery(text="first", timestamp_us=1),
@@ -242,11 +258,7 @@ async def test_participant_departure_cancels_turn_and_fires_callback() -> None:
     supervisor = _StubSupervisor()
     departed: list[str] = []
     output = _VoiceRecorder()
-    runtime = AgentRuntime()
-    runtime.register("xr-render", RenderAgent(supervisor, on_participant_left=departed.append))
-    runtime.register("test-output", output)
-
-    async with runtime:
+    async with _render_runtime(supervisor, output, on_participant_left=departed.append) as runtime:
         await runtime.publish(
             USER_QUERY_TOPIC,
             UserQuery(text="first", timestamp_us=1),
@@ -270,11 +282,7 @@ async def test_global_interruption_cancels_every_participant() -> None:
     participants = {"alice", "bob"}
     supervisor = _MultiStubSupervisor(participants)
     output = _VoiceRecorder()
-    runtime = AgentRuntime()
-    runtime.register("xr-render", RenderAgent(supervisor))
-    runtime.register("test-output", output)
-
-    async with runtime:
+    async with _render_runtime(supervisor, output) as runtime:
         for pid in participants:
             await runtime.publish(
                 USER_QUERY_TOPIC,

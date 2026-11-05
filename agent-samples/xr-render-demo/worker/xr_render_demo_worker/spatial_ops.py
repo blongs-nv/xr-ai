@@ -31,7 +31,8 @@ from xr_render_scene import (
     UpdatePrimitiveRequest,
 )
 
-from ._trace import current_mutation_evidence
+from ._trace import current_mutation_evidence, current_trace_id
+from .view_placement import creation_positions
 
 
 def _record(field: str) -> None:
@@ -94,6 +95,10 @@ class CreatedObject(BaseModel):
     y: float
     z: float
     created_this_turn: int = Field(default=1, description="Objects created so far in this turn, including this one.")
+
+
+class CreatedObjects(BaseModel):
+    objects: list[CreatedObject]
 
 
 class RecoloredObject(BaseModel):
@@ -457,16 +462,23 @@ class _RecolorRequest(_ObjRequest):
     color_value: str = Field(description=_COLOR_VALUE_GUIDE)
 
 
-class _CreateUserRelativeRequest(BaseModel):
+class _CreateInViewRequest(BaseModel):
     prim_type: str = Field(description="The instruction's exact shape word, copied verbatim.")
-    direction: _UserDirection
     color_kind: _ColorKind = Field(default="literal", description=_COLOR_KIND_GUIDE)
     color_value: str = Field(
         default="",
         description=_COLOR_VALUE_GUIDE + " Leave empty when the instruction states no color."
     )
+    size: float = Field(default=0.1, gt=0, description="Sphere radius or box half-edge in metres.")
+
+
+class _CreateUnpositionedRequest(_CreateInViewRequest):
+    count: int = Field(default=1, ge=1, description="Total number of copies requested in this instruction.")
+
+
+class _CreateUserRelativeRequest(_CreateInViewRequest):
+    direction: _UserDirection
     distance: float = Field(default=1.5, description="Distance from the user in metres.")
-    size: float = Field(default=0.1, description="Sphere radius or box half-edge in metres.")
 
 
 class _CreateObjectRelativeRequest(BaseModel):
@@ -670,6 +682,25 @@ def make_object_tools(
     physical_color: Tool | None = None,
 ) -> list[Tool]:
     leaves = _Leaves(scene, tracking, ledger=ledger, guard=guard, physical_color=physical_color)
+    view_creations: dict[tuple, list[CreatedObject]] = {}
+    view_lock = asyncio.Lock()
+
+    async def create_in_view(req: _CreateUnpositionedRequest) -> CreatedObjects:
+        async with view_lock:
+            prim = leaves.shape(req.prim_type)
+            key = (prim, req.color_kind, req.color_value.strip().lower(), req.size, req.count)
+            created = view_creations.setdefault(key, [])
+            if len(created) == req.count:
+                return CreatedObjects(objects=created)
+            color = await leaves.resolve_color(req.color_kind, req.color_value)
+            frame = await leaves.user_frame()
+            state = await scene.get_scene_state.execute(EmptyRequest())
+            positions = creation_positions(frame, state.objects, prim, req.size, req.count - len(created))
+            logger.debug("create_in_view frame={} positions={} trace={}",
+                         frame.model_dump(), [p.model_dump() for p in positions], current_trace_id.get())
+            for position in positions:
+                created.append(await leaves.add(prim, (position.x, position.y, position.z), color, req.size))
+            return CreatedObjects(objects=created)
 
     async def create_user_relative(req: _CreateUserRelativeRequest) -> CreatedObject:
         prim = leaves.shape(req.prim_type)
@@ -687,7 +718,7 @@ def make_object_tools(
         except ValueError as error:
             raise ValueError(
                 f"{error}. If the instruction names no existing object to anchor on, this is a bare "
-                "creation: call create_user_relative with direction front and distance 1.5 instead."
+                "creation: call create_in_view with the requested count instead."
             ) from None
         if req.second_anchor_words:
             logger.debug("create_object_relative between={!r} and={!r}", req.anchor_words, req.second_anchor_words)
@@ -732,6 +763,12 @@ def make_object_tools(
         return RemovedObject(obj_id=target.id)
 
     return [
+        Tool("create_in_view",
+             "Create objects when the instruction states no position, direction, or anchor. Place all requested "
+             "copies in clear space near the center of the current tracked view, avoiding angular overlap "
+             "with existing objects. Uses the full head orientation. Explicit spatial requests belong to "
+             "the other creation tools and retain their stated positions.",
+             _CreateUnpositionedRequest, CreatedObjects, create_in_view),
         Tool("create_user_relative", "Create a new object at a point in a named direction from the user.",
              _CreateUserRelativeRequest, CreatedObject, create_user_relative),
         Tool("create_object_relative",

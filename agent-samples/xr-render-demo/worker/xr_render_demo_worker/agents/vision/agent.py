@@ -20,12 +20,12 @@ from ...models import SubagentResult, SubagentTask
 from ...scene import SceneContext
 
 _PROMPT = Path(__file__).with_name("prompt.txt")
-# The SCENE OBJECTS sentence intentionally duplicates supervisor_prompt.txt; see
-# docs/source/reference/xr-render-demo.md ("stated in both places on purpose").
 # _SHARED_RULES ends mid-sentence: each description completes it differently.
 _SHARED_RULES = (
     "Any request to describe or survey what is visible also means the physical view, never a "
-    "recital of the XR scene. A user statement about the camera itself is not a perception "
+    "recital of the XR scene. Scene mutations with physical references belong wholly to "
+    "the relevant mutating agent, which observes those references itself. A user statement "
+    "about the camera itself is not a perception "
     "request. Never for facts about XR objects: SCENE OBJECTS is always current and complete, "
     "tracking resolves user-relative placement, and the mutating agents read the camera "
     "themselves for physical color sources. A new question about what the user holds, wears, "
@@ -36,7 +36,9 @@ _SHARED_RULES = (
 )
 
 DESCRIPTION = (
-    "Answer a question about the user's physical surroundings from the live camera, or from "
+    "Answer questions about physical surroundings. Do not call for a scene-editing request; "
+    "appearance_agent and object_agent observe their own physical color references. Use "
+    "the live camera for present questions, or "
     "recorded video when the question is about a past moment: \"what am I looking at?\" and "
     "\"what was I holding a moment ago?\" are always this agent, never answered without "
     "delegating here. " + _SHARED_RULES + "; never redelegate with historical video "

@@ -16,7 +16,7 @@ from xr_ai_models import ChatMessage, LLMService, VLMService
 from xr_ai_tools import Tool, ToolSet
 from xr_ai_tools.current_frame import CurrentFrameTool
 from xr_ai_tools.image import ImageRegistry
-from xr_ai_tools.text_memory import AddTranscriptRequest, RecallConversationRequest, TextMemoryTools
+from xr_ai_tools.text_memory import RecallConversationRequest, TextMemoryTools
 from xr_ai_tools.tool_calling import ToolLoopError, run_tool_loop
 from xr_ai_tools.tracking import TrackingTools
 from xr_ai_tools.video_memory import VideoMemoryTools
@@ -40,6 +40,7 @@ from .agents import (
 )
 from .models import SceneReply, SceneRequest
 from .scene import SceneContext
+from .transcript import persist_exchange
 
 _PROMPT = Path(__file__).with_name("supervisor_prompt.txt")
 
@@ -172,25 +173,18 @@ class SceneSupervisor:
             return ""
         lines = [f"  {'User' if e.role == 'user' else 'Agent'}: {e.text}" for e in entries]
         block = (
-            "[Recent conversation] (already handled; never a source of new work)\n"
+            "[Recent conversation] (context for references; completed actions are not new requests)\n"
             + "\n".join(lines) + "\n\n"
         )
         return block
 
     async def _persist_turn(self, request: SceneRequest, user_text: str, reply_text: str) -> None:
-        await self._text_memory.add_transcript.execute(
-            AddTranscriptRequest(
-                source_id=f"{request.participant_id}:user",
-                timestamp_us=request.timestamp_us,
-                text=user_text,
-            )
-        )
-        await self._text_memory.add_transcript.execute(
-            AddTranscriptRequest(
-                source_id=f"{request.participant_id}:agent",
-                timestamp_us=time.time_ns() // 1_000,
-                text=reply_text,
-            )
+        await persist_exchange(
+            self._text_memory,
+            participant_id=request.participant_id,
+            query=user_text,
+            response=reply_text,
+            timestamp_us=request.timestamp_us,
         )
 
     async def handle(self, request: SceneRequest) -> SceneReply:
@@ -237,7 +231,8 @@ class SceneSupervisor:
 
         async def _call_model(model_transcript, definitions):
             return await self._llm.chat(
-                model_transcript, tools=list(definitions) or None, max_tokens=2048, temperature=0.0
+                model_transcript, tools=list(definitions) or None, max_tokens=2048,
+                temperature=0.0, enable_thinking=True,
             )
 
         try:

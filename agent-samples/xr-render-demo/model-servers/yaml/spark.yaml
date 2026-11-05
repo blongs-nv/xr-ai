@@ -18,3 +18,5 @@ vlm:
   kv_cache_memory_bytes: 1610612736
   max_num_seqs: 4
   spark_uma: true
+clef:
+  device: cuda:0

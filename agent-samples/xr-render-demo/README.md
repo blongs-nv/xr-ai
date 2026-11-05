@@ -5,13 +5,14 @@
 
 # xr-render-demo
 
-This sample connects a conversational agent to a live CloudXR scene. A
-supervisor routes natural-language requests to focused subagents that inspect
+This sample connects a conversational agent to a live CloudXR scene. An agent
+router selects general conversation or a scene supervisor. The supervisor
+delegates requests to focused subagents that inspect
 and modify scene objects, tracking, spatial state, and recorded visual context
 through native `xr-ai-tools` functions.
 
 The sample launches DeviceIOHub, the CloudXR runtime, the scene and capability
-services, and its worker. It reuses STT, Pocket TTS, Nemotron-3 Nano Omni, and
+services, and its worker. It reuses Clef-Flash, STT, Pocket TTS, Nemotron-3 Nano Omni, and
 Cosmos3 Nano Reasoner from the sample's local model stack. The default client is the
 browser-based Web-XR experience.
 

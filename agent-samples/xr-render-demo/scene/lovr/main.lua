@@ -255,7 +255,7 @@ function lovr.draw(pass)
         pass:setColor(obj.current_color[1], obj.current_color[2], obj.current_color[3], 0.95)
         local p, s = obj.current_pos, obj.current_scale
         if obj.type == "box" then
-            pass:box(p[1], p[2], p[3], s, s, s)
+            pass:box(p[1], p[2], p[3], 2 * s, 2 * s, 2 * s)
         else
             pass:sphere(p[1], p[2], p[3], s)
         end

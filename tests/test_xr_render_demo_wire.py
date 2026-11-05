@@ -87,7 +87,7 @@ def test_all_agent_modules_export_descriptions() -> None:
 
 def test_prompt_files_exist_and_are_nonempty() -> None:
     prompts = sorted(_PACKAGE.rglob("*prompt*.txt"))
-    assert len(prompts) == 6  # supervisor + five subagents
+    assert len(prompts) == 7  # conversation, supervisor, and five subagents
     for prompt in prompts:
         assert prompt.read_text(encoding="utf-8").strip(), prompt
 
@@ -144,7 +144,7 @@ def test_models_config_loads() -> None:
     """The bundled model config parses and exposes the expected names."""
     cfg = load_models_config(_MODELS_CONFIG)
     llm_spec      = cfg.llm("llm")
-    assert set(cfg.entries) == {"llm", "tts", "vlm"}
+    assert set(cfg.entries) == {"llm", "tts", "vlm", "routing"}
     tts_spec      = cfg.tts("tts")
     vlm_spec      = cfg.vlm("vlm")
 
