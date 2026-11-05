@@ -33,7 +33,6 @@
 "agent-samples/xr-render-demo/main.py" = ["BLE001"]  # BLE001=1
 "agent-samples/xr-render-demo/scene/xr_render_scene/service.py" = ["BLE001"]  # BLE001=1
 "agent-samples/xr-render-demo/worker/xr_render_demo_worker/_physical_color.py" = ["BLE001"]  # BLE001=2
-"agent-samples/xr-render-demo/worker/xr_render_demo_worker/agent.py" = ["BLE001"]  # BLE001=2
 "agent-samples/xr-render-demo/worker/xr_render_demo_worker/agents/vision/agent.py" = ["BLE001"]  # BLE001=2
 "agent-samples/xr-render-demo/worker/xr_render_demo_worker/app.py" = ["BLE001"]  # BLE001=1
 "agent-samples/xr-render-demo/worker/xr_render_demo_worker/xr_session.py" = ["BLE001"]  # BLE001=3

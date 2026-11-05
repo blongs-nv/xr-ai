@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from xr_ai_interaction import UserQuery
+from xr_ai_routing import AgentTurn
 from xr_ai_tools import Tool
 from xr_ai_tools.text_memory import (
     AddTranscriptRequest,
@@ -278,44 +278,26 @@ async def test_verification_offers_repeat_after_mutating_delegation(monkeypatch)
     assert "repeat your final answer" in nudges[0]
 
 
-async def test_turn_tasks_run_in_forked_relay_context(monkeypatch) -> None:
-    """Detached turn tasks must not inherit the subscriber's live Relay scope
-    stack; each turn gets a forked context."""
-    import nemo_relay
-    from xr_render_demo_worker import agent as agent_module
+async def test_scene_destination_signals_start_before_supervisor_work() -> None:
+    from unittest.mock import AsyncMock
 
-    forks = 0
-    real_fork = nemo_relay.fork_asyncio_context
+    started = False
 
-    def counting_fork():
-        nonlocal forks
-        forks += 1
-        return real_fork()
+    async def mark_started():
+        nonlocal started
+        started = True
 
-    monkeypatch.setattr(agent_module.nemo_relay, "fork_asyncio_context", counting_fork)
-
-    class _QuickSupervisor:
+    class Supervisor:
         async def handle(self, request):
-            return SimpleNamespace(response="ok")
+            assert started
+            assert request.transcript == "Make a sphere."
+            assert request.trace_id == "turn-1"
+            return SimpleNamespace(response="Created it.")
 
-    published = []
-
-    class _Ctx:
-        def __init__(self, pid):
-            self.metadata = SimpleNamespace(participant_id=pid, message_id=f"t-{pid}")
-
-        async def publish(self, topic, value, *, participant_id):
-            published.append(value)
-
-    agent = RenderAgent(_QuickSupervisor())
-    await agent.answer_user(UserQuery(text="hi", timestamp_us=1), _Ctx("alice"))
-    await agent.answer_user(UserQuery(text="hi", timestamp_us=1), _Ctx("bob"))
-    for _ in range(200):
-        if len(published) == 4:
-            break
-        await asyncio.sleep(0.01)
-    assert forks == 2
-    assert len(published) == 4
+    runtime = SimpleNamespace(publish=AsyncMock())
+    agent = RenderAgent(Supervisor(), runtime)
+    result = await agent.answer(AgentTurn("alice", "turn-1", "Make a sphere."), started=mark_started)
+    assert result.text == "Created it."
 
 
 async def test_supervisor_eval_fails_on_exception_after_delegation(monkeypatch) -> None:
@@ -338,20 +320,19 @@ async def test_supervisor_eval_fails_on_exception_after_delegation(monkeypatch) 
 async def test_failing_supervisor_publishes_failure_notice() -> None:
     """A supervisor crash still produces one complete spoken failure notice,
     never silence."""
+    from unittest.mock import AsyncMock
+
     published = []
 
-    class _Ctx:
-        metadata = SimpleNamespace(participant_id="alice", message_id="trace-1")
-
-        async def publish(self, topic, value, *, participant_id):
-            published.append(value)
+    async def publish(topic, value, **kwargs):
+        published.append(value)
 
     class _ExplodingSupervisor:
         async def handle(self, request):
             raise RuntimeError("boom")
 
-    agent = RenderAgent(_ExplodingSupervisor())
-    await agent._run_turn(UserQuery(text="Make a sphere.", timestamp_us=1), _Ctx())
+    agent = RenderAgent(_ExplodingSupervisor(), SimpleNamespace(publish=publish))
+    await agent.answer(AgentTurn("alice", "trace-1", "Make a sphere.", timestamp_us=1), started=AsyncMock())
 
     assert [(m.text, m.final) for m in published] == [
         ("Something went wrong. Please try again.", False),

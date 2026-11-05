@@ -1,136 +1,101 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Typed topics and the resident xr-render runtime agent."""
+"""Routed scene and conversation destinations for the render worker."""
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from pathlib import Path
 
-import nemo_relay
 from loguru import logger
-from xr_ai_interaction import Interrupted, ParticipantLeft, ResponseOutputs, UserQuery
-from xr_ai_runtime import Agent, RuntimeContext, Topic, subscribe
+from xr_ai_conversation import ContextManager, Conversation
+from xr_ai_interaction import Interrupted, ParticipantJoined, ParticipantLeft, ResponseOutputs, UserQuery
+from xr_ai_models import LLMService
+from xr_ai_routing import Admission, AgentTurn, DestinationResult, RoutingAid
+from xr_ai_runtime import AgentRuntime, Topic
 from xr_ai_voice import VOICE_OUTPUT_TOPIC
 
 from .models import SceneRequest
 
-USER_QUERY_TOPIC: Topic[UserQuery] = Topic("xr-render.user-query", UserQuery)
-PARTICIPANT_LEFT_TOPIC: Topic[ParticipantLeft] = Topic(
-    "xr-render.participant-left", ParticipantLeft
+USER_QUERY_TOPIC = Topic("xr-render.user-query", UserQuery)
+PARTICIPANT_JOINED_TOPIC = Topic("xr-render.participant-joined", ParticipantJoined)
+PARTICIPANT_LEFT_TOPIC = Topic("xr-render.participant-left", ParticipantLeft)
+INTERRUPTED_TOPIC = Topic("xr-render.interrupted", Interrupted)
+
+_SCENE_ROUTING = RoutingAid(
+    "scene",
+    "Visual questions about the user's surroundings, objects they hold, or what the camera sees, now or earlier. "
+    "Commands to create, inspect, move, recolor, resize, remove, or undo edits to virtual 3D objects and shapes. "
+    "Exact conversation transcript recall. Requests combining a scene command with a general question belong "
+    "here in full: perform the scene action and answer the question together.",
 )
-INTERRUPTED_TOPIC: Topic[Interrupted] = Topic("xr-render.interrupted", Interrupted)
+_CONVERSATION_ROUTING = RoutingAid(
+    "conversation",
+    "General knowledge questions, explanations, greetings, and casual chat. Eligible only when the entire "
+    "request requires no scene action, object inspection, camera observation, or exact transcript recall.",
+)
 
 
-class RenderAgent(Agent):
-    """Route participant-scoped render turns from voice to the scene supervisor."""
+class RenderAgent:
+    """Delegate a complete scene turn to the supervisor and publish its verified reply."""
 
-    def __init__(
-        self,
-        supervisor,
-        *,
-        on_participant_left: Callable[[str], None] | None = None,
-    ) -> None:
-        super().__init__()
+    def __init__(self, supervisor, runtime: AgentRuntime) -> None:
         self._supervisor = supervisor
-        self._on_participant_left = on_participant_left
-        self._tasks: dict[str, asyncio.Task] = {}
-        self._stopped = False
+        self._runtime = runtime
 
-    @subscribe(USER_QUERY_TOPIC)
-    async def answer_user(self, query: UserQuery, ctx: RuntimeContext) -> None:
-        if self._stopped:
-            return
-        participant_id = ctx.metadata.participant_id
-        if participant_id is None:
-            raise ValueError("render turns require a participant")
-        await self._cancel(participant_id)
-        # The detached turn must not inherit the subscriber's live Relay
-        # scope stack; mutating it after the subscriber returns corrupts
-        # concurrent trace lifecycles.
-        task = asyncio.create_task(
-            self._run_turn(query, ctx),
-            name=f"xr-render:{participant_id}",
-            context=nemo_relay.fork_asyncio_context(),
-        )
-        self._tasks[participant_id] = task
-        task.add_done_callback(lambda t, pid=participant_id: self._discard(pid, t))
+    def routing_aid(self, _participant_id: str) -> RoutingAid:
+        return _SCENE_ROUTING
 
-    @subscribe(PARTICIPANT_LEFT_TOPIC)
-    async def participant_left(
-        self, _event: ParticipantLeft, ctx: RuntimeContext
-    ) -> None:
-        participant_id = ctx.metadata.participant_id
-        if participant_id is None:
-            return
-        await self._cancel(participant_id)
-        if self._on_participant_left is not None:
-            self._on_participant_left(participant_id)
+    async def admit(self, _turn: AgentTurn, *, focused: bool) -> Admission:
+        return Admission("accept")
 
-    @subscribe(INTERRUPTED_TOPIC)
-    async def interrupted(self, _event: Interrupted, ctx: RuntimeContext) -> None:
-        participant_id = ctx.metadata.participant_id
-        if participant_id is not None:
-            await self._cancel(participant_id)
-        else:
-            for pid in list(self._tasks):
-                await self._cancel(pid)
-
-    async def stop(self) -> None:
-        self._stopped = True
-        for pid in list(self._tasks):
-            await self._cancel(pid)
-
-    async def _run_turn(self, query: UserQuery, ctx: RuntimeContext) -> None:
-        participant_id = ctx.metadata.participant_id
-        request_id = ctx.metadata.message_id
+    async def answer(self, turn: AgentTurn, *, started: Callable[[], Awaitable[None]]) -> DestinationResult:
+        await started()
         try:
             reply = await self._supervisor.handle(
                 SceneRequest(
-                    transcript=query.text,
-                    participant_id=participant_id,
-                    timestamp_us=query.timestamp_us,
-                    trace_id=request_id,
+                    transcript=turn.query,
+                    participant_id=turn.participant_id,
+                    timestamp_us=turn.timestamp_us or 0,
+                    trace_id=turn.turn_id,
                 )
             )
             text = reply.response
-        except asyncio.CancelledError:
-            raise
-        except Exception as error:
-            logger.exception("xr-render turn failed for {}: {!r}", participant_id, error)
+        except Exception:  # noqa: BLE001
+            # isolation boundary: after scene work starts, this destination owns its failure reply.
+            logger.exception("xr-render turn failed for {}", turn.participant_id)
             text = "Something went wrong. Please try again."
-        try:
-            async with ResponseOutputs(ctx, VOICE_OUTPUT_TOPIC).reply(
-                participant_id,
-                request_id=request_id,
-                timestamp_us=query.timestamp_us,
-            ) as answer:
-                await answer.send(text)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            # Best-effort delivery; a publish failure has no further fallback.
-            logger.exception("xr-render reply publish failed for {}", participant_id)
+        async with ResponseOutputs(self._runtime, VOICE_OUTPUT_TOPIC, source="scene").reply(
+            turn.participant_id,
+            request_id=turn.turn_id,
+            timestamp_us=turn.timestamp_us,
+        ) as answer:
+            await answer.send(text)
+        return DestinationResult(text=text)
 
-    async def _cancel(self, participant_id: str) -> None:
-        task = self._tasks.pop(participant_id, None)
-        if task is not None:
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+    async def release(self, _participant_id: str) -> None:
+        pass
 
-    def _discard(self, participant_id: str, task: asyncio.Task) -> None:
-        current = self._tasks.get(participant_id)
-        if current is task:
-            self._tasks.pop(participant_id, None)
-        if task.cancelled():
-            return
-        if (error := task.exception()) is not None:
-            logger.error("xr-render turn failed for {}: {!r}", participant_id, error)
+
+def make_conversation_agent(
+    llm: LLMService, *, context: ContextManager, runtime: AgentRuntime,
+) -> Conversation:
+    """Configure the SDK destination for general conversation."""
+    return Conversation(
+        llm,
+        context=context,
+        instructions=Path(__file__).with_name("conversation_prompt.txt").read_text(encoding="utf-8"),
+        routing=_CONVERSATION_ROUTING,
+        runtime=runtime,
+        output_topic=VOICE_OUTPUT_TOPIC,
+    )
 
 
 __all__ = [
+    "make_conversation_agent",
     "INTERRUPTED_TOPIC",
+    "PARTICIPANT_JOINED_TOPIC",
     "PARTICIPANT_LEFT_TOPIC",
     "USER_QUERY_TOPIC",
     "RenderAgent",

@@ -47,6 +47,15 @@ must include the fixes for CVE-2026-114050 and CVE-2026-114055 independently of
 the host Python environment. Refer to {doc}`/components/ai-services` for runtime
 selection and container replacement.
 
+### Render demo requires a routing decision endpoint
+
+The render demo now routes general questions to SDK `Conversation` and scene
+requests to its existing supervisor. Add the `routing` role from the sample's
+`yaml/models.json` to custom endpoint configurations. Restart the model stack
+with an updated render-demo profile, which includes Clef Flash on port 8120,
+before restarting the worker. Refer to {doc}`xr-render-demo` for routing and
+conversation-context behavior.
+
 ### Interaction messages move to xr-ai-interaction
 
 Code that imports `UserQuery`, `VoiceOutput`, `VoiceParticipantJoined`,
