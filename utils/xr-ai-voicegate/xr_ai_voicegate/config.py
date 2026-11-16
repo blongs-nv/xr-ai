@@ -82,7 +82,9 @@ class VoiceGateConfig:
         object.__setattr__(self, "_mode", "wake_only" if self.magic_phrases else "always_on")
 
 
-def load_voice_gate_config(path: pathlib.Path) -> VoiceGateConfig:
+def load_voice_gate_config(
+    path: pathlib.Path, *, speaker_base_url: str | None = None, speaker_enabled: bool | None = None
+) -> VoiceGateConfig:
     """Load + parse a voice_gate YAML file into a :class:`VoiceGateConfig`.
 
     Schema: a top-level mapping with ``mode`` (``always_on``, ``wake_only``,
@@ -100,6 +102,13 @@ def load_voice_gate_config(path: pathlib.Path) -> VoiceGateConfig:
     once using their conversation and phrase settings; explicit mode must not be
     mixed with ``conversation.enabled``. ``magic_phrases: null`` and trailing
     whitespace are normalized before validation.
+
+    ``speaker_base_url`` is the endpoint of the profile's ``speech_in`` entry. When given it replaces
+    ``speaker.base_url`` from the file and the packaged default (and is validated like it), so the
+    voice-gate key is ignored once a profile declares ``speech_in``. ``speaker_enabled`` likewise
+    overrides ``speaker.enabled``: a profile whose ``speech_in`` is not the enrolled-speaker service
+    passes ``False``, so switching profiles does not also mean editing this file. Both default to
+    ``None``, which leaves the file's values in force.
     """
     defaults = yaml.safe_load(files(__package__).joinpath("voice_gate.yaml").read_text(encoding="utf-8"))
     if not isinstance(defaults, dict):
@@ -123,6 +132,12 @@ def load_voice_gate_config(path: pathlib.Path) -> VoiceGateConfig:
                 **section_defaults,
             }
         values[section] = {**section_defaults, **raw[section]}
+
+    if isinstance(values.get("speaker"), dict):
+        if speaker_base_url is not None:
+            values["speaker"] = {**values["speaker"], "base_url": speaker_base_url}
+        if speaker_enabled is not None:
+            values["speaker"] = {**values["speaker"], "enabled": speaker_enabled}
 
     phrases_raw = values.get("magic_phrases") or []
     if isinstance(phrases_raw, str):

@@ -962,6 +962,10 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
 - Build dependencies:
   - `hatchling`
 - Runtime dependencies:
+  - `xr-ai-next[video]` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+  - `xr-ai-kit[a2a]` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-procedures` → [`xr-ai-procedures`](xr-ai-next/packages/xr-ai-procedures/) (local, editable)
+  - `a2a-sdk[http-server]>=1.2,<2`
   - `xr-ai-agent-runtime` → [`xr-ai-agent-runtime`](agent-sdk/xr-ai-runtime/) (local, editable)
   - `xr-ai-interaction` → [`xr-ai-interaction`](agent-sdk/xr-ai-interaction/) (local, editable)
   - `xr-ai-conversation` → [`xr-ai-conversation`](agent-sdk/xr-ai-conversation/) (local, editable)
@@ -979,6 +983,8 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
   - `xr-ai-vad` → [`xr-ai-vad`](utils/xr-ai-vad/) (local, editable)
   - `xr-ai-voicegate` → [`xr-ai-voicegate`](utils/xr-ai-voicegate/) (local, editable)
   - `xr-ai-vllm` → [`xr-ai-vllm`](utils/xr-ai-vllm/) (local, editable)
+  - `xr-ai-eval` → [`xr-ai-eval`](evals/runner/) (local, editable)
+  - `xr-ai-eval-adapters` → [`xr-ai-eval-adapters`](evals/adapters/) (local, editable)
   - `xr-render-demo-eval` → [`xr-render-demo-eval`](agent-samples/xr-render-demo/eval/) (local, editable)
   - `xr-render-demo-worker` → [`xr-render-demo-worker`](agent-samples/xr-render-demo/worker/) (local, editable)
   - `xr-render-scene` → [`xr-render-scene`](agent-samples/xr-render-demo/scene/) (local, editable)
@@ -1005,6 +1011,9 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
 - Runtime dependencies: none
 - Optional dependency groups:
   - `repository`:
+    - `conversation-example` → [`conversation-example`](agent-samples/conversation-example/) (local, editable)
+    - `conversation-example-model-servers` → [`conversation-example-model-servers`](agent-samples/conversation-example/model-servers/) (local, editable)
+    - `conversation-example-worker` → [`conversation-example-worker`](agent-samples/conversation-example/worker/) (local, editable)
     - `lab-instrument-monitoring` → [`lab-instrument-monitoring`](agent-samples/lab-instrument-monitoring/) (local, editable)
     - `lab-instrument-monitoring-model-servers` → [`lab-instrument-monitoring-model-servers`](agent-samples/lab-instrument-monitoring/model-servers/) (local, editable)
     - `lab-instrument-monitoring-worker` → [`lab-instrument-monitoring-worker`](agent-samples/lab-instrument-monitoring/worker/) (local, editable)
@@ -1031,6 +1040,8 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
     - `xr-ai-tools[capture,frames,image-editing,marker-tracking,relay,services,vision]` → [`xr-ai-tools`](agent-sdk/xr-ai-tools/) (local, editable)
     - `xr-ai-voice` → [`xr-ai-voice`](agent-sdk/xr-ai-voice/) (local, editable)
     - `xr-ai-web-events` → [`xr-ai-web-events`](agent-sdk/xr-ai-web-events/) (local, editable)
+    - `xr-ai-eval-adapters` → [`xr-ai-eval-adapters`](evals/adapters/) (local, editable)
+    - `xr-ai-eval` → [`xr-ai-eval`](evals/runner/) (local, editable)
     - `clef-server` → [`clef-server`](services/clef-server/) (local, editable)
     - `cloudxr-runtime` → [`cloudxr-runtime`](services/cloudxr-runtime/) (local, editable)
     - `device-io-hub` → [`device-io-hub`](services/device-io-hub/) (local, editable)
@@ -1048,12 +1059,402 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
     - `xr-ai-vad` → [`xr-ai-vad`](utils/xr-ai-vad/) (local, editable)
     - `xr-ai-vllm` → [`xr-ai-vllm`](utils/xr-ai-vllm/) (local, editable)
     - `xr-ai-voicegate` → [`xr-ai-voicegate`](utils/xr-ai-voicegate/) (local, editable)
+    - `xr-ai-kit[a2a]` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+    - `xr-ai-langchain` → [`xr-ai-langchain`](xr-ai-next/packages/xr-ai-langchain/) (local, editable)
+    - `xr-ai-next[video]` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+    - `xr-ai-procedures` → [`xr-ai-procedures`](xr-ai-next/packages/xr-ai-procedures/) (local, editable)
+    - `xr-ai-next-sample-conversation` → [`xr-ai-next-sample-conversation`](xr-ai-next/samples/conversation/) (local, editable)
+    - `xr-ai-next-sample-conversation-model-servers` → [`xr-ai-next-sample-conversation-model-servers`](xr-ai-next/samples/conversation/model-servers/) (local, editable)
+    - `xr-ai-next-sample-lab-instruments` → [`xr-ai-next-sample-lab-instruments`](xr-ai-next/samples/lab-instruments/) (local, editable)
+    - `xr-ai-next-sample-lab-instruments-model-servers` → [`xr-ai-next-sample-lab-instruments-model-servers`](xr-ai-next/samples/lab-instruments/model-servers/) (local, editable)
+    - `xr-ai-next-samples-sdk-tour` → [`xr-ai-next-samples-sdk-tour`](xr-ai-next/samples/sdk-tour/) (local, editable)
+    - `xr-ai-next-sample-hello-voice` → [`xr-ai-next-sample-hello-voice`](xr-ai-next/samples/sdk-tour/01-hello-voice/) (local, editable)
+    - `xr-ai-next-sample-vision-qa` → [`xr-ai-next-sample-vision-qa`](xr-ai-next/samples/sdk-tour/02-vision-qa/) (local, editable)
+    - `xr-ai-next-sample-camera-monitor` → [`xr-ai-next-sample-camera-monitor`](xr-ai-next/samples/sdk-tour/03-camera-monitor/) (local, editable)
+    - `xr-ai-next-sample-notes-mode` → [`xr-ai-next-sample-notes-mode`](xr-ai-next/samples/sdk-tour/04-notes-mode/) (local, editable)
+    - `xr-ai-next-sample-manual-dispatch` → [`xr-ai-next-sample-manual-dispatch`](xr-ai-next/samples/sdk-tour/05-manual-dispatch/) (local, editable)
+    - `xr-ai-next-sample-shared-room` → [`xr-ai-next-sample-shared-room`](xr-ai-next/samples/sdk-tour/06-shared-room/) (local, editable)
+    - `xr-ai-next-sample-delegate-a2a` → [`xr-ai-next-sample-delegate-a2a`](xr-ai-next/samples/sdk-tour/07-delegate-a2a/) (local, editable)
+    - `xr-ai-next-sample-a2a-research-agent` → [`xr-ai-next-sample-a2a-research-agent`](xr-ai-next/samples/sdk-tour/07-delegate-a2a/research_agent/) (local, editable)
+    - `xr-ai-next-sample-delegate-langgraph` → [`xr-ai-next-sample-delegate-langgraph`](xr-ai-next/samples/sdk-tour/08-delegate-langgraph/) (local, editable)
+    - `xr-ai-next-sample-langchain-agent` → [`xr-ai-next-sample-langchain-agent`](xr-ai-next/samples/sdk-tour/09-langchain-agent/) (local, editable)
+    - `xr-ai-next-sample-guided-procedure` → [`xr-ai-next-sample-guided-procedure`](xr-ai-next/samples/sdk-tour/10-guided-procedure/) (local, editable)
+    - `xr-ai-next-sample-tracing` → [`xr-ai-next-sample-tracing`](xr-ai-next/samples/sdk-tour/11-tracing/) (local, editable)
+    - `xr-ai-next-sample-procedure-capture` → [`xr-ai-next-sample-procedure-capture`](xr-ai-next/samples/sdk-tour/12-procedure-capture/) (local, editable)
+    - `xr-ai-next-samples-sdk-tour-model-servers` → [`xr-ai-next-samples-sdk-tour-model-servers`](xr-ai-next/samples/sdk-tour/model-servers/) (local, editable)
+    - `xr-ai-next-sample-simple-vlm` → [`xr-ai-next-sample-simple-vlm`](xr-ai-next/samples/simple-vlm/) (local, editable)
+    - `xr-ai-next-sample-simple-vlm-model-servers` → [`xr-ai-next-sample-simple-vlm-model-servers`](xr-ai-next/samples/simple-vlm/model-servers/) (local, editable)
   - `vllm`:
     - `embedding-server` → [`embedding-server`](services/embedding-server/) (local, editable)
     - `nemotron-omni-llm-server` → [`nemotron-omni-llm-server`](services/nemotron-omni-llm/) (local, editable)
     - `nemotron3-nano-llm-server` → [`nemotron3-nano-llm-server`](services/nemotron3-nano-llm/) (local, editable)
     - `vlm-server` → [`vlm-server`](services/vlm-server/) (local, editable)
 - Commands: none
+
+### Evals
+
+#### `xr-ai-eval-adapters` — [`evals/adapters/`](evals/adapters/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-eval` → [`xr-ai-eval`](evals/runner/) (local, editable)
+  - `pyyaml>=6.0`
+- Optional dependency groups: none
+- Commands: none
+
+#### `xr-ai-eval` — [`evals/runner/`](evals/runner/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `httpx>=0.27`
+  - `pyyaml>=6.0`
+- Optional dependency groups: none
+- Commands:
+  - `xr-ai-eval` → `xr_ai_eval.cli:main`
+
+### Xr Ai Next
+
+#### `xr-ai-kit` — [`xr-ai-next/packages/xr-ai-kit/`](xr-ai-next/packages/xr-ai-kit/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `pydantic>=2.10`
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups:
+  - `a2a`:
+    - `a2a-sdk>=1.2,<2`
+    - `httpx>=0.27`
+- Commands: none
+
+#### `xr-ai-langchain` — [`xr-ai-next/packages/xr-ai-langchain/`](xr-ai-next/packages/xr-ai-langchain/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `langchain-core>=1.0,<2`
+  - `langgraph>=1.0,<2`
+  - `pydantic>=2.10`
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands: none
+
+#### `xr-ai-next` — [`xr-ai-next/packages/xr-ai-next/`](xr-ai-next/packages/xr-ai-next/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `httpx>=0.27`
+  - `loguru>=0.7`
+  - `nemo-relay>=0.10.0,<0.11`
+  - `pydantic>=2.10`
+  - `pyyaml>=6.0`
+  - `xr-ai-agent-runtime` → [`xr-ai-agent-runtime`](agent-sdk/xr-ai-runtime/) (local, editable)
+  - `xr-ai-hub-client` → [`xr-ai-hub-client`](agent-sdk/xr-ai-hub/) (local, editable)
+  - `xr-ai-interaction` → [`xr-ai-interaction`](agent-sdk/xr-ai-interaction/) (local, editable)
+  - `xr-ai-models` → [`xr-ai-models`](agent-sdk/xr-ai-models/) (local, editable)
+  - `xr-ai-tools[frames]` → [`xr-ai-tools`](agent-sdk/xr-ai-tools/) (local, editable)
+  - `xr-ai-voice` → [`xr-ai-voice`](agent-sdk/xr-ai-voice/) (local, editable)
+  - `xr-ai-voicegate` → [`xr-ai-voicegate`](utils/xr-ai-voicegate/) (local, editable)
+- Optional dependency groups:
+  - `video`:
+    - `opencv-contrib-python-headless>=4.8,<5`
+- Commands:
+  - `xr-ai-dev` → `xr_ai_next.devkit.__main__:main`
+
+#### `xr-ai-procedures` — [`xr-ai-next/packages/xr-ai-procedures/`](xr-ai-next/packages/xr-ai-procedures/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `pydantic>=2.10`
+  - `pyyaml>=6.0`
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands: none
+
+#### `xr-ai-next-sample-conversation` — [`xr-ai-next/samples/conversation/`](xr-ai-next/samples/conversation/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `pydantic>=2`
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-launcher` → [`xr-ai-launcher`](utils/xr-ai-launcher/) (local, editable)
+  - `xr-ai-logging` → [`xr-ai-logging`](utils/xr-ai-logging/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `conversation` → `main:run`
+  - `conversation_app` → `app:main`
+
+#### `xr-ai-next-sample-conversation-model-servers` — [`xr-ai-next/samples/conversation/model-servers/`](xr-ai-next/samples/conversation/model-servers/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-model-server-stack` → [`xr-ai-model-server-stack`](utils/xr-ai-model-server-stack/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `conversation_model_servers` → `main:run`
+
+#### `xr-ai-next-sample-lab-instruments` — [`xr-ai-next/samples/lab-instruments/`](xr-ai-next/samples/lab-instruments/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `Pillow>=13.0.0`
+  - `pydantic>=2`
+  - `pyyaml>=6.0`
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-launcher` → [`xr-ai-launcher`](utils/xr-ai-launcher/) (local, editable)
+  - `xr-ai-logging` → [`xr-ai-logging`](utils/xr-ai-logging/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+  - `xr-ai-tools[marker-tracking]` → [`xr-ai-tools`](agent-sdk/xr-ai-tools/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `lab_instruments` → `main:run`
+  - `lab_instruments_app` → `app:main`
+
+#### `xr-ai-next-sample-lab-instruments-model-servers` — [`xr-ai-next/samples/lab-instruments/model-servers/`](xr-ai-next/samples/lab-instruments/model-servers/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-model-server-stack` → [`xr-ai-model-server-stack`](utils/xr-ai-model-server-stack/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `lab_instruments_model_servers` → `main:run`
+
+#### `xr-ai-next-samples-sdk-tour` — [`xr-ai-next/samples/sdk-tour/`](xr-ai-next/samples/sdk-tour/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-launcher` → [`xr-ai-launcher`](utils/xr-ai-launcher/) (local, editable)
+  - `xr-ai-logging` → [`xr-ai-logging`](utils/xr-ai-logging/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `sdk-tour` → `launch:main`
+
+#### `xr-ai-next-sample-hello-voice` — [`xr-ai-next/samples/sdk-tour/01-hello-voice/`](xr-ai-next/samples/sdk-tour/01-hello-voice/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `hello_voice_app` → `app:app.run`
+
+#### `xr-ai-next-sample-vision-qa` — [`xr-ai-next/samples/sdk-tour/02-vision-qa/`](xr-ai-next/samples/sdk-tour/02-vision-qa/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `pydantic>=2.10`
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `vision_qa_app` → `app:app.run`
+
+#### `xr-ai-next-sample-camera-monitor` — [`xr-ai-next/samples/sdk-tour/03-camera-monitor/`](xr-ai-next/samples/sdk-tour/03-camera-monitor/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `pydantic>=2.10`
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-next[video]` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `camera_monitor_app` → `app:app.run`
+
+#### `xr-ai-next-sample-notes-mode` — [`xr-ai-next/samples/sdk-tour/04-notes-mode/`](xr-ai-next/samples/sdk-tour/04-notes-mode/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `notes_mode_app` → `app:app.run`
+
+#### `xr-ai-next-sample-manual-dispatch` — [`xr-ai-next/samples/sdk-tour/05-manual-dispatch/`](xr-ai-next/samples/sdk-tour/05-manual-dispatch/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `manual_dispatch_app` → `app:app.run`
+
+#### `xr-ai-next-sample-shared-room` — [`xr-ai-next/samples/sdk-tour/06-shared-room/`](xr-ai-next/samples/sdk-tour/06-shared-room/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `shared_room_app` → `app:app.run`
+
+#### `xr-ai-next-sample-delegate-a2a` — [`xr-ai-next/samples/sdk-tour/07-delegate-a2a/`](xr-ai-next/samples/sdk-tour/07-delegate-a2a/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `pydantic>=2.10`
+  - `xr-ai-kit[a2a]` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `delegate_a2a_app` → `app:app.run`
+
+#### `xr-ai-next-sample-a2a-research-agent` — [`xr-ai-next/samples/sdk-tour/07-delegate-a2a/research_agent/`](xr-ai-next/samples/sdk-tour/07-delegate-a2a/research_agent/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `a2a-sdk[http-server]>=1.2,<2`
+  - `uvicorn[standard]>=0.29`
+- Optional dependency groups: none
+- Commands:
+  - `research_agent` → `agent:main`
+
+#### `xr-ai-next-sample-delegate-langgraph` — [`xr-ai-next/samples/sdk-tour/08-delegate-langgraph/`](xr-ai-next/samples/sdk-tour/08-delegate-langgraph/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `langchain-core>=1.0,<2`
+  - `langgraph>=1.0,<2`
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-langchain` → [`xr-ai-langchain`](xr-ai-next/packages/xr-ai-langchain/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `delegate_langgraph_app` → `app:app.run`
+
+#### `xr-ai-next-sample-langchain-agent` — [`xr-ai-next/samples/sdk-tour/09-langchain-agent/`](xr-ai-next/samples/sdk-tour/09-langchain-agent/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `langchain-core>=1.0,<2`
+  - `langgraph>=1.0,<2`
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-langchain` → [`xr-ai-langchain`](xr-ai-next/packages/xr-ai-langchain/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `langchain_agent_app` → `app:app.run`
+
+#### `xr-ai-next-sample-guided-procedure` — [`xr-ai-next/samples/sdk-tour/10-guided-procedure/`](xr-ai-next/samples/sdk-tour/10-guided-procedure/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `pydantic>=2.10`
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-next[video]` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+  - `xr-ai-procedures` → [`xr-ai-procedures`](xr-ai-next/packages/xr-ai-procedures/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `guided_procedure_app` → `app:app.run`
+
+#### `xr-ai-next-sample-tracing` — [`xr-ai-next/samples/sdk-tour/11-tracing/`](xr-ai-next/samples/sdk-tour/11-tracing/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-kit` → [`xr-ai-kit`](xr-ai-next/packages/xr-ai-kit/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `tracing_app` → `app:app.run`
+
+#### `xr-ai-next-sample-procedure-capture` — [`xr-ai-next/samples/sdk-tour/12-procedure-capture/`](xr-ai-next/samples/sdk-tour/12-procedure-capture/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `pydantic>=2.10`
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+  - `xr-ai-procedures` → [`xr-ai-procedures`](xr-ai-next/packages/xr-ai-procedures/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `procedure_capture_app` → `app:app.run`
+
+#### `xr-ai-next-samples-sdk-tour-model-servers` — [`xr-ai-next/samples/sdk-tour/model-servers/`](xr-ai-next/samples/sdk-tour/model-servers/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-model-server-stack` → [`xr-ai-model-server-stack`](utils/xr-ai-model-server-stack/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `sdk_tour_model_servers` → `main:run`
+
+#### `xr-ai-next-sample-simple-vlm` — [`xr-ai-next/samples/simple-vlm/`](xr-ai-next/samples/simple-vlm/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-launcher` → [`xr-ai-launcher`](utils/xr-ai-launcher/) (local, editable)
+  - `xr-ai-logging` → [`xr-ai-logging`](utils/xr-ai-logging/) (local, editable)
+  - `xr-ai-next` → [`xr-ai-next`](xr-ai-next/packages/xr-ai-next/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `simple_vlm` → `main:run`
+  - `simple_vlm_app` → `app:main`
+
+#### `xr-ai-next-sample-simple-vlm-model-servers` — [`xr-ai-next/samples/simple-vlm/model-servers/`](xr-ai-next/samples/simple-vlm/model-servers/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-model-server-stack` → [`xr-ai-model-server-stack`](utils/xr-ai-model-server-stack/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `simple_vlm_model_servers` → `main:run`
 
 <!-- END GENERATED PYTHON DEPENDENCY MAP -->
 

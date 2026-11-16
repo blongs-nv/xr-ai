@@ -37,11 +37,11 @@ from pipecat.transports.base_transport import BaseTransport, TransportParams
 from xr_ai_hub import (
     AudioChunk,
     DataMessage,
-    ParticipantEvent,
     ProcessorEndpoint,
     Subscribe,
 )
 from xr_ai_hub._capture import CAPTURE_TTS_TOPIC
+from xr_ai_hub._types import ParticipantEvent
 
 from ._audio import float32_to_int16, int16_to_float32
 from ._capture_frames import _CaptureTtsCaptionFrame

@@ -1,0 +1,27 @@
+# Scene descriptions for render_synthetic.py. Not guide steps and not expected answers.
+# Packets (label reading)
+chamomile: {kind: packet, blend: CHAMOMILE, color: '#e5d191'}
+chamomile_blend: {kind: packet, blend: CHAMOMILE VANILLA, color: '#d6c7e0'}
+mint: {kind: packet, blend: MOROCCAN MINT, color: '#9db9c5'}
+ginger: {kind: packet, blend: GINGER, color: '#e5d191'}
+partial_word: {kind: packet, blend: CHAMO, color: '#e5d191'}
+covered_packet: {kind: packet, covered: true}
+artwork_only: {kind: packet, artwork: true, color: '#e5d191'}
+# Kettle displays (temperature reading)
+below_65c: {kind: kettle, readings: [{label: CURRENT, value: '65 C'}]}
+below_94c: {kind: kettle, readings: [{label: CURRENT, value: '94 C'}]}
+at_target_100c: {kind: kettle, readings: [{label: CURRENT, value: '100 C'}]}
+at_target_212f: {kind: kettle, readings: [{label: ACTUAL, value: '212 F'}]}
+fahrenheit_below: {kind: kettle, readings: [{label: CURRENT, value: '100 F'}]}
+target_only: {kind: kettle, readings: [{label: TARGET, value: '100 C'}]}
+no_label: {kind: kettle, readings: [{label: '', value: '100 C'}]}
+unit_smudged: {kind: kettle, readings: [{label: CURRENT, value: '100 C', smudge: true}]}
+two_readings: {kind: kettle, readings: [{label: TARGET, value: '100 C'}, {label: CURRENT, value: '94 C'}]}
+# Vessels (tea contact)
+empty_vessel: {kind: cup, state: empty}
+dry_bag: {kind: cup, state: dry_bag}
+water_only: {kind: cup, state: water}
+bag_above: {kind: cup, state: above}
+bag_immersed: {kind: cup, state: immersed}
+bag_floating: {kind: cup, state: floating}
+contact_occluded: {kind: cup, state: obscured}

@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Needs the research agent running (../research_agent/, port 8830).
+name: research a cafe
+participant: p1
+steps:
+  - join: p1
+  - at: 0.5
+    say: find me a quiet cafe near the station
+  - expect: {said: "on it", within_s: 10}
+  - wait_for: {said: "three options", within_s: 40}
+  - leave: p1

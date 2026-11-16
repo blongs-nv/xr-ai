@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# What this sample needs from the repository and from PyPI. Run from this directory with
+# `uv run ...` (see ../README.md); uv installs exactly this.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xr-ai-next-sample-tracing"
+version = "0.1.0"
+description = "xr-ai-next sample 11: Trace events, sinks and spans."
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    "xr-ai-kit",
+    "xr-ai-next",
+]
+
+[tool.uv.sources]
+xr-ai-kit       = { path = "../../../packages/xr-ai-kit", editable = true }
+xr-ai-next      = { path = "../../../packages/xr-ai-next", editable = true }
+
+[project.scripts]
+tracing_app = "app:app.run"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["app.py"]

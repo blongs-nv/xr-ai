@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# One instrument in view: the markers are found without a model, then Cosmos
+# reads the display under the magenta X. media/ is made by make_images.py.
+name: read one instrument
+participant: p1
+steps:
+  - join: p1
+  - image: media/device1_23_5.png
+  - at: 0.5
+    say: What does the instrument read?
+  - expect: {said: "23.5", within_s: 60}
+  - leave: p1

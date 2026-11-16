@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Evaluates: the camera steps with the camera on demand (the web client's
+# On-demand images mode): nothing is streamed, so each look asks the device
+# for one picture.
+# Real run: take a photo of the printer with a clear bed and the door closed,
+# name it printer.jpg, and pass --media-dir with its folder. (media/printer.jpg
+# here is the last frame of the synthetic placeholder video.)
+name: walks the printer pre-flight, camera on demand
+participant: p1
+steps:
+  - join: p1
+  - image: {path: media/printer.jpg, stream: false}
+  - at: 0.5
+    say: start the checklist
+  - expect: {said: print bed, within_s: 30}
+  - wait_for: {said: bed is clear, within_s: 60}
+  - wait_for: {said: door is closed, within_s: 60}
+  - leave: p1

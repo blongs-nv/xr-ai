@@ -18,6 +18,7 @@ from xr_ai_hub import FrameData, FrameSignal, PixelFormat
 from xr_ai_tools import marker_tracking as marker_tracking_module
 from xr_ai_tools.image import ImageRegistry
 from xr_ai_tools.marker_tracking import (
+    MarkerDetector,
     MarkerTrackingRequest,
     MarkerTrackingTool,
     MarkerType,
@@ -463,3 +464,20 @@ def test_marker_tool_validates_request_and_initialization() -> None:
         )
     with pytest.raises(ValueError, match="not a valid MarkerType"):
         MarkerTrackingTool(endpoint=endpoint, marker_types=("barcode",))
+
+
+def test_marker_detector_reads_an_image_it_is_given_without_a_hub(tmp_path) -> None:
+    pixels = _aruco_image(dictionary_name="DICT_4X4_50", marker_id=7)
+    encoded = io.BytesIO()
+    Image.fromarray(pixels).save(encoded, format="PNG")
+    path = tmp_path / "marker.png"
+    path.write_bytes(encoded.getvalue())
+    detector = MarkerDetector(marker_types=(MarkerType.ARUCO,))
+
+    palette = Image.fromarray(pixels).convert("P")
+    for image in (encoded.getvalue(), path, Image.fromarray(pixels), palette, pixels):
+        markers = detector.detect(image)
+        assert [(m.marker_type, m.value) for m in markers] == [(MarkerType.ARUCO, "7")]
+    assert detector.detect(np.full((40, 40), 255, dtype=np.uint8)) == []
+    with pytest.raises(ValueError, match="at least one"):
+        MarkerDetector(marker_types=())

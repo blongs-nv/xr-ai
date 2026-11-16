@@ -12,6 +12,11 @@ agents, such as saved notes or background observations. The conversation agent
 combines that context with your application's instructions to answer follow-up
 questions.
 
+```{note}
+New applications use `xr_ai_next`, which covers this package's role. Names this package
+deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
+```
+
 ## Compose a conversation
 
 Compose `Conversation` with a `ContextManager` for participant-scoped history
@@ -110,11 +115,12 @@ context = ContextManager(
     summary_context_topics=("sample.monitor-window",),
     incremental_context_topics=("sample.notes",),
 )
-runtime.register("context", context.subscriber())
 ```
 
-Register the subscriber with the same `AgentRuntime` that delivers updates,
-before runtime start. Each topic is an independent, participant-scoped source.
+Feed the manager from your own handler with `await context.update(participant_id, source, update, mode=...)`
+(`source` is one of the configured topics, `update` a `ConversationContextUpdate`); applications built on `xr_ai_next`
+feed context through its context channels (`ContextLog`, `ContextValue`) instead. `ContextManager.subscriber()`, which registered an agent that applied
+the topics for you, is deprecated. Each topic is an independent, participant-scoped source.
 A summary topic's update replaces its current state; incremental text appends
 and is compacted in the background. A summary update does not clear another
 topic, even when both topics publish for the same participant. An agent other

@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Leave both blank to generate credentials for this hub run.
+# Optional overrides: LIVEKIT_API_KEY and LIVEKIT_API_SECRET in the environment.
+# Refer to docs/source/getting_started/credentials.md for setup.
+api_key: ""
+api_secret: ""
+room_name: xr-room
+
+lk_port_ws: 7880
+lk_port_tcp: 7881
+lk_port_udp: 7882
+
+enable_web_server: true
+web_server_port: 8080
+web_client_dir: ../../../../client-samples/web
+enable_token_server: true

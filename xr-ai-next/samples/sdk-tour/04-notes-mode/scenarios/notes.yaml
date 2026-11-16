@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Evaluates: routing into a mode that holds focus, a question passed back to the conversation, leaving the mode.
+# Real run: no media needed.
+name: takes notes, answers a question in between
+participant: p1
+steps:
+  - join: p1
+  - at: 0.5
+    say: start taking notes
+  - expect: {said: notes, within_s: 30}
+  - say: buy milk
+  - expect: {said_any: [noted, got it, added], within_s: 30}
+  - say: what is the capital of France?
+  - expect: {said: Paris, within_s: 30}
+  - say: stop taking notes
+  - expect: {said_any: [stopped, done], within_s: 30}
+  - leave: p1

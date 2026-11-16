@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted model replies for research.yaml. The research agent is real.
+answer_with_reasoning:
+  - tool_call:
+      name: start_research
+      args: {request: "a quiet cafe near the station"}
+  - I'm on it; I'll report back.
+answer_lightweight:
+  - I found three options near the station.

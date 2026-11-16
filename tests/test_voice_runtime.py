@@ -1475,3 +1475,33 @@ async def test_query_delivery_child_cancellation_preserves_owned_task_cancellati
     finally:
         await output._shutdown()
         await output.cleanup()
+
+
+def test_voice_agent_forwards_signal_option_and_external_stop() -> None:
+    stops: list[bool] = []
+    session = _Session()
+    session.request_stop = lambda: stops.append(True)  # type: ignore[attr-defined]
+    with patch.object(voice_runtime_module, "_VoiceSession", return_value=session) as cls:
+        agent = VoiceAgent(
+            query_topic=QUERY_TOPIC,
+            stt=object(),
+            tts=object(),
+            vad=object(),
+            voice_gate=object(),
+            install_signal_handlers=False,
+        )  # type: ignore[arg-type]
+    assert cls.call_args.kwargs["install_signal_handlers"] is False
+    agent.request_stop()
+    assert stops == [True]
+
+
+def test_voice_agent_installs_signal_handlers_by_default() -> None:
+    with patch.object(voice_runtime_module, "_VoiceSession", return_value=_Session()) as cls:
+        VoiceAgent(
+            query_topic=QUERY_TOPIC,
+            stt=object(),
+            tts=object(),
+            vad=object(),
+            voice_gate=object(),
+        )  # type: ignore[arg-type]
+    assert cls.call_args.kwargs["install_signal_handlers"] is True

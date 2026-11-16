@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted role replies for mug.yaml (no model server needed). Drop
+# --fakes and pass --real-models to run the same scenario on real models.
+answer_with_reasoning:
+  - tool_call: {name: look, args: {question: "what color is the mug?"}}
+  - It's a red mug.
+  - You're welcome!
+perceive:
+  - A red mug on a wooden desk.

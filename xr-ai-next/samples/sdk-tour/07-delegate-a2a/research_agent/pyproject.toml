@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# The stand-in A2A agent behind sample 07. It needs nothing from this
+# repository: only the A2A SDK (with its HTTP server parts) and uvicorn.
+# Run from this directory: uv --config-file ../../../../../uv.toml run research_agent
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xr-ai-next-sample-a2a-research-agent"
+version = "0.1.0"
+description = "xr-ai-next sample 07: a stand-in research agent that speaks A2A."
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    "a2a-sdk[http-server]>=1.2,<2",
+    "uvicorn[standard]>=0.29",
+]
+
+[project.scripts]
+research_agent = "agent:main"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["agent.py"]

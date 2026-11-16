@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted replies for view_on_demand.yaml; drop them with --real-models.
+router: [observation]
+vlm:
+  - The sign says CLOSED.

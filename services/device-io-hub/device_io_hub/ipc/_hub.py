@@ -47,10 +47,18 @@ import zmq
 import zmq.asyncio
 from loguru import logger
 
-from xr_ai_hub import (AGENT_STATUS_TOPIC, AudioChunk, ConnectorRegistration,
-                       ControlMessage, DataMessage, FileMessage, FrameData, MsgType,
-                       ParticipantEvent, ReturnAudioFlush, ShmRingBuffer, SlotView,
-                       decode, encode)
+from xr_ai_hub import AudioChunk, FrameData, decode, encode
+from xr_ai_hub._processor import AGENT_STATUS_TOPIC
+from xr_ai_hub._types import (
+    ConnectorRegistration,
+    ControlMessage,
+    DataMessage,
+    FileMessage,
+    MsgType,
+    ParticipantEvent,
+    ReturnAudioFlush,
+)
+from xr_ai_hub._shm import ShmRingBuffer, SlotView
 from xr_ai_hub._capture import CAPTURE_PUBLISH_PREFIX, CAPTURE_TOPICS
 from xr_ai_hub._file_ordering import FileRoute, FileSessionOrderer
 

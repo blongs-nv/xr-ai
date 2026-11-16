@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# No video stream: the web client in on-demand camera mode. The camera holds
+# the picture and hands it over only when the app asks (p.frames.current()
+# finds no fresh frame); the transcript shows the capture.
+name: on-demand picture, no stream
+participant: p1
+steps:
+  - join: p1
+  - image: {path: media/sign.png, stream: false}
+  - at: 0.5
+    say: What does the sign say?
+  - expect: {said_any: [exit], within_s: 30}
+  - leave: p1

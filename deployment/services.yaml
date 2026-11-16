@@ -1,0 +1,82 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Launch specs and the port registry for every model server
+# `xr_ai_model_server_stack` can start. A profile entry names a server by its key
+# or by one of its aliases (`deployment.service`). This file is the only place the
+# launcher reads a server's port from; `tests/test_service_registry.py` fails when a
+# service's own YAML or code default drifts from it.
+#
+# The order is the launch order: Omni compiles ahead of Cosmos initialization.
+#
+# Fields
+#   project         directory under services/
+#   command         console script of the project (kind: process)
+#   config          basename of the service YAML under services/<project>/ (kind: process)
+#   port            host port; the single registry value
+#   aliases         other names accepted in a profile
+#   kind            process (default): a persistent uv-run server; container: a docker image
+#   image, container_port, container_env, gpu_env   (kind: container only)
+services:
+  speaker-stt:
+    project: speaker-stt
+    command: speaker_stt
+    config: speaker_stt
+    port: 8102
+  stt:
+    project: stt-server
+    command: stt_server
+    config: stt_server
+    port: 8103
+    aliases: [stt-server]
+  tts:
+    project: pocket-tts
+    command: pocket_tts_server
+    config: pocket_tts_server
+    port: 8105
+    aliases: [pocket-tts]
+  magpie:
+    project: magpie-tts
+    command: magpie_tts_server
+    config: magpie_tts_server
+    port: 8104
+    aliases: [magpie-tts]
+  omni:
+    project: nemotron-omni-llm
+    command: nemotron_omni_llm_server
+    config: nemotron_omni_llm_server
+    port: 8108
+    aliases: [nemotron-omni-llm]
+  nano:
+    project: nemotron3-nano-llm
+    command: nemotron3_nano_llm_server
+    config: nemotron3_nano_llm_server
+    port: 8107
+    aliases: [nemotron3-nano-llm]
+  vlm:
+    project: vlm-server
+    command: vlm_server
+    config: vlm_server
+    port: 8100
+    aliases: [vlm-server]
+  clef:
+    project: clef-server
+    command: clef_server
+    config: clef_server
+    port: 8120
+    aliases: [clef-server]
+  embedding:
+    project: embedding-server
+    command: embedding_server
+    config: embedding_server
+    port: 8109
+    aliases: [embedding-server]
+  ocr:
+    project: ocr-server
+    kind: container
+    port: 8112
+    aliases: [ocr-server]
+    # Build once: docker build --build-arg TORCH_CUDA_ARCH_LIST=<arch> -t xr-ai-nemotron-ocr:local services/ocr-server/ocr_server
+    image: xr-ai-nemotron-ocr:local
+    container_port: 8000
+    container_env: {OCR_INFER_LENGTH: "1024"}

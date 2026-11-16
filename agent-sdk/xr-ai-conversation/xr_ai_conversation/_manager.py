@@ -11,6 +11,7 @@ agent owns its prompt and its answer.
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
@@ -171,8 +172,17 @@ class ContextManager:
 
         Register the result with the same ``AgentRuntime`` as the consumer.
         Configure at least one topic before calling this method.
+
+        Deprecated: the second way to feed context. Feed context through ``xr_ai_next`` context channels
+           (``ContextLog``, ``ContextValue``) or :meth:`update` instead.
         """
 
+        warnings.warn(
+            "ContextManager.subscriber() is deprecated: feed context with xr_ai_next context channels "
+            "(ContextLog, ContextValue) or ContextManager.update()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return make_context_subscriber(self, self._summary_context_topics, self._incremental_context_topics)
 
     async def update(

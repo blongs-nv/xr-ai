@@ -249,3 +249,5 @@ agent-samples/xr-render-demo/eval/.only
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+evals/results/
+evals/suites/results/

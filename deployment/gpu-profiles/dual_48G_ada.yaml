@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Shared GPU placement for two 48 GB Ada GPUs (for example 2x RTX 6000 Ada).
+# Replaces the per-sample model-servers/yaml/dual_48G_ada.yaml files: one entry per launchable
+# service, and a profile starts only the ones it marks `ownership: managed`. Ports, models and
+# images come from each service's own YAML under services/.
+# With explicit KV bytes, utilization is startup admission, not a total-memory cap.
+speaker-stt:
+  cuda_visible_devices: '1'
+stt:
+  cuda_visible_devices: '1'
+tts:
+  cuda_visible_devices: '0'
+omni:
+  cuda_visible_devices: '1'
+  max_num_seqs: 8
+  gpu_memory_utilization: 0.78
+  kv_cache_memory_bytes: 2147483648
+vlm:
+  cuda_visible_devices: '0'
+  gpu_memory_utilization: 0.47
+  kv_cache_memory_bytes: 1610612736
+clef: {}
+embedding:
+  cuda_visible_devices: '0'
+  gpu_memory_utilization: 0.08
+# Optional servers (GPU placement provisional until measured): nano replaces omni as the answer
+# model, so it takes omni's share; magpie and ocr sit next to the other small servers.
+magpie:
+  cuda_visible_devices: '0'
+nano:
+  cuda_visible_devices: '1'
+  max_num_seqs: 8
+  gpu_memory_utilization: 0.78
+  kv_cache_memory_bytes: 2147483648
+ocr:
+  cuda_visible_devices: '0'

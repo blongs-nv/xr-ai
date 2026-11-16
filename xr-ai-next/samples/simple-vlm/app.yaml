@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# yaml/ holds upstream simple-vlm-example's files, copied unchanged.
+profile: yaml/models.json
+voice:
+  voice_gate_yaml: yaml/voice_gate.yaml
+  # Voice activity detection, as upstream's worker sets it.
+  vad: {silence_duration: 0.4, min_speech: 0.1, silero_threshold: 0.5}

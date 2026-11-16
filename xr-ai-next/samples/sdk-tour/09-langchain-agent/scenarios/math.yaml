@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Evaluates: the router sends math and units to the LangChain agent, which uses our tools (convert, look).
+# Real run: photograph a ruler, name it ruler.jpg, pass --media-dir with its folder.
+name: converts units and measures with the camera
+participant: p1
+steps:
+  - join: p1
+  - at: 0.5
+    say: how many miles is 10 km?
+  - expect: {said_any: ["6.2", "six point two"], within_s: 60}
+  - image: media/ruler.jpg
+  - at: +1
+    say: how long is this ruler?
+  - expect: {said_any: [centimeter, cm, inch], within_s: 60}
+  - leave: p1

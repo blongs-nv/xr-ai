@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Evaluates: a long request handed to the LangGraph back end; the front end answers at once and speaks the result.
+# Real run: no media needed.
+name: researches a cafe in the background
+participant: p1
+steps:
+  - join: p1
+  - at: 0.5
+    say: find me a quiet cafe near the station
+  - expect: {said_any: [on it, looking, report back], within_s: 30}
+  - wait_for: {said_any: [cafe, café], within_s: 120}
+  - leave: p1

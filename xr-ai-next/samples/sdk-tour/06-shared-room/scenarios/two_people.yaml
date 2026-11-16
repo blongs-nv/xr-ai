@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Evaluates: two participants share app state; what one does is told to the other.
+# Real run: no media needed.
+name: one checks an item, the other hears it
+participant: ana
+steps:
+  - join: ana
+  - join: ben
+  - at: 0.5
+    say: the valve is closed
+  - expect: {said: valve, participant: ana, within_s: 30}
+  - expect: {said: ana checked, participant: ben, within_s: 30}
+  - leave: ben
+  - leave: ana

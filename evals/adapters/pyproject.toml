@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xr-ai-eval-adapters"
+version = "0.1.0"
+description = "Adapters that run the existing xr-ai eval harnesses and convert their output to the shared result schema."
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    "xr-ai-eval",
+    "pyyaml>=6.0",
+]
+
+[tool.uv.sources]
+xr-ai-eval = { path = "../runner", editable = true }
+
+[project.entry-points."xr_ai_eval.adapters"]
+tea-making = "xr_ai_eval_adapters.harnesses:TEA_MAKING"
+lab-instrument-monitoring = "xr_ai_eval_adapters.harnesses:LAB_INSTRUMENT"
+conversation-example = "xr_ai_eval_adapters.harnesses:CONVERSATION_EXAMPLE"
+conversation-context = "xr_ai_eval_adapters.harnesses:CONVERSATION_CONTEXT"
+xr-render-demo = "xr_ai_eval_adapters.harnesses:XR_RENDER_DEMO"
+procedure-capture-guide = "xr_ai_eval_adapters.harnesses:PROCEDURE_CAPTURE_GUIDE"
+
+[tool.hatch.build.targets.wheel]
+packages = ["xr_ai_eval_adapters"]

@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# A scenario for the local device (python -m xr_ai_next.devkit run ../app.py
+# mug.yaml --fakes fakes.yaml --out runs/mug/). Put a photo of a mug at
+# media/mug.jpg first (media/ is not committed).
+name: what color is my mug
+participant: p1
+steps:
+  - join: p1
+  - at: 0.0
+    image: media/mug.jpg
+  - at: 0.5
+    say: What color is my mug?
+  - expect: {said: red, within_s: 10}
+  - at: +1
+    say: thanks!
+  - expect: {said: welcome, within_s: 10}
+  - leave: p1

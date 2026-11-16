@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# The words and the order. What each step does is in app.py.
+name: printer pre-flight
+steps:
+  - id: bed_clear
+    instruction: clear everything off the print bed
+    enter: First, make sure the print bed is clear.
+    done: The bed is clear.
+    unable: confirm
+    confirm: Is the print bed clear?
+  - id: door_closed
+    instruction: close the printer door
+    enter: Close the printer door.
+    done: The door is closed.
+    unable: confirm
+    confirm: Is the door closed?
+  - id: warm_up
+    instruction: wait while the printer warms up
+    enter: Warming up for ninety seconds.
+    done: Warm-up done. You can start the print.
+
+# Everything else (start, stop, next, back, the default questions) uses the
+# procedure's built-in wording; override any of it under `messages:`/`asks:`.

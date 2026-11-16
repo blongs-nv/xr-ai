@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+decide: [math]
+answer_with_reasoning:
+  - tool_call: {name: look, args: {question: "how long is the ruler?"}}
+  - The ruler is 30 centimeters.
+perceive:
+  - A 30 cm ruler.

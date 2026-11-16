@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# A general question: the router sends it to the conversation (omni LLM).
+name: general question
+participant: p1
+steps:
+  - join: p1
+  - at: 0.5
+    say: What is the capital of France?
+  - expect: {said: paris, within_s: 60}
+  - leave: p1

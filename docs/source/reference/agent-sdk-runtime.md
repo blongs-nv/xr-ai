@@ -11,6 +11,11 @@ Use the runtime to connect agents that need to react to each other's results,
 such as a visual monitor and an agent that announces changes. Events let those
 agents cooperate while keeping their state and background work separate.
 
+```{note}
+New applications use `xr_ai_next`, which covers this package's role. Names this package
+deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
+```
+
 ## Agents and tools
 
 The `xr-ai-agent-runtime` package owns event delivery. Models, planning,

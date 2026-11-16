@@ -12,6 +12,11 @@ display, editing a scene, or checking task progress. They provide validated
 inputs and results for actions invoked directly by another agent or selected
 by a model.
 
+```{note}
+New applications use `xr_ai_next`, which covers this package's role. Names this package
+deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
+```
+
 ## Tool contract
 
 Finite `Tool` and streaming `AsyncTool` objects share one typed Pydantic

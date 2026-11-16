@@ -1,7 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""QR and ArUco marker detection from live participant frames."""
+"""QR and ArUco marker detection.
+
+:class:`MarkerDetector` finds the markers in one image it is given (no hub, no frame source, no model).
+:class:`MarkerTrackingTool` is the model-callable tool built on it that reads a participant's live frame.
+"""
 
 from __future__ import annotations
 
@@ -282,6 +286,49 @@ def _extract_aruco_markers(
     return _merge_marker_scans(marker_scans)
 
 
+class MarkerDetector:
+    """Finds the enabled marker families in one image.
+
+    ``detect`` takes encoded image bytes, a local image path, a PIL image or uint8 pixels and returns every marker
+    with its corners in that image's pixels, an empty list when there is none. It runs OpenCV and zxing on the
+    calling thread: from async code, call it with ``asyncio.to_thread``.
+    """
+
+    def __init__(
+        self,
+        *,
+        marker_types: Iterable[MarkerType | str] = (
+            MarkerType.QR_CODE,
+            MarkerType.ARUCO,
+        ),
+        aruco_dictionary: str = "DICT_4X4_50",
+    ) -> None:
+        enabled = tuple(dict.fromkeys(MarkerType(marker_type) for marker_type in marker_types))
+        if not enabled:
+            raise ValueError("marker_types must enable at least one marker family")
+        self.marker_types = enabled
+        self._aruco_detector = (
+            _make_aruco_detector(aruco_dictionary)
+            if MarkerType.ARUCO in enabled
+            else None
+        )
+
+    def detect(self, image: ImageInput | Image.Image | np.ndarray) -> list[TrackedMarker]:
+        """Every enabled marker in ``image``."""
+
+        if not isinstance(image, Image.Image | np.ndarray):
+            image = _open_image(image)
+        elif isinstance(image, Image.Image) and image.mode not in ("L", "RGB", "RGBA"):
+            image = image.convert("RGB")  # palette or 16-bit pixels are not intensities
+        scans = _full_frame_scans(_image_pixels(image))
+        markers: list[TrackedMarker] = []
+        if MarkerType.QR_CODE in self.marker_types:
+            markers.extend(_extract_qr_markers(scans))
+        if self._aruco_detector is not None:
+            markers.extend(_extract_aruco_markers(scans, self._aruco_detector))
+        return markers
+
+
 class MarkerTrackingTool(Tool[MarkerTrackingRequest, MarkerTrackingResult]):
     """A finite tool that tracks enabled marker families in a current frame."""
 
@@ -303,19 +350,16 @@ class MarkerTrackingTool(Tool[MarkerTrackingRequest, MarkerTrackingResult]):
             raise ValueError("frame_max_age_s must be positive")
         if frame_timeout_s <= 0.0:
             raise ValueError("frame_timeout_s must be positive")
-        enabled = tuple(dict.fromkeys(MarkerType(marker_type) for marker_type in marker_types))
-        if not enabled:
-            raise ValueError("marker_types must enable at least one marker family")
+        self.detector = MarkerDetector(
+            marker_types=marker_types,
+            aruco_dictionary=aruco_dictionary,
+        )
+        enabled = self.detector.marker_types
 
         self.endpoint = endpoint
         self.marker_types = enabled
         self.manage_status = manage_status
         self.images = images
-        self._aruco_detector = (
-            _make_aruco_detector(aruco_dictionary)
-            if MarkerType.ARUCO in enabled
-            else None
-        )
         self.frames = LiveFrameSource(
             endpoint,
             max_age_s=frame_max_age_s,
@@ -384,17 +428,11 @@ class MarkerTrackingTool(Tool[MarkerTrackingRequest, MarkerTrackingResult]):
         return MarkerTrackingResult(markers=markers)
 
     def _extract(self, image: Image.Image) -> list[TrackedMarker]:
-        pixels = _image_pixels(image)
-        scans = _full_frame_scans(pixels)
-        markers: list[TrackedMarker] = []
-        if MarkerType.QR_CODE in self.marker_types:
-            markers.extend(_extract_qr_markers(scans))
-        if self._aruco_detector is not None:
-            markers.extend(_extract_aruco_markers(scans, self._aruco_detector))
-        return markers
+        return self.detector.detect(image)
 
 
 __all__ = [
+    "MarkerDetector",
     "MarkerPoint",
     "MarkerTrackingRequest",
     "MarkerTrackingResult",

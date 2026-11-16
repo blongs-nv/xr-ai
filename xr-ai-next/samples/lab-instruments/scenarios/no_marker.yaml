@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# An instrument without a marker: nothing to read, and no model is asked.
+name: no marker in view
+participant: p1
+steps:
+  - join: p1
+  - image: media/no_marker.png
+  - at: 0.5
+    say: Read the instruments.
+  - expect: {said: no readable marker, within_s: 60}
+  - leave: p1

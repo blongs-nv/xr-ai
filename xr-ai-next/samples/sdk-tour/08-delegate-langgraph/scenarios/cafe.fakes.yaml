@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# The front end and the graph call this role at once, so replies are picked by prompt.
+answer_with_reasoning:
+  by_prompt:
+    - ["List up to three", "Which cafes are near?\nWhich are quiet?"]
+    - ["Answer briefly", "Cafe A is quiet."]
+    - ["Request:", "Cafe A, by the station, is quiet."]
+    - ["Tool start_research returned", "I'm on it."]
+  otherwise: {tool_call: {name: start_research, args: {request: quiet cafe near the station}}}
+answer_lightweight:
+  - Cafe A is quiet and close.

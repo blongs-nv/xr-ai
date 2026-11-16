@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted replies for monitor_change.yaml; drop them with --real-models.
+# vlm: the monitor's reads, one per scan.
+llm:
+  - tool_call: {name: lab_instruments__start, args: {}}
+  - tool_call: {name: lab_instruments__stop, args: {}}
+vlm:
+  - '{"magenta": {"reading": "23.5 C", "display_bbox": [102, 222, 430, 458]}}'
+  - '{"magenta": {"reading": "24.1 C", "display_bbox": [102, 222, 430, 458]}}'
+  - '{"magenta": {"reading": "24.1 C", "display_bbox": [102, 222, 430, 458]}}'
+  - '{"magenta": {"reading": "24.1 C", "display_bbox": [102, 222, 430, 458]}}'

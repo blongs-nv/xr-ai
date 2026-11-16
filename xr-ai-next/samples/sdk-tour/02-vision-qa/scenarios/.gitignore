@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Run reports stay local, and so does media you add (photos, clips); the one
+# committed image is a synthetic red square for the worked example.
+media/*
+!media/mug.jpg
+runs/

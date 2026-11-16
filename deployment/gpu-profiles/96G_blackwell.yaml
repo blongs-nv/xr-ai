@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Shared GPU placement for one 96 GB Blackwell GPU (for example RTX PRO 6000).
+# Replaces the per-sample model-servers/yaml/96G_blackwell.yaml files; see dual_48G_ada.yaml.
+# Utilization fractions add up to well under 1.0 for any subset a profile starts.
+speaker-stt:
+  cuda_visible_devices: '0'
+stt:
+  cuda_visible_devices: '0'
+tts:
+  cuda_visible_devices: '0'
+omni:
+  max_num_seqs: 8
+  gpu_memory_utilization: 0.35
+  kv_cache_memory_bytes: 2147483648
+vlm:
+  gpu_memory_utilization: 0.23
+  kv_cache_memory_bytes: 1610612736
+  max_num_seqs: 4
+clef: {}
+embedding:
+  gpu_memory_utilization: 0.08
+# Optional servers (GPU placement provisional until measured): nano replaces omni as the answer
+# model, so it takes omni's share; magpie and ocr sit next to the other small servers.
+magpie:
+  cuda_visible_devices: '0'
+nano:
+  max_num_seqs: 8
+  gpu_memory_utilization: 0.35
+  kv_cache_memory_bytes: 2147483648
+ocr:
+  cuda_visible_devices: '0'

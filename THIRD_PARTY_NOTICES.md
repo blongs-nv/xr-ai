@@ -15,7 +15,7 @@ under [`third_party_licenses/`](third_party_licenses/).
 
 ## Python (server-side and AI services)
 
-Used by `agent-sdk/`, `utils/`, `services/`,
+Used by `agent-sdk/`, `xr-ai-next/`, `utils/`, `services/`,
 `agent-samples/` and `tests/`.
 For the per-package dependency mapping, see [`DEPENDENCIES.md`](DEPENDENCIES.md).
 
@@ -46,6 +46,9 @@ qualified lock; the reciprocal-license table records exact resolved versions.
 | `tqdm`         | 4.70.1   | MPL-2.0 AND MIT | https://github.com/tqdm/tqdm |
 | `opencv-python-headless` | 5.0.0.93 | Apache-2.0 and MIT packaging terms (wheel includes other licenses) | https://github.com/opencv/opencv-python |
 | `pydantic`     | >=2.10   | MIT           | https://github.com/pydantic/pydantic |
+| `langchain-core` | >=1.0,<2 | MIT         | https://github.com/langchain-ai/langchain |
+| `langgraph`    | >=1.0,<2 | MIT           | https://github.com/langchain-ai/langgraph |
+| `a2a-sdk`      | >=1.2,<2 | Apache-2.0    | https://github.com/a2aproject/a2a-python |
 | `python-multipart` | >=0.0.9 | Apache-2.0 | https://github.com/Kludex/python-multipart |
 | `websockets`   | 12.0     | BSD-3-Clause  | https://github.com/python-websockets/websockets |
 

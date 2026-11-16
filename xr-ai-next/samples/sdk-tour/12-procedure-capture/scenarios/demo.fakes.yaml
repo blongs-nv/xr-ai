@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted captions (structured replies of the vision role).
+perceive:
+  - caption: A blue block on a light counter.
+    delta: Initial observation
+    activity: Making tea
+    phase: Filling the kettle
+  - caption: The blue block has moved right and up.
+    delta: "Earlier: block low left. Current: block higher. Change: moved."
+    activity: Making tea
+    phase: Placing the kettle

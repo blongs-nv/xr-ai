@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Evaluates: "look" with the camera on demand (the web client's On-demand
+# images mode): nothing is streamed; the tool asks the device for one picture.
+name: measures with the camera on demand
+participant: p1
+steps:
+  - join: p1
+  - image: {path: media/ruler.jpg, stream: false}
+  - at: 0.5
+    say: how long is this ruler?
+  - expect: {said_any: [centimeter, cm, inch], within_s: 60}
+  - leave: p1

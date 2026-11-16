@@ -5,9 +5,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Sequence
+from contextlib import suppress
 from typing import Any
 
 import nemo_relay
@@ -15,6 +17,7 @@ from nemo_relay.codecs import OpenAIChatCodec
 from pydantic import BaseModel, Field, model_validator
 from xr_ai_models import VLMService
 
+from ._drain import ActiveCalls
 from ._relay import headers_from_relay
 from ._vision import (
     VLM_CALL_NAME,
@@ -125,6 +128,7 @@ class _ImageInference:
                 text="Image input unavailable — please select it again.",
                 available=False,
             )
+        calls = ActiveCalls()
         try:
             with image_sanitizer():
                 response = await nemo_relay.llm.execute(
@@ -134,7 +138,7 @@ class _ImageInference:
                         [(image.uri, timestamp_us) for image, timestamp_us in inputs],
                         query,
                     ),
-                    self._ask_vlm,
+                    lambda request: self._ask_vlm(request, calls),
                     model_name=VLM_CALL_NAME,
                     codec=OpenAIChatCodec(),
                     response_codec=OpenAIChatCodec(),
@@ -146,6 +150,9 @@ class _ImageInference:
                     available=False,
                 )
             return ImageQueryResult(text=text)
+        except asyncio.CancelledError:
+            await calls.drained()
+            raise
         except Exception:
             _LOGGER.exception("Image VLM request failed")
             return ImageQueryResult(
@@ -160,6 +167,8 @@ class _ImageInference:
     ) -> AsyncIterator[ImageQueryChunk]:
         fragments: list[str] = []
         emitted_output = False
+        calls = ActiveCalls()
+        stream: Any = None
         try:
             for image, _timestamp_us in inputs:
                 self.images.resolve(image)
@@ -178,7 +187,7 @@ class _ImageInference:
                         [(image.uri, timestamp_us) for image, timestamp_us in inputs],
                         query,
                     ),
-                    self._stream_vlm,
+                    lambda request: self._stream_vlm(request, calls),
                     lambda chunk: fragments.append(stream_text(chunk)),
                     lambda: openai_response("".join(fragments)),
                     model_name=VLM_CALL_NAME,
@@ -200,29 +209,49 @@ class _ImageInference:
             _LOGGER.exception("Image VLM stream failed")
             if not emitted_output:
                 yield ImageQueryChunk(text="VLM server unavailable — please retry.")
+        finally:
+            # Also runs on cancellation and aclose(): do not return before the model stream stops.
+            if stream is not None:
+                with suppress(Exception):
+                    await stream.aclose()
+            await calls.drained()
 
-    async def _ask_vlm(self, request: nemo_relay.LLMRequest) -> dict[str, Any]:
-        inputs, query, system_prompt = vision_inputs(request.content)
-        response = await self.vlm.ask_images(
-            [self.images.resolve(ImageReference(uri=uri)) for uri, _timestamp in inputs],
-            timestamped_question(query, [timestamp for _uri, timestamp in inputs]),
-            system_prompt=system_prompt,
-            headers=headers_from_relay(request.headers),
-        )
-        return openai_response(response.content)
+    async def _ask_vlm(
+        self,
+        request: nemo_relay.LLMRequest,
+        calls: ActiveCalls,
+    ) -> dict[str, Any]:
+        with calls.track():
+            inputs, query, system_prompt = vision_inputs(request.content)
+            response = await self.vlm.ask_images(
+                [self.images.resolve(ImageReference(uri=uri)) for uri, _timestamp in inputs],
+                timestamped_question(query, [timestamp for _uri, timestamp in inputs]),
+                system_prompt=system_prompt,
+                headers=headers_from_relay(request.headers),
+            )
+            return openai_response(response.content)
 
     async def _stream_vlm(
         self,
         request: nemo_relay.LLMRequest,
+        calls: ActiveCalls,
     ) -> AsyncIterator[dict[str, Any]]:
-        inputs, query, system_prompt = vision_inputs(request.content)
-        async for token in self.vlm.stream_images(
-            [self.images.resolve(ImageReference(uri=uri)) for uri, _timestamp in inputs],
-            timestamped_question(query, [timestamp for _uri, timestamp in inputs]),
-            system_prompt=system_prompt,
-            headers=headers_from_relay(request.headers),
-        ):
-            yield {"choices": [{"delta": {"content": token}}]}
+        with calls.track():
+            inputs, query, system_prompt = vision_inputs(request.content)
+            tokens = self.vlm.stream_images(
+                [self.images.resolve(ImageReference(uri=uri)) for uri, _timestamp in inputs],
+                timestamped_question(query, [timestamp for _uri, timestamp in inputs]),
+                system_prompt=system_prompt,
+                headers=headers_from_relay(request.headers),
+            )
+            try:
+                async for token in tokens:
+                    yield {"choices": [{"delta": {"content": token}}]}
+            finally:
+                close = getattr(tokens, "aclose", None)
+                if close is not None:
+                    with suppress(Exception):
+                        await close()
 
 
 class ImageQueryTool(Tool[ImageQueryRequest, ImageQueryResult]):

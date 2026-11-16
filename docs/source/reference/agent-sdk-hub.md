@@ -12,6 +12,11 @@ receive media and participant events and return results to the right user. The
 hub client provides that connection to DeviceIOHub, letting you build a custom
 processor without implementing the device-facing transport.
 
+```{note}
+New applications use `xr_ai_next`, which covers this package's role. Names this package
+deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
+```
+
 (subscription-and-roster-contract)=
 ## Processor endpoints
 
@@ -57,7 +62,8 @@ messages. Pass the file publisher address and include `Subscribe.FILE`, then
 register an async callback:
 
 ```python
-from xr_ai_hub import FileMessage, ProcessorEndpoint, Subscribe
+from xr_ai_hub import ProcessorEndpoint, Subscribe
+from xr_ai_hub._types import FileMessage
 
 endpoint = ProcessorEndpoint(
     sub_addr="ipc:///tmp/xr_hub_pub",

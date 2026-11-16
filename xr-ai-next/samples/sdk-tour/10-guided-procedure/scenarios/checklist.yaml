@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Evaluates: the spoken checklist end to end: routing "start", camera checks, the procedure's words, and
+# "What step am I on?" and "How long is left?" (during the warm-up) answered from the procedure's state.
+# Real run: record yourself clearing the print bed, then closing the door; name it printer.mp4 and pass
+# --media-dir with its folder. To check WHEN each step finished, also run the whole procedure against
+# printer.windows.yaml (see ../../README.md). (media/printer.mp4 here is a synthetic placeholder.)
+name: walks the printer pre-flight
+participant: p1
+steps:
+  - join: p1
+  - video: {path: media/printer.mp4, fps: 2, from_s: 0, to_s: 12, background: true}
+  - at: 0.5
+    say: start the checklist
+  - expect: {said: print bed, within_s: 30}
+  - wait_for: {said: bed is clear, within_s: 60}
+  - wait_for: {said: door is closed, within_s: 60}
+  # Past the procedure's own "Warming up" line, so the expect below checks
+  # the answer, not that line.
+  - sleep: 3
+  # A question about the procedure goes to the conversation, which reads its
+  # state, not to the procedure's controls.
+  - say: What step am I on?
+  - expect: {said_any: [warm, heat], within_s: 30}
+  # Answered from the timer's report in the state, not invented.
+  - sleep: 5
+  - say: How long is left?
+  - expect: {said_any: [second, minute], within_s: 30}
+  - leave: p1

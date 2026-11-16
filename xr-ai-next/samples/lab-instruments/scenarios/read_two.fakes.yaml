@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted replies for read_two.yaml; drop them with --real-models.
+llm:
+  - tool_call: {name: lab_instruments__read, args: {}}
+vlm:
+  - '{"magenta": {"reading": "23.5 C", "display_bbox": [102, 222, 430, 458]}, "cyan": {"reading": "7.02 pH", "display_bbox": [570, 222, 898, 458]}}'

@@ -506,3 +506,52 @@ async def test_relay_middleware_owns_recovery_or_replacement(recover: bool) -> N
     assert end.metadata["otel.status_code"] == ("OK" if recover else "ERROR")
     if not recover:
         assert end.metadata["exception.type"] == "LookupError"
+
+
+async def test_plain_tool_cancellation_waits_for_handler_to_stop() -> None:
+    started = asyncio.Event()
+    closed = False
+
+    async def block(_request: AddRequest) -> AddResult:
+        nonlocal closed
+        started.set()
+        try:
+            await asyncio.Future()
+        finally:
+            await asyncio.sleep(0.05)  # slow cleanup: cancel must not return before it
+            closed = True
+
+    tool = Tool("cancel_slow", "Wait for cancellation.", AddRequest, AddResult, block)
+    task = asyncio.create_task(tool.execute(AddRequest(left=1, right=2)))
+    await asyncio.wait_for(started.wait(), timeout=1.0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert closed
+
+
+async def test_drain_is_bounded_when_a_handler_ignores_cancellation(monkeypatch, caplog) -> None:
+    from xr_ai_tools import _drain
+
+    monkeypatch.setattr(_drain, "DRAIN_TIMEOUT_S", 0.05)
+    release = asyncio.Event()
+    started = asyncio.Event()
+
+    async def stubborn(_request: AddRequest) -> AddResult:
+        started.set()
+        while not release.is_set():
+            try:
+                await release.wait()
+            except asyncio.CancelledError:
+                pass  # ignores cancellation
+        return AddResult(total=0)
+
+    tool = Tool("cancel_ignored", "Ignore cancellation.", AddRequest, AddResult, stubborn)
+    task = asyncio.create_task(tool.execute(AddRequest(left=1, right=2)))
+    await asyncio.wait_for(started.wait(), timeout=1.0)
+    with caplog.at_level("WARNING", logger="xr_ai_tools._drain"):
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, timeout=2.0)
+    assert any("still running" in r.message for r in caplog.records)
+    release.set()

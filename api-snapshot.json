@@ -1,0 +1,476 @@
+{
+  "version": 1,
+  "modules": {
+    "device_io_hub.capture": {
+      "path": "services/device-io-hub/device_io_hub/capture/__init__.py",
+      "all": [
+        "CaptureRenderer"
+      ]
+    },
+    "device_io_hub.ipc": {
+      "path": "services/device-io-hub/device_io_hub/ipc/__init__.py",
+      "all": [
+        "AGENT_STATUS_TOPIC",
+        "AudioChunk",
+        "ConnectorEndpoint",
+        "ConnectorRegistration",
+        "ControlMessage",
+        "DataMessage",
+        "FileMessage",
+        "FrameData",
+        "FrameRequest",
+        "FrameSignal",
+        "HubEndpoint",
+        "MsgType",
+        "ParticipantEvent",
+        "PixelFormat",
+        "ProcessorEndpoint",
+        "ReturnAudioFlush",
+        "RosterRequest",
+        "ShmRingBuffer",
+        "SlotView",
+        "Subscribe",
+        "TOPIC_AUDIO",
+        "TOPIC_CONTROL",
+        "TOPIC_DATA",
+        "TOPIC_FILE",
+        "TOPIC_RETURN_AUDIO",
+        "TOPIC_RETURN_AUDIO_FLUSH",
+        "TOPIC_RETURN_DATA",
+        "TOPIC_VIDEO",
+        "TOPIC_VIDEO_DATA",
+        "decode",
+        "encode",
+        "register_decoder",
+        "register_encoder"
+      ]
+    },
+    "device_io_hub.transport.livekit": {
+      "path": "services/device-io-hub/device_io_hub/transport/livekit/__init__.py",
+      "all": [
+        "LiveKitConnector",
+        "LiveKitConnectorConfig",
+        "make_client_token"
+      ]
+    },
+    "device_io_hub.video": {
+      "path": "services/device-io-hub/device_io_hub/video/__init__.py",
+      "all": [
+        "VideoRecorder",
+        "VideoRecorderConfig"
+      ]
+    },
+    "rag_service": {
+      "path": "services/rag-service/rag_service/__init__.py",
+      "all": [
+        "DenseIndex",
+        "RAGService"
+      ]
+    },
+    "xr_ai_conversation": {
+      "path": "agent-sdk/xr-ai-conversation/xr_ai_conversation/__init__.py",
+      "all": [
+        "CompactionPrompts",
+        "ContextBlock",
+        "ContextManager",
+        "Conversation",
+        "ConversationContextUpdate"
+      ]
+    },
+    "xr_ai_eval": {
+      "path": "evals/runner/xr_ai_eval/__init__.py",
+      "all": [
+        "Adapter",
+        "AdapterContext",
+        "Case",
+        "CaseError",
+        "Endpoint",
+        "Profile",
+        "ProfileError",
+        "Record",
+        "SCHEMA_VERSION",
+        "SchemaError",
+        "Suite",
+        "Turn",
+        "find_adapter",
+        "load_profile",
+        "load_suite",
+        "read_records"
+      ]
+    },
+    "xr_ai_eval_adapters": {
+      "path": "evals/adapters/xr_ai_eval_adapters/__init__.py",
+      "all": [
+        "ADAPTERS",
+        "HarnessAdapter",
+        "Parsed",
+        "Step"
+      ]
+    },
+    "xr_ai_gpu": {
+      "path": "utils/xr-ai-gpu/xr_ai_gpu/__init__.py",
+      "all": [
+        "GPUInventoryError"
+      ]
+    },
+    "xr_ai_hub": {
+      "path": "agent-sdk/xr-ai-hub/xr_ai_hub/__init__.py",
+      "all": [
+        "AudioChunk",
+        "DataMessage",
+        "FrameData",
+        "FrameSignal",
+        "FrameUnavailable",
+        "LiveFrameSource",
+        "PixelFormat",
+        "ProcessorEndpoint",
+        "Subscribe",
+        "decode",
+        "encode",
+        "register_decoder",
+        "register_encoder"
+      ]
+    },
+    "xr_ai_interaction": {
+      "path": "agent-sdk/xr-ai-interaction/xr_ai_interaction/__init__.py",
+      "all": [
+        "Interrupted",
+        "ParticipantJoined",
+        "ParticipantLeft",
+        "Reply",
+        "ResponseOutput",
+        "UserQuery"
+      ]
+    },
+    "xr_ai_kit": {
+      "path": "xr-ai-next/packages/xr-ai-kit/xr_ai_kit/__init__.py",
+      "all": [
+        "Ack",
+        "Admission",
+        "Conversation",
+        "Delegate",
+        "DestinationResult",
+        "Job",
+        "OneShotDestination",
+        "Router",
+        "RouterDestination",
+        "StartStopDestination"
+      ]
+    },
+    "xr_ai_langchain": {
+      "path": "xr-ai-next/packages/xr-ai-langchain/xr_ai_langchain/__init__.py",
+      "all": [
+        "GraphBackend",
+        "RoleChatModel",
+        "chat_model",
+        "from_langchain",
+        "langchain_tools",
+        "messages",
+        "stream_text",
+        "to_chat_messages",
+        "to_langchain_messages"
+      ]
+    },
+    "xr_ai_launcher": {
+      "path": "utils/xr-ai-launcher/xr_ai_launcher/__init__.py",
+      "all": [
+        "GPUInventoryError",
+        "ManagedProcess",
+        "ModelDeployment",
+        "NATIVE_DEVICE_PROFILES",
+        "Parallel",
+        "Process",
+        "XR_RUNTIME_VAR",
+        "detect_gpu_config",
+        "ensure_credentials",
+        "has_ownership_marker",
+        "is_native_profile",
+        "load_cloudxr_env",
+        "load_credentials",
+        "load_deployment_profile",
+        "load_model_deployment",
+        "pid_on_port_checked",
+        "read_config_scalar",
+        "read_device_profile",
+        "require_credentials",
+        "run_stack",
+        "warn_if_missing"
+      ]
+    },
+    "xr_ai_logging": {
+      "path": "utils/xr-ai-logging/xr_ai_logging/__init__.py",
+      "all": [
+        "setup_logging"
+      ]
+    },
+    "xr_ai_model_server_stack": {
+      "path": "utils/xr-ai-model-server-stack/xr_ai_model_server_stack/__init__.py",
+      "all": [
+        "run_model_stack"
+      ]
+    },
+    "xr_ai_models": {
+      "path": "agent-sdk/xr-ai-models/xr_ai_models/__init__.py",
+      "all": [
+        "AdapterSpec",
+        "Capabilities",
+        "Category",
+        "ChatMessage",
+        "ChatResponse",
+        "ChatStreamEvent",
+        "ContentPart",
+        "DecisionAnswer",
+        "DecisionInputTooLargeError",
+        "DecisionQuestion",
+        "DecisionResponse",
+        "DecisionService",
+        "DecisionSpec",
+        "DeploymentSpec",
+        "EmbeddingService",
+        "EmbeddingSpec",
+        "EndpointSpec",
+        "ImageInput",
+        "ImagePart",
+        "LLMService",
+        "LLMSpec",
+        "ModelServiceError",
+        "ModelsConfig",
+        "OCRRegion",
+        "OCRRequestError",
+        "OCRResponseError",
+        "OCRService",
+        "OCRSpec",
+        "OpenAICompatEmbedding",
+        "OpenAICompatLLM",
+        "OpenAICompatSTT",
+        "OpenAICompatTTS",
+        "OpenAICompatVLM",
+        "RivaSTT",
+        "RivaTTS",
+        "STTService",
+        "STTSpec",
+        "Spec",
+        "TTSService",
+        "TTSSpec",
+        "TextPart",
+        "ThinkingSpec",
+        "ToolCall",
+        "ToolDef",
+        "VLMService",
+        "VLMSpec",
+        "VideoInput",
+        "VideoPart",
+        "load_models_config",
+        "load_models_config_from_dict",
+        "make_decision",
+        "make_embedding",
+        "make_llm",
+        "make_ocr",
+        "make_stt",
+        "make_tts",
+        "make_vlm"
+      ]
+    },
+    "xr_ai_models.presets": {
+      "path": "agent-sdk/xr-ai-models/xr_ai_models/presets/__init__.py",
+      "all": [
+        "available_presets",
+        "get_preset"
+      ]
+    },
+    "xr_ai_next": {
+      "path": "xr-ai-next/packages/xr-ai-next/xr_ai_next/__init__.py",
+      "all": [
+        "App",
+        "Component",
+        "ContextLog",
+        "ContextValue",
+        "Decision",
+        "Frame",
+        "FrameStream",
+        "Hub",
+        "Participant",
+        "PerConnection",
+        "Persistent",
+        "Role",
+        "Session",
+        "Sink",
+        "StructuredOutputError",
+        "TextSink",
+        "Turn",
+        "Voice",
+        "current_turn",
+        "output_started",
+        "tool"
+      ]
+    },
+    "xr_ai_next.devkit": {
+      "path": "xr-ai-next/packages/xr-ai-next/xr_ai_next/devkit/__init__.py",
+      "all": [
+        "Exercise",
+        "LocalDevice",
+        "Output",
+        "Probe",
+        "Report",
+        "Scenario",
+        "Step",
+        "StepResult",
+        "Unit",
+        "VirtualTimeLoop",
+        "components",
+        "exercise",
+        "fakes_from_file",
+        "image_frame",
+        "load_app",
+        "resolve_target",
+        "run_scenario",
+        "run_virtual",
+        "serve",
+        "target_kind"
+      ]
+    },
+    "xr_ai_procedures": {
+      "path": "xr-ai-next/packages/xr-ai-procedures/xr_ai_procedures/__init__.py",
+      "all": [
+        "Caption",
+        "CaptureSession",
+        "DEFAULT_ASKS",
+        "DEFAULT_CAPTURE_MESSAGES",
+        "DEFAULT_MESSAGES",
+        "EventKind",
+        "Facts",
+        "GuidedProcedure",
+        "ProcedureCapture",
+        "ProcedureEvent",
+        "ProcedureRun",
+        "Run",
+        "Sop",
+        "StepDef",
+        "StepSpec",
+        "StepTiming",
+        "Timer",
+        "caption_prompt",
+        "procedure_unit",
+        "procedures_of",
+        "resolve_procedure",
+        "resolve_step",
+        "step_unit"
+      ]
+    },
+    "xr_ai_procedures.perception": {
+      "path": "xr-ai-next/packages/xr-ai-procedures/xr_ai_procedures/perception/__init__.py",
+      "all": [
+        "Confirmation",
+        "Criteria",
+        "Done",
+        "Eyes",
+        "FrameSource",
+        "Judge",
+        "Missing",
+        "Needs",
+        "Observer",
+        "Outcome",
+        "Report",
+        "Retrieved",
+        "Runnable",
+        "Source",
+        "Stuck",
+        "Tier",
+        "Verdict",
+        "Verify",
+        "VisionRetrieval",
+        "Watching",
+        "all_of",
+        "by_choices",
+        "describe",
+        "read",
+        "read_check",
+        "text_of"
+      ]
+    },
+    "xr_ai_routing": {
+      "path": "agent-sdk/xr-ai-routing/xr_ai_routing/__init__.py",
+      "all": [
+        "Admission",
+        "AgentExchange",
+        "AgentRouter",
+        "AgentTurn",
+        "DestinationResult",
+        "RoutableAgent",
+        "RoutingAid",
+        "RoutingTurnContext",
+        "current_turn_context"
+      ]
+    },
+    "xr_ai_runtime": {
+      "path": "agent-sdk/xr-ai-runtime/xr_ai_runtime/__init__.py",
+      "all": [
+        "Agent",
+        "AgentRuntime",
+        "MessageMetadata",
+        "RuntimeClosedError",
+        "RuntimeContext",
+        "Topic",
+        "subscribe"
+      ]
+    },
+    "xr_ai_tools": {
+      "path": "agent-sdk/xr-ai-tools/xr_ai_tools/__init__.py",
+      "all": [
+        "AsyncTool",
+        "Tool",
+        "ToolInvocationResult",
+        "ToolSet"
+      ]
+    },
+    "xr_ai_vad": {
+      "path": "utils/xr-ai-vad/xr_ai_vad/__init__.py",
+      "all": []
+    },
+    "xr_ai_vllm": {
+      "path": "utils/xr-ai-vllm/xr_ai_vllm/__init__.py",
+      "all": [
+        "DEFAULT_IMAGE",
+        "gpu_compute_major",
+        "gpu_is_dgx_spark",
+        "load_config",
+        "parse_config_bool",
+        "resolve_model_cache",
+        "serve",
+        "setup_hf_env",
+        "stop_persistent_servers"
+      ]
+    },
+    "xr_ai_voice": {
+      "path": "agent-sdk/xr-ai-voice/xr_ai_voice/__init__.py",
+      "all": [
+        "HubVoiceTransport",
+        "VOICE_OUTPUT_TOPIC",
+        "VOICE_TRANSCRIPT_TOPIC",
+        "VadConfig",
+        "VoiceAgent",
+        "VoiceStreamClosedError",
+        "VoiceTranscript",
+        "llm_update_combiner"
+      ]
+    },
+    "xr_ai_voicegate": {
+      "path": "utils/xr-ai-voicegate/xr_ai_voicegate/__init__.py",
+      "all": [
+        "AudioSink",
+        "TTSLike",
+        "VoiceGate",
+        "VoiceGateConfig",
+        "load_voice_gate_config"
+      ]
+    },
+    "xr_ai_web_events": {
+      "path": "agent-sdk/xr-ai-web-events/xr_ai_web_events/__init__.py",
+      "all": [
+        "WEB_EVENT_TOPIC",
+        "WebEvent",
+        "WebEventsAgent"
+      ]
+    }
+  }
+}

@@ -51,6 +51,12 @@ jobs:
       - name: Check ratcheted Ruff baseline
         run: python3 .github/scripts/ruff_baseline.py
 
+      # Every package's public `__all__` is recorded in api-snapshot.json. This
+      # fails when an export is added, removed or renamed without regenerating
+      # (and so reviewing) the snapshot. It parses source only; no install needed.
+      - name: Check public API snapshot
+        run: python3 .github/scripts/api_snapshot.py --check
+
       # The baseline tests run the real linter, so they run here, where the
       # pinned Ruff is on PATH, instead of in the test matrix. They need only
       # pytest, so skip the test suite's conftest and its package imports.

@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# One uv project for the launcher (main.py: DeviceIOHub + the app) and the
+# app (app.py and its modules). Run from this directory; see README.md.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xr-ai-next-sample-lab-instruments"
+version = "0.1.0"
+description = "Read, watch and record marker-labelled lab instruments, on the xr-ai-next core and kit."
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    "Pillow>=13.0.0",
+    "pydantic>=2",
+    "pyyaml>=6.0",
+    "xr-ai-kit",
+    "xr-ai-launcher",
+    "xr-ai-logging",
+    "xr-ai-next",
+    "xr-ai-tools[marker-tracking]",
+]
+
+[dependency-groups]
+# `uv run pytest`
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+
+[tool.uv.sources]
+xr-ai-kit      = { path = "../../packages/xr-ai-kit", editable = true }
+xr-ai-launcher = { path = "../../../utils/xr-ai-launcher", editable = true }
+xr-ai-logging  = { path = "../../../utils/xr-ai-logging", editable = true }
+xr-ai-next     = { path = "../../packages/xr-ai-next", editable = true }
+xr-ai-tools    = { path = "../../../agent-sdk/xr-ai-tools", editable = true }
+
+[project.scripts]
+lab_instruments = "main:run"
+lab_instruments_app = "app:main"
+
+[tool.hatch.build.targets.wheel]
+only-include = [
+    "main.py",
+    "app.py",
+    "instruments.py",
+    "instrument_monitor.py",
+    "visual_monitor.py",
+    "records.py",
+]

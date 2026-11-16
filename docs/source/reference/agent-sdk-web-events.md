@@ -11,6 +11,11 @@ Display selected agent events in a browser while your application runs. Use
 the live view to inspect readings, observations, or progress updates as you
 test the interaction.
 
+```{note}
+New applications use `xr_ai_next`, which covers this package's role. Names this package
+deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
+```
+
 ## Publishing selected events
 
 The viewer keeps a bounded live history. It does not tail files, persist data,

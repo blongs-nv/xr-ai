@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Device1's marker is in view but its display is off: Cosmos answers UNKNOWN
+# for it, and the app says the display could not be read.
+name: a marked instrument with an unreadable display
+participant: p1
+steps:
+  - join: p1
+  - image: media/unreadable.png
+  - at: 0.5
+    say: Read the instruments.
+  - expect: {said: could not be read, within_s: 60}
+  - leave: p1

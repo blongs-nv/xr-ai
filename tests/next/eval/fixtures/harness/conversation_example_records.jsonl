@@ -1,0 +1,3 @@
+{"turn": "flow-a/turn-1", "passed": true, "checks": {"decision": true, "answered": true}, "answered": true, "decisions": ["answer"], "error": null}
+{"turn": "flow-a/turn-2", "passed": false, "checks": {"decision": true, "answered": false}, "answered": false, "decisions": ["answer"], "error": null}
+{"turn": "flow-b/turn-1", "passed": false, "checks": {}, "answered": false, "decisions": [], "error": "RuntimeError: endpoint down"}

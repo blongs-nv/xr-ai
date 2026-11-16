@@ -1,0 +1,4 @@
+PASS idle-conversation: tools=[] content='Okay.'
+MISS unreadable-label-commits-no-placeholders: tools=['advance_step'] content=''
+PASS answer-question: tools=[] content='Boil the kettle first.'
+RESULT 2/3 cases passed

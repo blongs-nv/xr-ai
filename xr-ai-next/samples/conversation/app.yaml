@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# yaml/ holds upstream conversation-example's files; this file takes the place
+# of its yaml/conversation_example_worker.yaml (same values).
+profile: yaml/models.json
+voice:
+  voice_gate_yaml: yaml/voice_gate.yaml
+  # Voice activity detection, as upstream's worker sets it.
+  vad: {silence_duration: 0.4, min_speech: 0.1, silero_threshold: 0.5}
+
+settings:
+  # Frame freshness: an older frame is stale; then the app asks for a picture
+  # or waits this long for the next frame.
+  frame_max_age_s: 5.0
+  frame_timeout_s: 5.0
+  # General-conversation context, split evenly between the dialogue and the
+  # saved notes (upstream: context_budget_bytes 12000).
+  dialogue_budget_bytes: 6000
+  notes_budget_bytes: 6000
+  # Dialogue the router sends with each routing decision. Clef accepts at most
+  # 4,096 tokens per request, including the routing prompt and destinations.
+  routing_history_budget_bytes: 8000
+  # Optional acknowledgment ("one moment") when nothing was said this many
+  # seconds after a turn. Off when omitted, as upstream.
+  # ack_delay_s: 2.0
+  # The visual alert checks a new camera frame at most this often.
+  alert_check_interval_s: 1.0

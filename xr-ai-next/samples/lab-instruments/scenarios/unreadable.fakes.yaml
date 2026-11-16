@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted replies for unreadable.yaml; drop them with --real-models.
+llm:
+  - tool_call: {name: lab_instruments__read, args: {}}
+vlm:
+  - '{"magenta": {"reading": "UNKNOWN", "display_bbox": null}}'

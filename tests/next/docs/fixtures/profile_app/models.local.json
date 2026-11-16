@@ -1,0 +1,77 @@
+{
+  "profile": {
+    "name": "local",
+    "description": "Everything on one Spark or RTX PRO 6000: Omni perceives, Clef decides, local speech."
+  },
+  "models": {
+    "perceive": {
+      "category": "vlm",
+      "adapter": {
+        "kind": "openai_compat",
+        "model_name": "llm",
+        "reasoning_field": "reasoning_content",
+        "capabilities": {
+          "streaming": true,
+          "vision": true
+        },
+        "default_extras": {
+          "max_tokens": 128,
+          "temperature": 0.0,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        }
+      },
+      "endpoint": {
+        "base_url": "http://localhost:8108"
+      },
+      "deployment": {
+        "ownership": "managed",
+        "service": "omni"
+      }
+    },
+    "speech_out": {
+      "adapter": {
+        "preset": "pocket_tts"
+      },
+      "endpoint": {
+        "base_url": "http://localhost:8105"
+      },
+      "deployment": {
+        "ownership": "managed",
+        "service": "tts"
+      }
+    },
+    "speech_in": {
+      "category": "stt",
+      "adapter": {
+        "kind": "openai_compat",
+        "capabilities": {
+          "speaker_stream": true
+        }
+      },
+      "endpoint": {
+        "base_url": "http://127.0.0.1:8102"
+      },
+      "deployment": {
+        "ownership": "managed",
+        "service": "speaker-stt"
+      }
+    },
+    "decide": {
+      "category": "decision",
+      "kind": "systemone",
+      "model_name": "Cloudflare/clef-flash",
+      "base_url": "http://localhost:8120",
+      "deployment": {
+        "ownership": "managed",
+        "service": "clef"
+      }
+    }
+  },
+  "budgets": {
+    "perceive": {
+      "max_concurrency": 2
+    }
+  }
+}

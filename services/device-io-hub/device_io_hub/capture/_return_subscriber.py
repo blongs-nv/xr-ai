@@ -9,15 +9,9 @@ from collections.abc import Awaitable, Callable
 
 import zmq
 import zmq.asyncio
-from xr_ai_hub import (
-    AudioChunk,
-    DataMessage,
-    MsgType,
-    ParticipantEvent,
-    ReturnAudioFlush,
-    decode,
-)
+from xr_ai_hub import AudioChunk, decode
 from xr_ai_hub._capture import CAPTURE_PUBLISH_PREFIX
+from xr_ai_hub._types import DataMessage, MsgType, ParticipantEvent, ReturnAudioFlush
 
 AudioCallback = Callable[[AudioChunk], Awaitable[None]]
 DataCallback = Callable[[DataMessage], Awaitable[None]]

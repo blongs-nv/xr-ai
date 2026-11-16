@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# The instrument monitor loses Device1: its marker leaves the view, and after
+# instrument_lost_after_s (30 s) the app says so, once.
+name: the monitor reports a lost instrument
+participant: p1
+steps:
+  - join: p1
+  - image: media/device1_23_5.png
+  - at: 0.5
+    say: Start monitoring the instruments.
+  - expect: {said: now tracking, within_s: 60}
+  - image: media/no_marker.png
+  - expect: {said: no longer tracking, within_s: 90}
+  - leave: p1

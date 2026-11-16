@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# A question about the streamed camera view (the web client in live video
+# mode): the router sends it to observation, which asks Cosmos about the
+# current frame. media/ is made by make_images.py.
+name: question about the view, streamed frame
+participant: p1
+steps:
+  - join: p1
+  - image: media/sign_closed.png
+  - at: 0.5
+    say: What does the sign say?
+  - expect: {said: closed, within_s: 60}
+  - leave: p1

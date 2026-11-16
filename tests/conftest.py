@@ -37,6 +37,10 @@ from xr_ai_vllm._docker import TEST_SESSION_ENV
 from xr_ai_hub          import ProcessorEndpoint
 from device_io_hub.ipc     import ConnectorEndpoint, HubEndpoint
 
+# Fixtures of the xr-ai-next surface tests (tests/next/surface). A plugin rather than a nested conftest.py, which
+# would shadow this module for tests that `import conftest` (test_gpu_container_cleanup.py does).
+pytest_plugins = ["next.surface._surface_fixtures"]
+
 
 def pytest_configure(config):
     config.addinivalue_line(

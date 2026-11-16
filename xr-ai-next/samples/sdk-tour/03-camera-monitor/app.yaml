@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+profile: ../models.json
+voice:
+  voice_gate_yaml: ../yaml/voice_gate.yaml  # upstream conversation-example's
+  # Voice activity detection, as upstream's worker sets it.
+  vad: {silence_duration: 0.4, min_speech: 0.1, silero_threshold: 0.5}
+
+settings:
+  look_every_s: 1.0
+  required_looks: 3
+  cooldown_s: 30
+  conditions:
+    stove_unattended:
+      question: Is a stove burner on with no person in view?
+      say: The stove is on and nobody is near it.
+    door_open:
+      question: Is the fridge door open?
+      say: The fridge door is open.

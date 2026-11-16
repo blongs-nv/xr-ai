@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Evaluates: the monitor also works with the camera on demand (the web
+# client's On-demand images mode): nothing is streamed, so each look asks the
+# device for one picture.
+# Real run: take a photo of a lit stove with nobody in view, name it
+# stove.jpg, and pass --media-dir with its folder. (media/stove.jpg here is a
+# frame of the synthetic placeholder video.)
+name: speaks up about an unattended stove, camera on demand
+participant: p1
+steps:
+  - join: p1
+  - image: {path: media/stove.jpg, stream: false}
+  - wait_for: {said: stove, within_s: 30}
+  - leave: p1

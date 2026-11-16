@@ -22,6 +22,62 @@ before updating the checkout. Start the updated services before restarting
 workers; launchers can reuse a running service whose identity matches even when
 its application code predates the update.
 
+### Internal and duplicate names deprecated
+
+No action is required to keep running: every name below still imports from the
+same place, now with one `DeprecationWarning` that names the replacement
+(Python shows it by default only for code run as `__main__`; use
+`python -W default::DeprecationWarning` or pytest to see all of them). The
+names leave each package's `__all__`, so `from package import *` no longer
+brings them in; this is deliberate, and explicit imports and attribute access
+keep working with the warning. Removal happens one release later. Application code should use
+`xr_ai_next` (the app SDK under `xr-ai-next/`); SDK and
+service code that needs a plumbing name imports it from the module that defines
+it.
+
+```python
+# Before
+from xr_ai_hub import ParticipantEvent
+from xr_ai_interaction import ResponseOutputs
+
+# After: application code uses xr_ai_next (Hub, p.say, p.reply)
+from xr_ai_next import Hub
+
+# After: plumbing that still needs the wire type
+from xr_ai_hub._types import ParticipantEvent
+```
+
+| Before | After |
+|---|---|
+| `xr_ai_hub.AgentPresence`, `ConnectorRegistration`, `ControlMessage`, `FileMessage`, `FrameRequest`, `MsgType`, `ParticipantEvent`, `ReturnAudioFlush`, `RosterRequest`, `SubscriptionProbe` | Application code: the `xr_ai_next.Hub` component and `p.frames`. Plumbing: `xr_ai_hub._types.<name>` |
+| `xr_ai_hub.AGENT_STATUS_TOPIC` | Application code: none (an `xr_ai_next` app reports processing and idle per turn itself). Plumbing: `xr_ai_hub._processor.AGENT_STATUS_TOPIC` |
+| `xr_ai_hub.ShmRingBuffer`, `SlotView` | `Participant.frames`. Plumbing: `xr_ai_hub._shm.<name>` |
+| `xr_ai_gpu.GPUDevice`, `GPUProcess`, `query_gpu_inventory`, `query_gpu_pci_bus_ids`, `query_gpu_processes` | `xr_ai_gpu._query.<name>` |
+| `xr_ai_vad.VadDetector`, `OnUtteranceCb`, `OnSpeechStartCb` | Configure voice in the `voice:` section of an `xr_ai_next` app's `app.yaml`; the voice package imports `xr_ai_vad.detector.<name>` |
+| `xr_ai_models.KIND_OPENAI_COMPAT`, `KIND_SYSTEMONE`, `ModelKind` | Choose the adapter with `kind:` in the profile; `xr_ai_models._config.<name>` |
+| `xr_ai_models.ThinkingControl` | `ThinkingSpec(control=...)`; `xr_ai_models._thinking.ThinkingControl` |
+| `xr_ai_logging.print_task_done_banner` | None (dead code); log the milestone with loguru |
+| `xr_ai_interaction.ResponseOutputs` | `Participant.say()` and `Participant.reply()` (`xr_ai_next`) |
+
+Three duplicate spellings inside kept names also warn:
+
+```python
+# Before
+LLMSpec(base_url="http://localhost:8100/v1", model_name="m")  # flat constructor
+Agent(tools=[...])                                           # xr_ai_runtime.Agent
+manager.subscriber()                                         # ContextManager
+
+# After
+LLMSpec(adapter=AdapterSpec(model_name="m"), endpoint=EndpointSpec(base_url="http://localhost:8100/v1"))
+Conversation(role=..., output=..., instructions=..., tools=[...])  # xr_ai_kit, or @xr_ai_next.tool
+ContextLog / ContextValue          # xr_ai_next context channels, or ContextManager.update()
+```
+
+`xr_ai_vllm` keeps its names for now (its replacement by launch specs is
+tracked separately), and so do `xr_ai_hub.DataMessage`, `FrameSignal` and
+`xr_ai_voice.VadConfig`, which public signatures (`ProcessorEndpoint` callbacks,
+`VoiceAgent(vad=...)`) still mention; they warn once those signatures move. `xr_ai_vad` now has an empty `__all__`.
+
 ### Simple VLM example deprecation
 
 The {doc}`simple-vlm-example` sample is deprecated. Existing demo and launch

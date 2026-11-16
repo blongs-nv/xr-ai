@@ -124,6 +124,32 @@ When preparing a repository sample, refer to
 [Adding a sample](docs/source/guides/adding-a-sample.md) and the
 [`conversation-example`](agent-samples/conversation-example/README.md) reference.
 
+## `xr_ai_next` SDK
+
+Applies to code that uses `xr_ai_next` (`xr-ai-next/`). For this
+code the rules below override the ownership rules above, namely "Agents own their state, resources,
+lifecycle, background tasks, and concurrency policy", "Raw IPC workers ... cancel tasks before
+`ProcessorEndpoint.stop()`" and "Voice workers delegate readiness, signals, pipeline cancellation, and
+cleanup to `VoiceAgent`". Code that does not use `xr_ai_next` keeps the rules above.
+
+- **The app owns tasks, signals and shutdown; samples own behavior.** `xr_ai_next.App` creates and cancels
+  every task, closes every model client, runs the leave and stop sequences in the documented order and
+  is the only place that installs signal handlers (`App.run()`). The contract is
+  `xr-ai-next/packages/xr-ai-next/docs/LIFECYCLE_CONTRACT.md`.
+- **Sample and component code never calls `asyncio.create_task`**, never catches `CancelledError` or
+  `RuntimeClosedError`, and never orders shutdown by hand. Use `p.spawn(...)` and component hooks
+  (`on_start`, `on_participant_enrolled`, `on_participant_unenrolled`, `on_stop`).
+- **Per-participant state lives on the `Participant`** (`p.state`, `p.session.state`, `p.frames`,
+  `p.artifacts`) and is released when the participant leaves; do not keep per-participant dicts.
+- **Import from `xr_ai_next` and its public modules** in samples and kits, never from a private
+  (`_underscore`) module of another package.
+- **Model roles are named by job** (`perceive`, `decide`, `extract`, `answer`, `ack`, `embed`,
+  `speech_in`, `speech_out`) and chosen by a profile (`xr-ai-next/packages/xr-ai-next/docs/PROFILES_SCHEMA.md`);
+  code asks for a role, never for a model.
+- **Existing packages change only through additive, default-preserving seams**, with no renames and no moved
+  modules.
+- **Evals use one contract**, documented with the eval runner.
+
 ## Engineering guidance
 
 Apply these practices to repository and downstream work. Work under `apps/`

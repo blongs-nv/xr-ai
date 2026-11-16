@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted replies for spoken.yaml; drop them with --real-models.
+vlm:
+  - It's a red ball.
+  - It's round, a circle.

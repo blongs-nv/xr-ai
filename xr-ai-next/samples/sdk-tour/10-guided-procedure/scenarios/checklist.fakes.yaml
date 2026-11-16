@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+decide: [procedure, start, conversation, conversation]
+answer_with_reasoning:
+  - You're on the last step, warming up.
+  - About 70 seconds left.
+perceive:
+  - {seen: "A spool on the bed.", state: objects_on_it}
+  - {seen: "The bed is clear.", state: clear}
+  - {seen: "The bed is clear.", state: clear}
+  - {seen: "The door is open.", state: open}
+  - {seen: "The door is closed.", state: closed}
+  - {seen: "The door is closed.", state: closed}

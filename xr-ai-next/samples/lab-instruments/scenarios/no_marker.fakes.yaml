@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted replies for no_marker.yaml; drop them with --real-models.
+llm:
+  - tool_call: {name: lab_instruments__read, args: {}}

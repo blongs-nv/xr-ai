@@ -7,8 +7,9 @@ from __future__ import annotations
 import logging
 import re
 
-from xr_ai_gpu import GPUDevice as _GPUDevice
-from xr_ai_gpu import GPUInventoryError, query_gpu_inventory, query_gpu_processes
+from xr_ai_gpu import GPUInventoryError
+from xr_ai_gpu._query import GPUDevice as _GPUDevice
+from xr_ai_gpu._query import query_gpu_inventory, query_gpu_processes
 
 log = logging.getLogger(__name__)
 _SPARK_NAME = re.compile(r"(?i)\b(?:GB10|B10)\b")

@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# When each step of printer.mp4 should finish (clip seconds), for
+# `xr-ai-dev exercise app.py procedure: --video ... --option annotations=@scenarios/printer.windows.yaml`.
+# Mark these from your own recording: the earliest and latest moment the step is plainly done.
+bed_clear: [1.0, 4.0]
+door_closed: [3.0, 7.0]

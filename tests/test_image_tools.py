@@ -566,3 +566,68 @@ async def test_streaming_image_query_reports_failure_before_output() -> None:
     chunks = [chunk.text async for chunk in tool.stream(ImageQueryRequest(image=images.put(b"image"), query="What?"))]
 
     assert chunks == ["VLM server unavailable — please retry."]
+
+
+class _BlockingVlm:
+    """A VLM whose calls never finish and record when they were closed."""
+
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.closed = False
+
+    async def ask_images(self, images, question, **_kwargs):
+        self.started.set()
+        try:
+            await asyncio.Future()
+        finally:
+            self.closed = True
+
+    async def stream_images(self, images, question, **_kwargs):
+        self.started.set()
+        try:
+            await asyncio.Future()
+            yield ""
+        finally:
+            self.closed = True
+
+
+async def _cancel_and_check_stopped(vlm: _BlockingVlm, run) -> None:
+    task = asyncio.create_task(run())
+    await asyncio.wait_for(vlm.started.wait(), timeout=1.0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    # No sleep: cancellation must not return while the model call is open.
+    assert vlm.closed
+
+
+async def test_cancelling_image_query_stops_its_model_call_before_returning() -> None:
+    images = ImageRegistry()
+    image = images.put(b"jpeg bytes", owner="alice")
+    vlm = _BlockingVlm()
+    tool = ImageQueryTool(images=images, vlm=cast(VLMService, vlm))
+    await _cancel_and_check_stopped(
+        vlm, lambda: tool.execute(ImageQueryRequest(image=image, query="What?"))
+    )
+
+
+async def test_cancelling_streaming_image_query_stops_its_model_stream_before_returning() -> None:
+    images = ImageRegistry()
+    image = images.put(b"jpeg bytes", owner="alice")
+    vlm = _BlockingVlm()
+    tool = StreamingImageQueryTool(images=images, vlm=cast(VLMService, vlm))
+
+    async def consume() -> None:
+        async for _chunk in tool.stream(ImageQueryRequest(image=image, query="What?")):
+            pass
+
+    await _cancel_and_check_stopped(vlm, consume)
+
+
+async def test_uncancelled_image_query_still_returns_its_answer() -> None:
+    images = ImageRegistry()
+    image = images.put(b"jpeg bytes", owner="alice")
+    tool = ImageQueryTool(images=images, vlm=cast(VLMService, _Vlm("ok")))
+    result = await tool.execute(ImageQueryRequest(image=image, query="What?"))
+    assert result.text == "ok"
+

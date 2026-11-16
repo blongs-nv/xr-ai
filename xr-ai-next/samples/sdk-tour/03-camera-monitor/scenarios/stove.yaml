@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Evaluates: the monitor speaks up on its own when a watched condition holds.
+# Real run: record a short clip of a lit stove with nobody in view, name it stove.mp4, and pass
+# --media-dir with its folder. (media/stove.mp4 here is a synthetic placeholder for scripted runs.)
+name: speaks up about an unattended stove
+participant: p1
+steps:
+  - join: p1
+  - video: {path: media/stove.mp4, fps: 2, from_s: 0, to_s: 10, background: true}
+  - wait_for: {said: stove, within_s: 30}
+  - leave: p1

@@ -40,7 +40,7 @@ from pipecat.frames.frames import (
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 from xr_ai_models import STTService
-from xr_ai_vad import VadDetector
+from xr_ai_vad.detector import VadDetector
 from xr_ai_voicegate._phrases import STOP_RE
 
 from .._frames import ParticipantLeftFrame, _UnrecognizedSpeechFrame

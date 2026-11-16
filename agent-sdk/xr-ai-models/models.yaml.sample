@@ -66,6 +66,17 @@ models:
       model_name: Cloudflare/clef-flash
     endpoint:
       base_url: http://127.0.0.1:8120
+  # Without a decision model, an LLM can back the decision role instead:
+  # decision:
+  #   category: decision
+  #   adapter:
+  #     preset: nemotron_omni
+  #     # Optional: the prompt layout for this model (any part; the rest default).
+  #     templates:
+  #       decision:
+  #         user: "State:\n{state}\n\nQuestions:\n\n{questions}"
+  #   endpoint:
+  #     base_url: http://127.0.0.1:8108
 
 # For Riva speech, including TLS, language, voice, sample rate, function IDs,
 # endpoint credentials, and independently deployed NIM examples, refer to

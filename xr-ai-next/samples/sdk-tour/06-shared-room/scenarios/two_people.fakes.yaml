@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+answer_with_reasoning:
+  - tool_call: {name: check_item, args: {item: valve closed}}
+  - Got it, valve checked.

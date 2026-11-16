@@ -13,7 +13,8 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
-from xr_ai_interaction import ResponseOutput, ResponseOutputs
+from xr_ai_interaction import ResponseOutput
+from xr_ai_interaction._outputs import ResponseOutputs
 from xr_ai_models import ChatMessage, LLMService
 from xr_ai_routing import (
     Admission,

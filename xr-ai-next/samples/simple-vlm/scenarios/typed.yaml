@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# A typed question about the streamed camera view (the web client in live
+# video mode). media/ is made by make_images.py.
+name: typed question, streamed frame
+participant: p1
+steps:
+  - join: p1
+  - image: media/sign.png
+  - at: 0.5
+    say: What does the sign say?
+  - expect: {said_any: [exit], within_s: 30}
+  - leave: p1

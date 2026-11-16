@@ -34,6 +34,10 @@ uv --config-file uv.toml run --project tests pytest <affected-test-files>
 uv tool run ruff check <changed-python-files>
 ```
 
+When a change adds, removes or renames a name in a package's `__all__`, the public-API snapshot check
+fails until the snapshot is regenerated: run `python3 .github/scripts/api_snapshot.py --write`, review the
+`api-snapshot.json` diff as a public API change, and commit it with the change.
+
 ## Change contract
 
 New public names and wider exported contracts need a concrete consumer and

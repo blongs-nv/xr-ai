@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted replies for alert.yaml; drop them with --real-models.
+# router (Clef), in call order: the pick and the alert's admission check,
+# the check of the CLOSED frame, the pick for the question, the check of the
+# OPEN frame.
+router: [alerts, start, "no", conversation, "yes"]
+llm:
+  - '{"status": "ready", "condition": "alert me when the sign says OPEN", "relevance": "the sign"}'
+  - Two plus two is four.
+vlm:
+  - The sign now says OPEN in white letters on green.

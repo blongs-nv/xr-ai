@@ -11,6 +11,11 @@
 agents. It handles voice gating, interruptions, and session cleanup, letting
 several agents share a voice interface while handling their own tasks.
 
+```{note}
+New applications use `xr_ai_next`, which covers this package's role. Names this package
+deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
+```
+
 <a id="usage"></a>
 (agent-sdk-voice-usage)=
 ## Voice agent

@@ -1,0 +1,5 @@
+PASS                             make_red_sphere: Created a red sphere.
+FAIL missing=['add_primitive'] forbidden=[] wrong_reply=False order=[] counts=[] sizes=[] colors=[] positions=[] place_two_cubes: I placed one cube.
+FAIL missing=[] forbidden=['delete_all'] wrong_reply=False order=['a','b'] counts={'cube': 1} sizes=[] colors=[] positions=[('x', 1)] clear-scene: Deleted.
+AUDIT WARNING prompt: contains case fixture id 'x'
+scenarios: 1/3 passed

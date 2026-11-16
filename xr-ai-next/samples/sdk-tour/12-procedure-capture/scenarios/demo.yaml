@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Media: three small synthetic frames (a shape moving across a plain view).
+name: capture a demonstration
+participant: p1
+steps:
+  - join: p1
+  - expect: {said: "say start capture", within_s: 5}
+  - say: start capture
+  - expect: {said: "Capture started", within_s: 5}
+  - frames: {dir: media/demo/, fps: 2}
+  - say: first I fill the kettle to the line
+  - say: then I put it on the base and switch it on
+  - say: stop capture
+  - expect: {said: "Capture stopped", within_s: 10}
+  - leave: p1

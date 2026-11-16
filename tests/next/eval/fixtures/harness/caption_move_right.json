@@ -1,0 +1,8 @@
+{
+  "case": "move_right",
+  "query": "q",
+  "raw_response": "garbage",
+  "available": true,
+  "expected": "moved right",
+  "error": "caption JSON invalid"
+}

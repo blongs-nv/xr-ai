@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Evaluates: a two-level menu chosen by the decision model, and a code rule that needs no model.
+# Real run: no media needed.
+name: dims the lights, then stops
+participant: p1
+steps:
+  - join: p1
+  - at: 0.5
+    say: make it a bit darker
+  - expect: {said: Dimmed, within_s: 30}
+  - say: stop
+  - expect: {said: Stopped, within_s: 10}
+  - leave: p1

@@ -417,3 +417,82 @@ async def test_voice_session_starts_without_checking_model_health() -> None:
     ) as session:
         assert session.transport is transport
     assert transport.shutdown_called
+
+
+def _stub_pipeline(monkeypatch, finished: asyncio.Event, task: _PipelineTask):
+    class _Runner:
+        async def run(self, _worker) -> None:
+            await finished.wait()
+
+    monkeypatch.setattr(
+        session_module, "_build_voice_pipeline", lambda **_kwargs: (object(), task)
+    )
+    monkeypatch.setattr(session_module, "PipelineRunner", _Runner)
+
+
+def _session(transport: _Transport, **kwargs) -> VoiceSession:
+    return VoiceSession(
+        stt=_Service(),  # type: ignore[arg-type]
+        tts=_Service(),  # type: ignore[arg-type]
+        vad=VadConfig(),
+        voice_gate=VoiceGateConfig(),
+        transport=transport,  # type: ignore[arg-type]
+        **kwargs,
+    )
+
+
+async def _run_and_stop(session: VoiceSession, transport: _Transport, finished) -> None:
+    async with session:
+        run_task = asyncio.create_task(session.run(_ignore_query))
+        transport.started.set()
+        while not transport.endpoint.statuses:
+            await asyncio.sleep(0)
+        session.request_stop()
+        await asyncio.sleep(0)
+        finished.set()
+        await run_task
+
+
+async def test_voice_session_installs_signal_handlers_by_default(monkeypatch) -> None:
+    finished = asyncio.Event()
+    task = _PipelineTask(on_cancel=finished.set)
+    _stub_pipeline(monkeypatch, finished, task)
+    loop = asyncio.get_running_loop()
+    added: list[object] = []
+    removed: list[object] = []
+    monkeypatch.setattr(loop, "add_signal_handler", lambda sig, cb: added.append(sig))
+    monkeypatch.setattr(loop, "remove_signal_handler", lambda sig: removed.append(sig))
+
+    transport = _Transport()
+    await _run_and_stop(_session(transport), transport, finished)
+
+    assert len(added) == 2 and added == removed
+
+
+async def test_voice_session_stop_requested_during_startup_is_not_lost(monkeypatch) -> None:
+    finished = asyncio.Event()
+    task = _PipelineTask(on_cancel=finished.set)
+    _stub_pipeline(monkeypatch, finished, task)
+    transport = _Transport()
+    session = _session(transport, install_signal_handlers=False)
+    async with session:
+        session.request_stop()  # before run(): probes and speaker ASR are still starting
+        await asyncio.wait_for(session.run(_ignore_query), timeout=1.0)
+    assert task.cancel_calls == 1
+
+
+async def test_voice_session_can_skip_signal_handlers_and_stop_externally(monkeypatch) -> None:
+    finished = asyncio.Event()
+    task = _PipelineTask(on_cancel=finished.set)
+    _stub_pipeline(monkeypatch, finished, task)
+    loop = asyncio.get_running_loop()
+    added: list[object] = []
+    monkeypatch.setattr(loop, "add_signal_handler", lambda sig, cb: added.append(sig))
+
+    transport = _Transport()
+    session = _session(transport, install_signal_handlers=False)
+    await _run_and_stop(session, transport, finished)
+
+    assert added == []
+    assert task.cancel_calls == 1
+

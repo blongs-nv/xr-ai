@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Iterable
 from typing import Any
 
@@ -19,6 +20,13 @@ class Agent:
         tools: Iterable[Tool[Any, Any] | AsyncTool[Any, Any]] = (),
     ) -> None:
         owned = tuple(tools)
+        if owned:
+            warnings.warn(
+                "Agent(tools=...) is deprecated: the runtime only type-checks it; hand tools to the conversation "
+                "(xr_ai_next.Conversation(tools=...)) or declare them with @xr_ai_next.tool",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         names: set[str] = set()
         for tool in owned:
             if not isinstance(tool, (Tool, AsyncTool)):

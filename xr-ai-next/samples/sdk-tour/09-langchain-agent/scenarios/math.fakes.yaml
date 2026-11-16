@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+decide: [math, math]
+answer_with_reasoning:
+  - tool_call: {name: convert, args: {value: 10, unit_from: km, unit_to: mi}}
+  - Ten kilometers is about 6.21 miles.
+  - tool_call: {name: look, args: {question: "how long is the ruler?"}}
+  - The ruler is 30 centimeters.
+perceive:
+  - A 30 cm ruler.

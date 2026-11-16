@@ -4,7 +4,17 @@
 """``make_*`` constructors that dispatch a :class:`Spec` to a concrete client."""
 from __future__ import annotations
 
-from ._config import KIND_OPENAI_COMPAT, KIND_RIVA_GRPC, KIND_SYSTEMONE, ModelsConfig
+from typing import Any
+
+from ._config import (
+    KIND_OPENAI_COMPAT,
+    KIND_RIVA_GRPC,
+    KIND_SYSTEMONE,
+    AdapterSpec,
+    EndpointSpec,
+    ModelsConfig,
+)
+from ._llm_decision import _LLMDecision, _SchemaChat
 from ._ocr import NemotronOCR
 from ._openai_compat import (
     OpenAICompatEmbedding,
@@ -39,12 +49,23 @@ def make_ocr(config: ModelsConfig, name: str) -> OCRService:
 def make_decision(config: ModelsConfig, name: str) -> DecisionService:
     """Construct the typed decision service for the named configuration entry.
 
+    ``kind: systemone`` builds the Clef SystemOne client; an ``openai_compat``
+    LLM adapter builds a service that asks that LLM for one label per question
+    (confidence 1.0 for the chosen label, probabilities 1.0 and 0.0).
+
     Raises :class:`KeyError` when *name* is absent, :class:`TypeError` when it
     names a different model role, and :class:`ValueError` for an unsupported
     adapter kind.
     """
 
     spec = config.decision(name)
+    if spec.kind == KIND_OPENAI_COMPAT:
+        return _LLMDecision(
+            _SchemaChat(**_chat_options(spec.adapter, spec.endpoint)),
+            model_name=spec.model_name,
+            timeout=spec.timeout,
+            template=spec.adapter.templates["decision"],
+        )
     if spec.kind == KIND_SYSTEMONE:
         return _SystemOneDecision(
             base_url=spec.base_url,
@@ -97,22 +118,26 @@ def make_llm(config: ModelsConfig, name: str) -> LLMService:
     """
 
     spec = config.llm(name)
-    adapter = spec.adapter
-    endpoint = spec.endpoint
-    if adapter.kind == KIND_OPENAI_COMPAT:
-        return OpenAICompatLLM(
-            base_url=endpoint.base_url,
-            model_name=adapter.model_name,
-            capabilities=Capabilities(**adapter.capabilities),
-            reasoning_field=adapter.reasoning_field,
-            default_extras=adapter.default_extras,
-            thinking=adapter.thinking,
-            api_key_env=endpoint.api_key_env,
-            timeout=endpoint.timeout,
-            health_check=endpoint.health_check,
-            health_path=endpoint.health_path,
-        )
-    raise ValueError(f"unsupported LLM kind: {adapter.kind!r}")
+    if spec.adapter.kind == KIND_OPENAI_COMPAT:
+        return OpenAICompatLLM(**_chat_options(spec.adapter, spec.endpoint))
+    raise ValueError(f"unsupported LLM kind: {spec.adapter.kind!r}")
+
+
+def _chat_options(adapter: AdapterSpec, endpoint: EndpointSpec) -> dict[str, Any]:
+    """The :class:`OpenAICompatLLM` arguments of an ``openai_compat`` chat entry."""
+
+    return {
+        "base_url": endpoint.base_url,
+        "model_name": adapter.model_name,
+        "capabilities": Capabilities(**adapter.capabilities),
+        "reasoning_field": adapter.reasoning_field,
+        "default_extras": adapter.default_extras,
+        "thinking": adapter.thinking,
+        "api_key_env": endpoint.api_key_env,
+        "timeout": endpoint.timeout,
+        "health_check": endpoint.health_check,
+        "health_path": endpoint.health_path,
+    }
 
 
 def make_vlm(config: ModelsConfig, name: str) -> VLMService:

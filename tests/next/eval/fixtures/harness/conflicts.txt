@@ -1,0 +1,3 @@
+PASS corrected-meeting-day: 5/5 | Thursday
+FAIL meeting-room: 2/5 | Room 4
+FAIL allergy: seeding expected fact missing

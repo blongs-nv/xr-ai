@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Two instruments, and no video stream: the client is in on-demand camera
+# mode, so the app asks for one picture. Device1 (QR) gets the magenta X,
+# Device2 (ArUco) the cyan one; one Cosmos call reads both.
+name: read two instruments from a picture taken on demand
+participant: p1
+steps:
+  - join: p1
+  - image: {path: media/two_devices.png, stream: false}
+  - at: 0.5
+    say: Read the instruments.
+  - expect: {said: "23.5", within_s: 60}
+  - expect: {said: "7.02", within_s: 5}
+  - leave: p1

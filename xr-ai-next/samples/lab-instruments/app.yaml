@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# yaml/ holds upstream lab-instrument-monitoring's files; this file takes the
+# place of its yaml/lab_instrument_monitoring_worker.yaml (same values).
+profile: yaml/models.json
+voice:
+  voice_gate_yaml: yaml/voice_gate.yaml
+  # Voice activity detection, as upstream's worker sets it.
+  vad: {silence_duration: 0.4, min_speech: 0.1, silero_threshold: 0.5}
+# Durable JSONL output, per participant and session (records.py).
+artifacts_dir: artifacts
+
+settings:
+  # QR or ArUco identifiers and their instrument names.
+  device_map_yaml: yaml/device_map.yaml
+  # Also keep every frame the instrument reader scans (marker-scans/).
+  capture_marker_scans: false
+  # The visual monitor looks this often.
+  monitor_interval_s: 5.0
+  # The instrument monitor reads this often, writes a snapshot of every
+  # tracked instrument this often, and reports an instrument lost after it
+  # was not seen this long.
+  instrument_monitor_interval_s: 5.0
+  instrument_state_interval_s: 10.0
+  instrument_lost_after_s: 30.0
+  # Visual-monitor looks kept for recent_visual_history.
+  monitor_history_size: 20
+  # The monitoring history the conversation reads (oldest dropped first).
+  history_budget_bytes: 4000
+  # Frame freshness: an older frame is stale; then the app asks for a picture
+  # or waits this long for the next frame.
+  frame_max_age_s: 5.0
+  frame_timeout_s: 5.0

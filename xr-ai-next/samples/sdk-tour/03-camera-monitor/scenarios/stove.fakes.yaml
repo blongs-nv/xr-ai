@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+perceive:
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}
+  - {summary: "A lit stove, nobody in view.", stove_unattended: "yes", door_open: "no"}

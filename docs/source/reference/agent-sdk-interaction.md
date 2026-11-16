@@ -12,6 +12,11 @@ requests. Shared interaction messages let the same agents answer through
 either interface and distinguish answers from unsolicited updates, such as a
 timer finishing or a monitored condition changing.
 
+```{note}
+New applications use `xr_ai_next`, which covers this package's role. Names this package
+deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
+```
+
 ## Messages
 
 The payload types are `UserQuery`, `ResponseOutput`, `ParticipantJoined`,
@@ -44,12 +49,13 @@ that share a `response_id`, carry `final=False`, and end with an empty
 `final=True` terminator. Updates are always finite. Producers never choose
 interrupt flags or stream identifiers themselves.
 
-`ResponseOutputs` frames these messages so agents do not build them by hand.
+`ResponseOutputs` frames these messages so agents do not build them by hand. It is deprecated at the package root:
+import it from `xr_ai_interaction._outputs` in plumbing code, and use `p.say` and `p.reply` in `xr_ai_next` applications.
 It wraps anything with an async `publish(topic, message, *, participant_id=...)`
 method, such as `AgentRuntime` or the `RuntimeContext` passed to a subscriber:
 
 ```python
-from xr_ai_interaction import ResponseOutputs
+from xr_ai_interaction._outputs import ResponseOutputs
 
 outputs = ResponseOutputs(ctx, VOICE_OUTPUT_TOPIC)
 

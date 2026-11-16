@@ -5,14 +5,18 @@
 
 from __future__ import annotations
 
+import json
 from types import MappingProxyType
 
 import httpx
 import pytest
 from xr_ai_models import (
+    Capabilities,
+    DecisionAnswer,
     DecisionInputTooLargeError,
     DecisionQuestion,
     DecisionSpec,
+    _openai_compat,
     _systemone,
     load_models_config_from_dict,
     make_decision,
@@ -203,9 +207,9 @@ async def test_decision_rejects_partial_question_set() -> None:
 def test_systemone_kind_is_restricted_to_decision_category() -> None:
     with pytest.raises(ValueError, match="decision kind"):
         load_models_config_from_dict({"llm": {"category": "llm", "kind": "systemone", "base_url": "http://clef.test"}})
-    with pytest.raises(ValueError, match="requires the systemone"):
+    with pytest.raises(ValueError, match="speech kind"):
         load_models_config_from_dict(
-            {"decision": {"category": "decision", "kind": "openai_compat", "base_url": "http://clef.test"}}
+            {"decision": {"category": "decision", "kind": "riva_grpc", "base_url": "http://clef.test"}}
         )
 
 
@@ -276,3 +280,276 @@ async def test_decision_reports_input_too_large_as_a_typed_error(response, messa
             )
     finally:
         await client.aclose()
+
+
+# ---- a decision entry backed by an LLM (category decision, an openai_compat LLM adapter) ----
+
+
+def _llm_decision_config(**endpoint):
+    return load_models_config_from_dict(
+        {
+            "router": {
+                "category": "decision",
+                "adapter": {"preset": "nemotron_omni", "default_extras": {"temperature": 0.6, "max_tokens": 4000}},
+                "endpoint": {"base_url": "http://llm.test:8108", "timeout": 9.0, **endpoint},
+            }
+        }
+    )
+
+
+_ROUTE = {
+    "route": DecisionQuestion(
+        instructions="Pick the destination for the request.",
+        criteria={"notes": "The user dictates a note.", "chat": "Anything else."},
+    ),
+    "urgent": DecisionQuestion(instructions="", criteria={"yes": "It cannot wait.", "no": "It can wait."}),
+}
+
+
+def _chat_reply(content: str) -> httpx.Response:
+    return httpx.Response(
+        200,
+        json={
+            "model": "llm",
+            "choices": [{"message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 90, "completion_tokens": 9},
+        },
+    )
+
+
+def test_a_decision_entry_may_use_an_llm_adapter_and_other_entries_parse_as_before() -> None:
+    spec = _llm_decision_config().decision("router")
+    assert isinstance(spec, DecisionSpec)
+    assert (spec.kind, spec.model_name, spec.timeout) == ("openai_compat", "llm", 9.0)
+    assert spec.base_url == "http://llm.test:8108"
+    assert spec.adapter.capabilities["vision"] and spec.adapter.reasoning_field == "reasoning_content"
+    assert _config().decision("clef").kind == "systemone"
+    # Only an LLM preset may back a decision; any other preset/category mismatch is still an error.
+    with pytest.raises(ValueError, match="category mismatch"):
+        load_models_config_from_dict(
+            {"x": {"category": "decision", "adapter": {"preset": "cosmos_vlm"}, "endpoint": {"base_url": "http://x"}}}
+        )
+    with pytest.raises(ValueError, match="category mismatch"):
+        load_models_config_from_dict(
+            {"x": {"category": "vlm", "adapter": {"preset": "nemotron_omni"}, "endpoint": {"base_url": "http://x"}}}
+        )
+
+
+@pytest.mark.asyncio
+async def test_make_decision_asks_the_llm_for_one_label_per_question_under_a_schema(monkeypatch) -> None:
+    seen: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path == "/health":
+            return httpx.Response(200)
+        assert request.url.path == "/v1/chat/completions"
+        return _chat_reply('{"route": "notes", "urgent": "no"}')
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        _openai_compat.httpx,
+        "AsyncClient",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(handle), **kwargs),
+    )
+    service = make_decision(_llm_decision_config(), "router")
+    try:
+        assert await service.health()
+        result = await service.decide(MappingProxyType({"utterance": "Note: buy milk."}), _ROUTE, timeout=1.5)
+    finally:
+        await service.close()
+
+    assert result.answers["route"] == DecisionAnswer(
+        choice="notes", confidence=1.0, probabilities={"notes": 1.0, "chat": 0.0}
+    )
+    assert result.answers["urgent"].choice == "no" and result.answers["urgent"].probabilities == {"yes": 0.0, "no": 1.0}
+    assert result.model == "llm" and result.usage == {"prompt_tokens": 90, "completion_tokens": 9}
+    request = next(item for item in seen if item.url.path == "/v1/chat/completions")
+    body = json.loads(request.read())
+    assert body["model"] == "llm" and body["temperature"] == 0.0 and body["max_tokens"] < 4000
+    assert body["chat_template_kwargs"]["enable_thinking"] is False
+    assert body["response_format"]["type"] == "json_schema"
+    assert body["response_format"]["json_schema"]["schema"] == {
+        "type": "object",
+        "properties": {
+            "route": {"type": "string", "enum": ["notes", "chat"]},
+            "urgent": {"type": "string", "enum": ["yes", "no"]},
+        },
+        "required": ["route", "urgent"],
+        "additionalProperties": False,
+    }
+    system, user = body["messages"]
+    assert system["role"] == "system"
+    for text in ('"utterance": "Note: buy milk."', "Pick the destination", '"notes": The user dictates a note.'):
+        assert text in user["content"]
+    assert request.extensions["timeout"]["read"] == 1.5
+
+
+def _llm_service(handle, *, vision: bool = True):
+    from xr_ai_models._llm_decision import _LLMDecision, _SchemaChat
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+    chat = _SchemaChat("http://llm.test", "llm", capabilities=Capabilities(vision=vision), client=client)
+    return _LLMDecision(chat, model_name="llm", timeout=5.0), client
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "content",
+    [
+        '{"route": "calendar", "urgent": "no"}',  # not a label
+        '{"route": "notes"}',  # a question left out
+        '{"route": "notes", "urgent": "no", "extra": "yes"}',
+        '{"route": ["notes"], "urgent": "no"}',
+        "notes",  # not JSON
+        '```json\n{"route": "notes", "urgent": "no"}\n```',  # not strictly JSON
+    ],
+)
+async def test_an_llm_decision_with_an_invalid_or_partial_answer_raises(content) -> None:
+    service, client = _llm_service(lambda _request: _chat_reply(content))
+    try:
+        with pytest.raises(ValueError):
+            await service.decide("Note: buy milk.", _ROUTE)
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_an_llm_decision_sends_images_as_image_parts_or_refuses_them_when_text_only(tmp_path) -> None:
+    import base64
+
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+    sent: list[dict] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.read()))
+        return _chat_reply('{"q": "yes"}')
+
+    question = {"q": DecisionQuestion(instructions="Is the sign open?", criteria={"yes": "open", "no": "closed"})}
+    service, client = _llm_service(handle)
+    try:
+        assert (await service.decide("frame 1", question, images=[png])).answers["q"].choice == "yes"
+    finally:
+        await client.aclose()
+    image, text = sent[0]["messages"][1]["content"]
+    url = "data:image/png;base64," + base64.b64encode(png).decode()
+    assert image == {"type": "image_url", "image_url": {"url": url}}
+    assert text["type"] == "text" and "Is the sign open?" in text["text"]
+
+    text_only, client = _llm_service(handle, vision=False)
+    try:
+        with pytest.raises(ValueError, match="text-only"):
+            await text_only.decide("frame 1", question, images=[png])
+        with pytest.raises(ValueError, match="JPEG/PNG"):
+            await service.decide("frame 1", question, images=["https://example.test/a.png"])
+    finally:
+        await client.aclose()
+    assert len(sent) == 1  # nothing sent for a refused image
+
+
+# ---- prompt templates: the layout an LLM decision reads travels with the model's entry ----------------
+
+
+def _templated(templates) -> DecisionSpec:
+    return load_models_config_from_dict(
+        {
+            "router": {
+                "category": "decision",
+                "adapter": {"preset": "nemotron_omni", "templates": templates},
+                "endpoint": {"base_url": "http://llm.test:8108"},
+            }
+        }
+    ).decision("router")
+
+
+def test_the_default_decision_template_renders_the_questions_then_the_state() -> None:
+    from xr_ai_models._llm_decision import _labels, _prompt
+
+    template = _llm_decision_config().decision("router").adapter.templates["decision"]
+    system, user = _prompt(template, {"utterance": "hi"}, _ROUTE, _labels(_ROUTE))
+    assert system.startswith("You make choice decisions.")
+    assert user == (
+        "Questions:\n\n"
+        'Question id: "route"\nInstructions: Pick the destination for the request.\nLabels:\n'
+        '- "notes": The user dictates a note.\n- "chat": Anything else.\n\n'
+        'Question id: "urgent"\nInstructions: \nLabels:\n- "yes": It cannot wait.\n- "no": It can wait.\n\n'
+        'State:\n{\n  "utterance": "hi"\n}'
+    )
+
+
+def test_an_entry_overrides_template_parts_and_keeps_the_rest() -> None:
+    spec = _templated({"decision": {"system": "", "user": "State: {state}\n\n{questions}"}})
+    parts = spec.adapter.templates["decision"]
+    assert parts["system"] == "" and parts["user"] == "State: {state}\n\n{questions}"
+    assert parts["label"] == '- "{label}": {criterion}'  # the default
+    # A Clef entry and an llm entry render no template and take none.
+    assert _config().decision("clef").adapter.templates == {}
+
+
+@pytest.mark.parametrize(
+    ("templates", "message"),
+    [
+        ({"decision": {"user": "{questions} {state} {mood}"}}, r"uses \{mood\}"),
+        ({"decision": {"user": "{questions}"}}, r"\{state\} must appear exactly once"),
+        ({"decision": {"system": "{state}"}}, r"\{state\} must appear exactly once"),
+        ({"decision": {"label": "{label}: {criterion} {id}"}}, r"uses \{id\}"),
+        ({"decision": {"footer": "x"}}, "is not a part"),
+        ({"decision": {"user": "{state.__class__} {questions}"}}, "must be a plain name"),
+        ({"decision": {"user": "{state!r} {questions}"}}, "must be a plain name"),
+        ({"decision": {"user": 3}}, "must be text"),
+        ({"summarize": {}}, "templates.summarize is not rendered"),
+        ("decision", "must be a mapping"),
+    ],
+)
+def test_a_bad_template_fails_when_the_configuration_loads(templates, message) -> None:
+    with pytest.raises(ValueError, match=message):
+        _templated(templates)
+
+
+def test_an_entry_that_renders_no_template_refuses_one() -> None:
+    with pytest.raises(ValueError, match="templates.decision is not rendered"):
+        load_models_config_from_dict(
+            {
+                "x": {
+                    "adapter": {"preset": "nemotron_omni", "templates": {"decision": {}}},
+                    "endpoint": {"base_url": "http://x"},
+                }
+            }
+        )
+
+
+@pytest.mark.asyncio
+async def test_make_decision_sends_the_entrys_template(monkeypatch) -> None:
+    seen: list[dict] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.read()))
+        return _chat_reply('{"route": "chat", "urgent": "yes"}')
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        _openai_compat.httpx,
+        "AsyncClient",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(handle), **kwargs),
+    )
+    config = load_models_config_from_dict(
+        {
+            "router": {
+                "category": "decision",
+                "adapter": {
+                    "preset": "nemotron_omni",
+                    "templates": {"decision": {"system": "", "user": "Situation: {state}\nAsk: {questions}"}},
+                },
+                "endpoint": {"base_url": "http://llm.test:8108"},
+            }
+        }
+    )
+    service = make_decision(config, "router")
+    try:
+        result = await service.decide("The kettle is on.", _ROUTE)
+    finally:
+        await service.close()
+    assert result.answers["route"].choice == "chat"
+    (body,) = seen
+    (user,) = body["messages"]  # no system message
+    assert user["role"] == "user" and user["content"].startswith("Situation: The kettle is on.\nAsk: Question id:")

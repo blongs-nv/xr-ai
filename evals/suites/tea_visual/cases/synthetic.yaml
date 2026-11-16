@@ -1,0 +1,131 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Questions are copied verbatim from the shipped tea guide (PR 711,
+# procedure-capture-guide/example-guides/tea-making/guide.yaml) so the suite measures the shipped prompts.
+# Frames are synthetic stand-ins (see ../fixtures/render_synthetic.py); recorded-frame cases are in recorded.yaml.
+# Accuracy is scorecard-only; CI only checks that the suite loads and runs.
+prompts:
+  identify: &identify >-
+          Is CHAMOMILE visibly printed on the tea packet or box? Answer YES
+          if the word is legible, alone or within a longer tea name, regardless
+          of case or brand; the brand need not be visible. Answer NO if the
+          tea name is readable but lacks CHAMOMILE. Answer UNKNOWN if no packet
+          or box is visible or its label is obscured or unreadable. Read actual
+          words; do not infer from colors, flowers, or the requested tea.
+          Output only YES, NO, or UNKNOWN.
+  temperature: &temperature >-
+          Read the temperature display label and value. Copy the actual label,
+          number and unit as LABEL | NUMBER UNIT. Preserve labels such as CURRENT,
+          ACTUAL, TARGET or SET. If several readings are shown, select CURRENT
+          or ACTUAL. If only TARGET or SET is shown, copy that label, not CURRENT.
+          For an immersed thermometer use THERMOMETER as label. Return UNKNOWN
+          if no measurement label or immersed thermometer can be identified.
+          Output only the label and reading; do not convert units.
+  steeping: &steeping >-
+          Is a tea bag visibly in water inside a vessel? A bag floating on the
+          liquid surface counts; it need not sink. Require visible liquid and
+          visible bag contact, not just a bag inside a cup. Answer YES only for
+          that contact, NO for a dry bag in an empty vessel or a bag above or
+          beside water, UNKNOWN if liquid or contact is obscured. The cup rim,
+          cup outline, and a string alone are not evidence of water. Output only
+          YES, NO, or UNKNOWN.
+suite: tea_visual
+version: 1
+description: Tea visual checks on frames, using the shipped tea guide questions
+defaults:
+  role: perceive
+  pass_threshold: 1.0
+cases:
+  - id: packet-chamomile
+    input: {text: *identify, frames: [../fixtures/synthetic/chamomile.png]}
+    scorer: {type: choice, expect: "YES", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,packaging]
+  - id: packet-chamomile-blend
+    input: {text: *identify, frames: [../fixtures/synthetic/chamomile_blend.png]}
+    scorer: {type: choice, expect: "YES", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,packaging]
+  - id: packet-other-blend
+    input: {text: *identify, frames: [../fixtures/synthetic/mint.png]}
+    scorer: {type: choice, expect: "NO", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,packaging]
+  - id: packet-ginger-same-color
+    input: {text: *identify, frames: [../fixtures/synthetic/ginger.png]}
+    scorer: {type: choice, expect: "NO", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,packaging]
+  - id: packet-partial-word
+    input: {text: *identify, frames: [../fixtures/synthetic/partial_word.png]}
+    scorer: {type: choice, expect: "NO", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,packaging]
+  - id: packet-covered
+    input: {text: *identify, frames: [../fixtures/synthetic/covered_packet.png]}
+    scorer: {type: choice, expect: "UNKNOWN", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,packaging]
+  - id: packet-artwork-only
+    input: {text: *identify, frames: [../fixtures/synthetic/artwork_only.png]}
+    scorer: {type: choice, expect: "UNKNOWN", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,packaging]
+  - id: temp-below-target-65c
+    input: {text: *temperature, frames: [../fixtures/synthetic/below_65c.png]}
+    scorer: {type: regex, expect: '(?i)^CURRENT\s*\|\s*65(?:\.0+)?\s*(?:(?:°\s*)?C|℃)\s*$'}
+    tags: [visual,synthetic,below-target]
+  - id: temp-below-target-94c
+    input: {text: *temperature, frames: [../fixtures/synthetic/below_94c.png]}
+    scorer: {type: regex, expect: '(?i)^CURRENT\s*\|\s*94(?:\.0+)?\s*(?:(?:°\s*)?C|℃)\s*$'}
+    tags: [visual,synthetic,below-target]
+  - id: temp-at-target-100c
+    input: {text: *temperature, frames: [../fixtures/synthetic/at_target_100c.png]}
+    scorer: {type: regex, expect: '(?i)^CURRENT\s*\|\s*100(?:\.0+)?\s*(?:(?:°\s*)?C|℃)\s*$'}
+    tags: [visual,synthetic,at-target]
+  - id: temp-at-target-212f
+    input: {text: *temperature, frames: [../fixtures/synthetic/at_target_212f.png]}
+    scorer: {type: regex, expect: '(?i)^ACTUAL\s*\|\s*212(?:\.0+)?\s*(?:(?:°\s*)?F|℉)\s*$'}
+    tags: [visual,synthetic,at-target,fahrenheit]
+  - id: temp-fahrenheit-not-converted
+    input: {text: *temperature, frames: [../fixtures/synthetic/fahrenheit_below.png]}
+    scorer: {type: regex, expect: '(?i)^CURRENT\s*\|\s*100(?:\.0+)?\s*(?:(?:°\s*)?F|℉)\s*$'}
+    tags: [visual,synthetic,fahrenheit]
+  - id: temp-target-label-kept
+    input: {text: *temperature, frames: [../fixtures/synthetic/target_only.png]}
+    scorer: {type: regex, expect: '(?i)^TARGET\s*\|\s*100(?:\.0+)?\s*(?:(?:°\s*)?C|℃)\s*$'}
+    tags: [visual,synthetic,label]
+  - id: temp-two-readings-picks-current
+    input: {text: *temperature, frames: [../fixtures/synthetic/two_readings.png]}
+    scorer: {type: regex, expect: '(?i)^CURRENT\s*\|\s*94(?:\.0+)?\s*(?:(?:°\s*)?C|℃)\s*$'}
+    tags: [visual,synthetic,label,below-target]
+  - id: temp-unlabeled
+    input: {text: *temperature, frames: [../fixtures/synthetic/no_label.png]}
+    scorer: {type: regex, expect: '(?i)^UNKNOWN$'}
+    tags: [visual,synthetic,label,unreadable]
+  - id: temp-unit-unreadable-no-invented-unit
+    input: {text: *temperature, frames: [../fixtures/synthetic/unit_smudged.png]}
+    scorer: {type: regex, expect: '(?is)^(?!.*\b100\s*(?:°\s*)?[CF℃℉]).*$'}
+    tags: [visual,synthetic,unreadable-units]
+  - id: steep-empty-vessel
+    input: {text: *steeping, frames: [../fixtures/synthetic/empty_vessel.png]}
+    scorer: {type: choice, expect: "NO", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,empty-vessel]
+  - id: steep-dry-bag
+    input: {text: *steeping, frames: [../fixtures/synthetic/dry_bag.png]}
+    scorer: {type: choice, expect: "NO", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,empty-vessel]
+  - id: steep-water-no-bag
+    input: {text: *steeping, frames: [../fixtures/synthetic/water_only.png]}
+    scorer: {type: choice, expect: "NO", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,empty-vessel]
+  - id: steep-bag-above-water
+    input: {text: *steeping, frames: [../fixtures/synthetic/bag_above.png]}
+    scorer: {type: choice, expect: "NO", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,tea-contact]
+  - id: steep-bag-immersed
+    input: {text: *steeping, frames: [../fixtures/synthetic/bag_immersed.png]}
+    scorer: {type: choice, expect: "YES", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,tea-contact]
+  - id: steep-bag-floating
+    input: {text: *steeping, frames: [../fixtures/synthetic/bag_floating.png]}
+    scorer: {type: choice, expect: "YES", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,tea-contact]
+  - id: steep-contact-occluded
+    input: {text: *steeping, frames: [../fixtures/synthetic/contact_occluded.png]}
+    scorer: {type: choice, expect: "UNKNOWN", choices: ["YES", "NO", "UNKNOWN"]}
+    tags: [visual,synthetic,occluded]

@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# The visual monitor: started with a focus, it captions the view every few
+# seconds without speaking; asked later, the model answers from its looks
+# (recent_visual_history).
+name: the visual monitor notes a change
+participant: p1
+steps:
+  - join: p1
+  - image: media/device1_23_5.png
+  - at: 0.5
+    say: Keep an eye on the instrument display in the background.
+  - expect: {said: monitoring, within_s: 60}
+  - sleep: 7
+  - image: media/device1_24_1.png
+  - sleep: 7
+  - say: What changed recently?
+  - expect: {said: "24.1", within_s: 60}
+  - leave: p1

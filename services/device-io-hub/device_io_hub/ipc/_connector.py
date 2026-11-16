@@ -31,8 +31,8 @@ import zmq
 import zmq.asyncio
 from loguru import logger
 
-from xr_ai_hub import (
-    AudioChunk,
+from xr_ai_hub import AudioChunk, PixelFormat, decode, encode
+from xr_ai_hub._types import (
     ConnectorRegistration,
     ControlMessage,
     DataMessage,
@@ -40,12 +40,9 @@ from xr_ai_hub import (
     FrameSignal,
     MsgType,
     ParticipantEvent,
-    PixelFormat,
     ReturnAudioFlush,
-    ShmRingBuffer,
-    decode,
-    encode,
 )
+from xr_ai_hub._shm import ShmRingBuffer
 from xr_ai_hub._types import ImageCaptureData
 
 from ._registration import _CONNECTOR_REGISTER_ACK_TOPIC

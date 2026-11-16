@@ -17,7 +17,8 @@ from typing import Any
 
 import numpy as np
 from loguru import logger
-from xr_ai_hub import AudioChunk, DataMessage, FrameData
+from xr_ai_hub import AudioChunk, FrameData
+from xr_ai_hub._types import DataMessage
 
 from ._frontends import _RawCaptureFrontend
 from ._video import _H264TrackWriter, _join_sources, _safe_name, _supported_dimensions, _video_sources

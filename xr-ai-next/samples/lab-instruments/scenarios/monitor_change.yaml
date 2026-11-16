@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# The instrument monitor: started by a request, it reads the instruments
+# every few seconds, says when it finds Device1, and says once when its
+# reading changes.
+name: the monitor reports a changed reading
+participant: p1
+steps:
+  - join: p1
+  - image: media/device1_23_5.png
+  - at: 0.5
+    say: Start monitoring the instruments.
+  - expect: {said: now tracking, within_s: 60}
+  - image: media/device1_24_1.png
+  - expect: {said: "24.1", within_s: 60}
+  - say: Stop monitoring the instruments.
+  - expect: {said: stopped, within_s: 60}
+  - leave: p1

@@ -1,0 +1,10 @@
+{
+  "case": "initial",
+  "query": "q",
+  "raw_response": "{...}",
+  "available": true,
+  "expected": "One red square",
+  "caption": {
+    "delta": "Initial observation"
+  }
+}

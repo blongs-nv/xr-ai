@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# A one-shot visual alert: the request starts a background watch; the sign
+# says CLOSED, the conversation goes on, then the sign changes to OPEN and
+# the app speaks once ("Alert", then what it sees). media/ is made by
+# make_images.py.
+name: visual alert fires when the sign changes
+participant: p1
+steps:
+  - join: p1
+  - at: 0.5
+    say: Let me know when the sign says OPEN.
+  - expect: {said: alert you, within_s: 60}
+  - image: media/sign_closed.png
+  - sleep: 2  # the watch checks this frame: no alert
+  - say: What is two plus two?
+  - expect: {said_any: [four, "4"], within_s: 90}
+  - image: media/sign_open.png
+  # "Alert" (urgent), then what Cosmos sees. Only the description is
+  # checked here: the answer before may mention alerts (test_app.py checks
+  # the urgent "Alert").
+  - expect: {said: open, within_s: 60}
+  - leave: p1

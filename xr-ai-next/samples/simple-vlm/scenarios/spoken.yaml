@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# A spoken conversation about the streamed camera view. The local device has
+# no microphone: each say: is the question as the voice pipeline hands it to
+# the app, after speech recognition and the voice gate ("Hey agent, let's
+# start talking" opens the conversation and is not part of a question).
+name: spoken questions, streamed frame
+participant: p1
+steps:
+  - join: p1
+  - image: media/red_ball.png
+  - at: 0.5
+    say: what color is the ball
+  - expect: {said_any: [red], within_s: 30}
+  - at: +1
+    say: and what shape is it
+  - expect: {said_any: [round, circle, circular, sphere, ball], within_s: 30}
+  - leave: p1

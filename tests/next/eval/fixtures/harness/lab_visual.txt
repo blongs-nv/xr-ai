@@ -1,0 +1,2 @@
+PASS monitor-unchanged: 'No change.'
+FAIL monitor-changed: 'Looks the same.'

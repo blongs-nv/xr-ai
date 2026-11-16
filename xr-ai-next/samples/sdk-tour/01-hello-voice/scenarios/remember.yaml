@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Evaluates: the dialogue log; a later turn can use an earlier one.
+# Real run: no media needed.
+name: remembers the user's name
+participant: p1
+steps:
+  - join: p1
+  - at: 0.5
+    say: Hi, my name is Ana.
+  - expect: {said_any: [Ana, hi, hello], within_s: 30}
+  - at: +1
+    say: What's my name?
+  - expect: {said: Ana, within_s: 30}
+  - leave: p1

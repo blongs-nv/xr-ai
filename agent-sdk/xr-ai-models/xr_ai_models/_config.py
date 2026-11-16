@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import math
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, TypeVar
@@ -12,6 +13,8 @@ from typing import Any, Literal, TypeVar
 import yaml
 
 from . import presets as _presets
+from ._templates import DECISION as DECISION_TEMPLATE
+from ._templates import parse_templates
 from ._thinking import ThinkingSpec, check_legacy_conflict, lift_legacy_default
 from ._utils import merge_dicts
 
@@ -74,6 +77,10 @@ class AdapterSpec:
 
     thinking: ThinkingSpec = field(default_factory=ThinkingSpec)
     """How the model switches reasoning, and its default state."""
+
+    templates: dict[str, dict[str, str]] = field(default_factory=dict)
+    """Prompt templates for prompts the adapter writes itself, every part filled in (``_templates``); only an LLM
+    answering decisions renders one today (``decision``)."""
 
 
 @dataclass(frozen=True)
@@ -297,6 +304,26 @@ class LLMSpec(_RoleSpec):
             )
             self._set_specs(*structured)
             return
+        if any(
+            (
+                kind != KIND_OPENAI_COMPAT,
+                base_url,
+                model_name,
+                api_key_env is not None,
+                reasoning_field is not None,
+                capabilities is not None,
+                default_extras is not None,
+                thinking is not None,
+                timeout != 60.0,
+                health_check is not True,
+            )
+        ):
+            warnings.warn(
+                "LLMSpec's flat constructor is deprecated: build it from its parts, "
+                "LLMSpec(adapter=AdapterSpec(...), endpoint=EndpointSpec(...))",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self._set_specs(
             AdapterSpec(
                 kind=kind,
@@ -562,7 +589,12 @@ class OCRSpec(_RoleSpec):
 
 @dataclass(frozen=True)
 class DecisionSpec(_RoleSpec):
-    """Configuration for a choice-only structured decision endpoint."""
+    """Configuration for a choice-only structured decision endpoint.
+
+    ``kind: systemone`` is a Clef decision server. An ``openai_compat`` adapter
+    (an LLM preset or the fields an ``llm`` entry takes) answers decisions with
+    an LLM instead: one label per question under a JSON schema.
+    """
 
     adapter: AdapterSpec = field(default_factory=lambda: AdapterSpec(kind=KIND_SYSTEMONE))
     """Model identifier and adapter settings."""
@@ -745,12 +777,14 @@ def _build_spec(body: dict[str, Any]) -> Spec:
         preset_category is not None
         and explicit_category is not None
         and explicit_category != preset_category
+        # An LLM preset may back a decision entry (an LLM-answered decision).
+        and (preset_category, explicit_category) != ("llm", "decision")
     ):
         raise ValueError(
             f"category mismatch: preset gave {preset_category!r}, "
             f"entry gave {explicit_category!r}"
         )
-    category = preset_category or explicit_category
+    category = explicit_category or preset_category
     if category not in {"llm", "vlm", "stt", "tts", "embedding", "decision", "ocr"}:
         raise ValueError(
             f"missing or unknown category {category!r}; "
@@ -782,8 +816,11 @@ def _construct(category: Category, body: dict[str, Any]) -> Spec:
         raise ValueError("ocr requires kind nemotron_ocr, which is only valid for ocr")
     if kind == KIND_SYSTEMONE and category != "decision":
         raise ValueError("systemone is a decision kind; use it for decision only")
-    if category == "decision" and kind != KIND_SYSTEMONE:
-        raise ValueError("decision category requires the systemone adapter kind")
+    if category == "decision" and kind not in (KIND_SYSTEMONE, KIND_OPENAI_COMPAT):
+        raise ValueError(
+            "decision category requires the systemone adapter kind "
+            "or an openai_compat LLM adapter"
+        )
     if kind not in (KIND_OPENAI_COMPAT, KIND_RIVA_GRPC, KIND_SYSTEMONE, "nemotron_ocr"):
         raise ValueError(f"unsupported adapter kind: {kind!r}")
 
@@ -813,6 +850,10 @@ def _construct(category: Category, body: dict[str, Any]) -> Spec:
         language=_riva_str(body, "language", "en-US", allow_empty=False),
         voice=_riva_str(body, "voice", "", allow_empty=True),
         sample_rate=_riva_sample_rate(body),
+        templates=parse_templates(
+            body.get("templates"),
+            allowed=(DECISION_TEMPLATE,) if (category, kind) == ("decision", KIND_OPENAI_COMPAT) else (),
+        ),
     )
     deployment = _deployment(body.get("deployment", {}))
 

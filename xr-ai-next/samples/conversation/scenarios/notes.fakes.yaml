@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted replies for notes.yaml; drop them with --real-models.
+# router (Clef), in call order: the pick, then the notes' admission check;
+# while notes hold the focus there is no pick, and a declined turn is picked
+# again without them.
+router:
+  - notes         # "Start taking notes."  pick
+  - start         #                         admission
+  - capture       # the note               admission (focus: no pick)
+  - handoff       # the question           admission: declined
+  - conversation  #                         pick again
+  - finish        # "Stop taking notes."   admission (focus: no pick)
+  - conversation  # the last question      pick
+llm:
+  - The team meeting is on Thursday at 3 pm.
+  - The team meeting is on Thursday.

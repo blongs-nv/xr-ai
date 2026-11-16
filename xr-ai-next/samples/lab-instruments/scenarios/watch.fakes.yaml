@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted replies for watch.yaml; drop them with --real-models.
+# vlm: the visual monitor's looks (a baseline, then the change).
+llm:
+  - tool_call:
+      name: visual_monitor__start
+      args: {instruction: the instrument display}
+  - tool_call: {name: recent_visual_history, args: {limit: 5}}
+  - The display changed from 23.5 C to 24.1 C.
+vlm:
+  - '{"caption": "A thermometer display shows 23.5 C.", "changed": false, "summary": ""}'
+  - '{"caption": "A thermometer display shows 24.1 C.", "changed": true, "summary": "The display now shows 24.1 C."}'
+  - '{"caption": "A thermometer display shows 24.1 C.", "changed": false, "summary": ""}'
+  - '{"caption": "A thermometer display shows 24.1 C.", "changed": false, "summary": ""}'

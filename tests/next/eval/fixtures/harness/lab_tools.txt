@@ -1,0 +1,4 @@
+PASS reading-temperature: tools=['record_reading']
+FAIL idle-chat: tools=['record_reading']
+  content='Sure.'
+PASS unknown-tool-case: tools=[]

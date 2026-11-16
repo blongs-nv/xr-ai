@@ -14,14 +14,7 @@ from pathlib import Path
 from typing import Any, ParamSpec
 
 from loguru import logger
-from xr_ai_hub import (
-    AudioChunk,
-    DataMessage,
-    FrameSignal,
-    ParticipantEvent,
-    ProcessorEndpoint,
-    Subscribe,
-)
+from xr_ai_hub import AudioChunk, ProcessorEndpoint, Subscribe
 from xr_ai_hub._capture import (
     CAPTURE_OBSERVATION_TOPIC,
     CAPTURE_START_TOPIC,
@@ -29,6 +22,7 @@ from xr_ai_hub._capture import (
     CAPTURE_STT_TOPIC,
     CAPTURE_TTS_TOPIC,
 )
+from xr_ai_hub._types import DataMessage, FrameSignal, ParticipantEvent
 
 from ._recorder import SessionRecorder
 from ._return_subscriber import ReturnTrafficSubscriber

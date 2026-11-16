@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Speaker gating: enrollment by phrase, then only the enrolled speaker's speech is transcribed.
+# The driver streams the clips to the speaker-stt WebSocket (role speaker_gate; profile entry `speaker_gate`
+# with endpoint.base_url of the speaker service). Score 0 on an enrollment mismatch or any leaked foreign
+# speech, else 1 - WER of the enrolled speaker's transcripts. Recorded clips are pending.
+suite: speech
+version: 1
+description: Speaker gating on recorded audio fixtures
+defaults:
+  role: speaker_gate
+  pass_threshold: 0.9
+cases:
+  - id: gate-enroll-then-owner
+    skip_reason: "pending: clips not recorded"
+    input:
+      driver: "../drivers.py:speaker_gate"
+      params: {clips: [../fixtures/recorded/enroll_owner.wav, ../fixtures/recorded/owner_question.wav]}
+    scorer: {type: python, function: "../scorers.py:gating", expect_enrolled: true, expect_text: "how hot should the water be for chamomile"}
+    tags: [gating, recorded]
+  - id: gate-foreign-speaker-blocked
+    skip_reason: "pending: clips not recorded"
+    input:
+      driver: "../drivers.py:speaker_gate"
+      params: {clips: [../fixtures/recorded/enroll_owner.wav, ../fixtures/recorded/other_question.wav, ../fixtures/recorded/owner_question.wav]}
+    scorer: {type: python, function: "../scorers.py:gating", expect_enrolled: true, expect_text: "how hot should the water be for chamomile", forbid: ["when does the next train leave"]}
+    tags: [gating, recorded]
+  - id: gate-no-enrollment-nothing-passes
+    skip_reason: "pending: clips not recorded"
+    input:
+      driver: "../drivers.py:speaker_gate"
+      params: {clips: [../fixtures/recorded/owner_question.wav]}
+    scorer: {type: python, function: "../scorers.py:gating", expect_enrolled: false, forbid: ["how hot should the water be for chamomile"]}
+    tags: [gating, recorded]
+  - id: gate-near-miss-phrase
+    skip_reason: "pending: clips not recorded"
+    input:
+      driver: "../drivers.py:speaker_gate"
+      params: {clips: [../fixtures/recorded/near_miss_phrase.wav, ../fixtures/recorded/owner_question.wav]}
+    scorer: {type: python, function: "../scorers.py:gating", expect_enrolled: false, forbid: ["how hot should the water be for chamomile"]}
+    tags: [gating, recorded]
+  - id: gate-silence-no-enrollment
+    input:
+      driver: "../drivers.py:speaker_gate"
+      params: {clips: [../fixtures/silence_2s.wav]}
+    scorer: {type: python, function: "../scorers.py:gating", expect_enrolled: false}
+    tags: [gating, synthetic]

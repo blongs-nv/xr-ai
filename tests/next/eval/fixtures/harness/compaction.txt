@@ -1,0 +1,6 @@
+=== lab
+turn  0: answer  1.2s | dialogue summary    0 B, 1 verbatim
+PASS user-name: in prompt=True answers 5/5 | Alice
+FAIL lamp-serial: in prompt=False answers 1/5 | I do not know
+=== renovation
+PASS allergy: in prompt=True answers 4/5 | peanuts

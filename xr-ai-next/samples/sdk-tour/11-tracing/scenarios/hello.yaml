@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Evaluates: a traced turn; read runs/<name>/trace.jsonl for the spans and ids (--relay for ATOF/ATIF).
+# Real run: no media needed.
+name: one traced turn
+participant: p1
+steps:
+  - join: p1
+  - at: 0.5
+    say: "  hello  "
+  - expect: {said: "", within_s: 30}   # any reply
+  - leave: p1

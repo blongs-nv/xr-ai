@@ -29,28 +29,29 @@ Register new message types at import time:
 
 # Agent-facing types and endpoint — convenience re-exports from xr_ai_hub.
 from xr_ai_hub import (
-    AGENT_STATUS_TOPIC,
     AudioChunk,
-    ConnectorRegistration,
-    ControlMessage,
-    DataMessage,
-    FileMessage,
     FrameData,
-    FrameRequest,
-    FrameSignal,
-    MsgType,
-    ParticipantEvent,
     PixelFormat,
     ProcessorEndpoint,
-    ReturnAudioFlush,
-    RosterRequest,
-    ShmRingBuffer,
-    SlotView,
     Subscribe,
     decode,
     encode,
     register_decoder,
     register_encoder,
+)
+from xr_ai_hub._processor import AGENT_STATUS_TOPIC
+from xr_ai_hub._shm import ShmRingBuffer, SlotView
+from xr_ai_hub._types import (
+    ConnectorRegistration,
+    ControlMessage,
+    DataMessage,
+    FileMessage,
+    FrameRequest,
+    FrameSignal,
+    MsgType,
+    ParticipantEvent,
+    ReturnAudioFlush,
+    RosterRequest,
 )
 
 # Server-side endpoints — only available when device-io-hub is installed.

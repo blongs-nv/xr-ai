@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# A marker yaml/device_map.yaml does not name (ArUco 7): nothing to read, and
+# no model is asked.
+name: an unknown marker is not an instrument
+participant: p1
+steps:
+  - join: p1
+  - image: media/unknown_marker.png
+  - at: 0.5
+    say: Read the instruments.
+  - expect: {said: no configured, within_s: 60}
+  - leave: p1

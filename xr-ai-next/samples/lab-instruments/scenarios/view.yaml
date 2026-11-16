@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# A question about the view, not the instruments: current_view asks Cosmos
+# about the frame and its answer is spoken as it streams.
+name: a question about the view
+participant: p1
+steps:
+  - join: p1
+  - image: media/two_devices.png
+  - at: 0.5
+    say: What are you looking at?
+  - expect: {said_any: [instrument, device, meter, display, panel], within_s: 60}
+  - leave: p1

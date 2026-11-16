@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -13,6 +14,8 @@ from typing import Any, Generic, TypeVar, cast
 
 from nemo_relay import ToolExecutionResult, typed
 from pydantic import BaseModel, ValidationError
+
+from ._drain import ActiveCalls
 
 RequestT = TypeVar("RequestT", bound=BaseModel)
 ResultT = TypeVar("ResultT")
@@ -69,16 +72,22 @@ class Tool(Generic[RequestT, ResultT]):
 
         Handler exceptions propagate with their original type, instance, and
         cause. Relay records failures before propagating them; middleware can
-        recover from or replace a handler failure. Cancellation propagates.
+        recover from or replace a handler failure. Cancellation propagates
+        only after the handler, and any model call it started, has stopped.
         """
 
-        result = await typed.tool_execute(
-            self.name,
-            request,
-            self._execute_handler,
-            self._request_codec,
-            self._result_codec,
-        )
+        calls = ActiveCalls()
+        try:
+            result = await typed.tool_execute(
+                self.name,
+                request,
+                lambda value: self._execute_handler(value, calls),
+                self._request_codec,
+                self._result_codec,
+            )
+        except asyncio.CancelledError:
+            await calls.drained()
+            raise
         return result.result
 
     async def invoke(self, arguments: str) -> ToolInvocationResult:
@@ -105,11 +114,16 @@ class Tool(Generic[RequestT, ResultT]):
             return_direct=False,
         )
 
-    async def _execute_handler(self, request: RequestT) -> ToolExecutionResult[ResultT]:
-        result = self.handler(request)
-        if isawaitable(result):
-            result = await cast(Awaitable[ResultT], result)
-        return ToolExecutionResult(cast(ResultT, result))
+    async def _execute_handler(
+        self,
+        request: RequestT,
+        calls: ActiveCalls,
+    ) -> ToolExecutionResult[ResultT]:
+        with calls.track():
+            result = self.handler(request)
+            if isawaitable(result):
+                result = await cast(Awaitable[ResultT], result)
+            return ToolExecutionResult(cast(ResultT, result))
 
 
 class ToolSet:

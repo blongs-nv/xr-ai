@@ -12,6 +12,11 @@ hardware use, or deployment. Shared model interfaces let your application call
 the capabilities it needs while configuration selects the supported model
 adapter and endpoint.
 
+```{note}
+New applications use `xr_ai_next`, which covers this package's role. Names this package
+deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
+```
+
 ## Model interfaces
 
 <a id="contract"></a>
@@ -64,6 +69,63 @@ accepts (HTTP 413) raises `DecisionInputTooLargeError`. The limit belongs to the
 service, so a caller handles this by retrying with less input. The standalone
 {doc}`Clef-Flash guide </reference/clef-flash>` documents the local service and
 its pinned model release.
+
+A deployment without a decision model can back a `category: decision` entry
+with an OpenAI-compatible LLM instead. The entry takes the same adapter and
+endpoint fields as an `llm` entry, a preset included:
+
+```json
+{
+  "models": {
+    "router": {
+      "category": "decision",
+      "adapter": {"preset": "nemotron_omni"},
+      "endpoint": {"base_url": "http://localhost:8108"}
+    }
+  }
+}
+```
+
+`make_decision` returns the same `DecisionService`. Each `decide` call is one
+chat request for all questions. The reply is constrained to the permitted
+labels by a JSON schema (`response_format`), with reasoning off and temperature
+0. The endpoint must accept OpenAI's `json_schema` response format, as vLLM does.
+Every answer is checked: a reply without exactly one permitted label per
+question raises. An LLM reports no calibrated probabilities, so the chosen
+label has confidence 1.0, and the probabilities are 1.0 for it and 0.0 for the
+others. Images are sent as image parts when the adapter declares `vision`; a
+text-only adapter raises on images. Only an `llm` preset can back a decision
+entry. `health()` probes the LLM endpoint as an `llm` entry does.
+
+The prompt the LLM reads is a template that travels with the entry, because the
+best layout depends on the model. By default the questions come first, then the
+state. Override any part under `adapter.templates.decision`; parts you leave out
+keep their defaults:
+
+```json
+"adapter": {
+  "preset": "nemotron_omni",
+  "templates": {
+    "decision": {
+      "system": "",
+      "user": "State:\n{state}\n\nQuestions:\n\n{questions}"
+    }
+  }
+}
+```
+
+| Part | Placeholders | Default |
+|---|---|---|
+| `system` | `{state}`, `{questions}` | an instruction to answer each question with one of its labels; `""` sends no system message |
+| `user` | `{state}`, `{questions}` | `Questions:`, the questions, then `State:` and the state |
+| `question` | `{id}`, `{instructions}`, `{labels}` | the question id, its instructions, then its labels; questions are joined by a blank line |
+| `label` | `{label}`, `{criterion}` | `- "<label>": <criterion>`; labels are joined by newlines |
+
+`{state}` and `{questions}` must each appear exactly once across `system` and
+`user`. Placeholders are plain `str.format` names (`{{` and `}}` are literal
+braces). Every template is checked when the configuration loads. The JSON
+schema and the strict reply check are not templated: a template changes what
+the model reads, never what `decide` returns.
 
 (profile-contract)=
 Model entry names are application-defined. Applications can configure multiple

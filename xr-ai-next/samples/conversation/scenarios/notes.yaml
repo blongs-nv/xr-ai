@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Note-taking holds the focus: a dictated note is saved; a question asked
+# meanwhile is handed back to the router, and the conversation answers it
+# from the notes; "stop" leaves note mode, and the conversation still
+# recalls the note afterwards.
+name: a note taken, recalled, and note mode left
+participant: p1
+steps:
+  - join: p1
+  - at: 0.5
+    say: Start taking notes.
+  - expect: {said: notes, within_s: 60}
+  - say: The team meeting moved to Thursday at 3 pm.
+  - expect: {said: noted, within_s: 60}
+  - say: When is the team meeting?
+  - expect: {said: thursday, within_s: 90}
+  - say: Stop taking notes.
+  - expect: {said_any: [finished, stopped, ended], within_s: 60}
+  - say: Remind me, what day is the team meeting?
+  - expect: {said: thursday, within_s: 90}
+  - leave: p1

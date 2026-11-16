@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+decide: [notes, start, content, other, stop]
+answer_with_reasoning:
+  - Paris is the capital of France.

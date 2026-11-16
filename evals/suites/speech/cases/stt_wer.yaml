@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Speech-to-text word error rate. Score is 1 - WER; pass_threshold 0.9 allows a WER of 10 percent.
+# Live runs hit the profile's speech_in endpoint (/v1/audio/transcriptions). Accuracy is scorecard-only.
+# Recorded clips are pending: one speaker reading each case's script, 3 to 10 s, as 16 kHz mono 16-bit WAV in
+# fixtures/recorded/.
+suite: speech
+version: 1
+description: STT word error rate and speaker gating on recorded audio fixtures
+defaults:
+  role: speech_in
+  pass_threshold: 0.9
+cases:
+  - id: stt-silence-empty
+    input: {audio: ../fixtures/silence_2s.wav}
+    scorer: {type: python, function: "../scorers.py:wer", reference: ""}
+    pass_threshold: 1.0
+    tags: [stt, synthetic]
+  - id: stt-clean-read
+    skip_reason: "pending: clip not recorded"
+    input: {audio: ../fixtures/recorded/clean_read.wav}
+    scorer: {type: python, function: "../scorers.py:wer", reference: "the kettle is at one hundred degrees so I will put the chamomile tea bag in the cup"}
+    tags: [stt, recorded]
+  - id: stt-kitchen-noise
+    skip_reason: "pending: clip not recorded"
+    input: {audio: ../fixtures/recorded/kitchen_noise.wav}
+    scorer: {type: python, function: "../scorers.py:wer", reference: "how long should the tea steep before I take the bag out"}
+    tags: [stt, recorded]
+  - id: stt-far-field
+    skip_reason: "pending: clip not recorded"
+    input: {audio: ../fixtures/recorded/far_field.wav}
+    scorer: {type: python, function: "../scorers.py:wer", reference: "is the water hot enough yet"}
+    tags: [stt, recorded]
+  - id: stt-numbers-units
+    skip_reason: "pending: clip not recorded"
+    input: {audio: ../fixtures/recorded/numbers_units.wav}
+    scorer: {type: python, function: "../scorers.py:wer", reference: "set a timer for five minutes and tell me when it reaches two hundred twelve degrees fahrenheit"}
+    tags: [stt, recorded]
+  - id: stt-tea-vocabulary
+    skip_reason: "pending: clip not recorded"
+    input: {audio: ../fixtures/recorded/tea_vocabulary.wav}
+    scorer: {type: python, function: "../scorers.py:wer", reference: "chamomile and moroccan mint are herbal infusions while green tea needs cooler water"}
+    tags: [stt, recorded]

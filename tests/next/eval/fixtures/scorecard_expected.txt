@@ -1,0 +1,9 @@
+# Eval scorecard
+
+Pass rate counts every record, errors included. Latency, token and memory columns are medians over records without an error; `-` means no record reported a value.
+
+| Suite | Role | Model | Profiles | Cases | Pass rate | Errors | Median latency (ms) | Median tokens in | Median tokens out | Median GPU memory (MiB) |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| conv-decisions | decide | clef | hybrid, local | 2 | 100.0% | 0 | 60.2 | 110.0 | 2.0 | - |
+| tea-visual | perceive | cosmos3_nano_reasoner | local | 3 | 66.7% | 0 | 900.0 | 1500.0 | 40.0 | 20480.0 |
+| tea-visual | perceive | nemotron_omni | hybrid | 2 | 50.0% | 1 | 500.0 | - | - | - |
