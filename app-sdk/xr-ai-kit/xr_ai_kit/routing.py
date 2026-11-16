@@ -394,21 +394,31 @@ class Router(Component):
                 with contextlib.suppress(asyncio.CancelledError):
                     await ack
 
+    async def choose(
+        self, turn: Turn, p: Participant, *, exclude: Sequence[str] = (), reasons: Sequence[str] = ()
+    ) -> Choice:
+        """Where this turn would go, with this router's decision, history and destinations; runs nothing.
+
+        The first step of :meth:`handle` on its own (no admission, no handler), for tests and evaluations that
+        check routing without side effects. ``exclude`` and ``reasons`` are what a retry passes.
+        """
+        return await choose(
+            turn,
+            p,
+            self._destinations,
+            decide=self._decide,
+            history=self._history,
+            history_budget_bytes=self._history_budget,
+            exclude=exclude,
+            reasons=reasons,
+        )
+
     async def _route(self, turn: Turn, p: Participant) -> None:
         excluded: list[str] = []
         reasons: list[str] = []
         for _ in range(self._max_attempts):
             try:
-                choice = await choose(
-                    turn,
-                    p,
-                    self._destinations,
-                    decide=self._decide,
-                    history=self._history,
-                    history_budget_bytes=self._history_budget,
-                    exclude=excluded,
-                    reasons=reasons,
-                )
+                choice = await self.choose(turn, p, exclude=excluded, reasons=reasons)
             except ValueError:
                 break  # nothing left to try
             destination = choice.destination

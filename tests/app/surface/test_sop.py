@@ -274,6 +274,24 @@ async def test_a_failing_step_fails_the_run_and_says_so() -> None:
     assert run.steps[0].status == "failed"
 
 
+async def test_classify_names_the_control_without_performing_it() -> None:
+    models = FakeModels({"decide": ["stop"]})
+    app = _app()
+
+    async def procedure(run: Run) -> None:
+        await run.step("wait", lambda: asyncio.Event().wait())
+
+    runner = _runner(app, procedure, models)
+    async with app.test_session(models=models) as s:
+        await s.join()
+        p = s.participant()
+        await runner.start(p)
+        assert await runner.classify("stop it", p) == "stop"
+        assert runner.running(p)  # classified, not performed
+        assert "Tea guidance (run 1): running" in models.calls("decide")[0].context
+        await runner.stop(p)
+
+
 @pytest.mark.parametrize(("choice", "kind"), [("start", "answer"), ("none", "pass")])
 async def test_the_control_destination_runs_controls_and_passes_everything_else(choice: str, kind: str) -> None:
     models = FakeModels({"decide": [choice]})

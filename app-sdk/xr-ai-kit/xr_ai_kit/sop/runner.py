@@ -217,6 +217,24 @@ class SopRunner(Component):
         """The participant's latest run (running or finished), if any."""
         return p.state.get(self._key)
 
+    async def assume(self, p: Participant, run: Run) -> None:
+        """Make a copy of ``run`` the participant's latest run, without running anything.
+
+        For tests and evaluations that need the runner in a given state (some steps done, one running): the
+        summary, :attr:`context` and :meth:`classify` then see that run. Nothing is spawned and nothing is said.
+        """
+        p.state[self._key] = Run(
+            p,
+            run.number,
+            status=run.status,
+            steps=list(run.steps),
+            values=dict(run.values),
+            name=self.name,
+            output=self.output,
+            _publish=self._changed,
+        )
+        await self.context.set(p, self.summary(p))
+
     def running(self, p: Participant) -> bool:
         run = self.run(p)
         return run is not None and run.status == "running"
@@ -296,9 +314,16 @@ class SopRunner(Component):
         p.spawn(self._main(run), key=f"sop:{self.name}", supersede=True, detached=True)
         return text
 
+    async def classify(self, text: str, p: Participant) -> str:
+        """Which control ``text`` asks for (``start``, ``stop``, ``skip``, ``restart`` or ``none``); performs nothing.
+
+        The decision :attr:`control` makes before it acts, on the run's current summary, for tests and evaluations.
+        """
+        state = {"request": text, "procedure": self.summary(p)}
+        return str(await self._decide.decide(self._question, choices=self._controls, context=json.dumps(state)))
+
     async def _on_control(self, turn: Turn, p: Participant) -> DestinationResult:
-        state = {"request": turn.text, "procedure": self.summary(p)}
-        op = str(await self._decide.decide(self._question, choices=self._controls, context=json.dumps(state)))
+        op = await self.classify(turn.text, p)
         trace.emit("sop", self.name, op="control", choice=op)
         action = {"start": self.start, "stop": self.stop, "skip": self.skip, "restart": self.restart}.get(op)
         if action is None:

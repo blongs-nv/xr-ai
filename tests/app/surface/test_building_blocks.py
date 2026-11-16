@@ -163,6 +163,22 @@ async def test_a_router_takes_turns_only_once_the_app_makes_it_the_turn_handler(
     assert sink.said.get("p1", []) == (["heard hello"] if wired else [])
 
 
+async def test_router_choose_says_where_a_turn_would_go_and_runs_nothing() -> None:
+    ran: list[str] = []
+
+    async def handler(turn: Turn, p: Participant) -> None:
+        ran.append(turn.text)
+
+    a = RouterDestination("a", "first", handler)
+    b = RouterDestination("b", "second", handler)
+    models = FakeModels({"decide": ["b"]})
+    router = Router(decide=models.role("decide"), destinations=[a, b], default=a)
+    choice = await router.choose(_turn("hi"), Participant("p"))
+    assert (choice.name, ran) == ("b", [])
+    retry = await router.choose(_turn("hi"), Participant("p"), exclude=["b"])
+    assert retry.name == "a"  # one option left: no model call
+
+
 async def test_router_ack_when_slow() -> None:
     sink = TextSink()
     models = FakeModels({"ack": ["One sec."]})
