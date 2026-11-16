@@ -41,7 +41,7 @@ import sys
 import time
 import uuid
 from collections import deque
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -65,13 +65,12 @@ from xr_ai_app import (  # noqa: E402
 from xr_ai_kit import Conversation  # noqa: E402
 from xr_ai_kit.sop import (  # noqa: E402
     Check,
-    Escalation,
     Facts,
     Judgment,
     Run,
     StepRecord,
-    escalation_question,
     judge,
+    question_for,
 )
 
 CONTROLS = ("start", "stop", "skip", "restart", "none")
@@ -215,43 +214,69 @@ async def check(
 
 
 async def would_ask(
-    step: str,
-    judgments: list[Judgment],
+    packet: Packet,
+    done: list[tuple[float, Frame, Judgment | None]],
     models: Models,
     recording: dict[str, Any],
     facts: Facts | None,
 ) -> tuple[float | None, str | None]:
-    """The first question the live check would ask over this group, and when.
+    """The first question the side escalation would ask over this group.
 
-    Replays verify's pacing: the escalation model is consulted at most every
-    review_every_s seconds of the recording, and only while some of the
-    recent evidence is undecidable; it decides whether the check is stuck on
-    something the person could resolve. (None, None) when it never asks.
+    Replays gather's pacing on the recording's clock: every review_every_s
+    seconds, the reasoning model gets the latest frame, what is going on
+    (the step's state and the fast check's latest report, as live) and the
+    facts, and decides whether to ask. Nobody is asked anything.
+    (None, None) when it never asks.
     """
-    pace = {f.name: f.default for f in fields(Escalation)}["review_every_s"]
-    window = models.settings.window
-    if not judgments:
+    if not done:
         return None, None
-    started = judgments[0].frame_us / 1_000_000
-    last_review = started
-    for i, j in enumerate(judgments):
-        now = j.frame_us / 1_000_000
-        recent = judgments[max(0, i - 7) : i + 1]
-        unsure = any(r.label == "unknown" for r in recent[-window:])
-        if now - last_review < pace or not unsure:
+    check = step_check(packet.step, models, recording)
+    pace = models.settings.review_every_s
+    started = done[0][0]
+    next_review = started + pace
+    judged: list[Judgment] = []
+    for t, frame, j in done:
+        if j is not None:
+            judged.append(j)
+        if t < next_review:
             continue
-        last_review = now
-        question = await escalation_question(
-            step_check(step, models, recording),
-            models.answer,
-            recent,
-            facts or Facts(),
-            elapsed_s=now - started,
-            timeout_s=models.settings.timeout_s,
+        next_review = t + pace
+        question = await question_for(
+            check,
+            models.review,
+            frame,
+            facts=facts,
+            situation=situation_at(
+                packet, models.settings.window, judged, t - started
+            ),
+            timeout_s=max(models.settings.timeout_s, 60.0),
         )
         if question is not None:
-            return now, question
+            return t, question
     return None, None
+
+
+def situation_at(
+    packet: Packet, window: int, judged: list[Judgment], elapsed_s: float
+) -> str:
+    """What is going on, as the live app tells the side escalation: the
+    guide's steps and the running check's latest report."""
+    steps = ", ".join(
+        f"{k}: {v}" for k, v in (packet.state.get("steps") or {}).items()
+    )
+    recent = judged[-window:]
+    positives = sum(1 for j in recent if j.label == "positive")
+    latest = (
+        f" Latest: {judged[-1].label}: {judged[-1].description[:300]}"
+        if judged
+        else " No frame judged yet."
+    )
+    return (
+        f"Steps: {steps}\n"
+        f"Current step: {packet.step}, for {elapsed_s:.0f} s. Its camera "
+        f"check: {positives} positive in the last {len(recent)} judged "
+        f"frames.{latest}"
+    )
 
 
 def fires(labels: list[str], required: int, window: int) -> int | None:
@@ -330,9 +355,12 @@ async def run_frames(
         fired = fires(labels, settings.required, settings.window)
         asked_at, question = None, None
         if "asks" in group or "asks_about" in group:
-            judged = [j for j, _ in done if j is not None]
+            seen = [
+                (t, frame_of(t, p), j)
+                for (t, p), (j, _) in zip(grid, done, strict=True)
+            ]
             asked_at, question = await would_ask(
-                packet.step, judged, models, recording, facts
+                packet, seen, models, recording, facts
             )
         problems = ask_verdict(group, question)
         groups.append(
@@ -364,6 +392,7 @@ class Models:
     perceive: Role
     decide: Role
     answer: Role
+    review: Role  # the side escalation's reasoning model
     routing: Any  # the app's Router
     tea: Any  # the app's SopRunner
     steps: Steps
@@ -601,7 +630,11 @@ def load_models(fakes: Path | None) -> tuple[Models, str]:
 
     steps = Steps.load(SAMPLE / "steps.yaml")
     perceive, decide, answer = sample.perceive, sample.decide, sample.answer
-    label = "yaml/models.json (perceive, decide, answer_with_reasoning)"
+    review = sample.review
+    label = (
+        "yaml/models.json (perceive, decide, answer_with_reasoning, "
+        "perceive_with_reasoning)"
+    )
     routing, tea = sample.routing, sample.tea
     if fakes is not None:
         from xr_ai_app.devkit import fakes_from_file
@@ -611,6 +644,7 @@ def load_models(fakes: Path | None) -> tuple[Models, str]:
         scripted = fakes_from_file(fakes)
         perceive, decide = scripted.role("perceive"), scripted.role("decide")
         answer = scripted.role("answer_with_reasoning")
+        review = scripted.role("perceive_with_reasoning")
 
         async def never(run: Any) -> None:  # classified, never run
             raise AssertionError("the harness runs no procedure")
@@ -626,6 +660,7 @@ def load_models(fakes: Path | None) -> tuple[Models, str]:
         perceive=perceive,
         decide=decide,
         answer=answer,
+        review=review,
         routing=routing,
         tea=tea,
         steps=steps,

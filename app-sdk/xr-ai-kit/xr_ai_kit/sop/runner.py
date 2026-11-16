@@ -24,6 +24,7 @@ What the runner adds:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -117,11 +118,21 @@ class Run:
             return self.steps[-1]
         return None
 
-    async def step(self, step_id: str, work: Callable[[], Awaitable[T]], *, say: str | None = None) -> T | None:
+    async def step(
+        self,
+        step_id: str,
+        work: Callable[[], Awaitable[T]],
+        *,
+        say: str | None = None,
+        alongside: Sequence[Callable[[], Awaitable[Any]]] = (),
+    ) -> T | None:
         """Run one step: ``work()`` as its own task; return its result, or ``None`` when the user skipped it.
 
         ``say`` is spoken as the step starts (its instruction). A step that fails fails the run (the exception
-        propagates). Report the step's progress by passing :meth:`report` as its flow's ``on_state``.
+        propagates). Report the step's progress by passing :meth:`report` as its flow's ``on_state``. ``alongside``
+        are companions that run for the step's lifetime only (for example :func:`~.escalate.gather`): each is its
+        own task, cancelled when the step ends however it ends; they never decide the step, and one that fails is
+        logged and reported without failing it.
         """
         record = StepRecord(step_id, "running")
         self.steps.append(record)
@@ -129,6 +140,10 @@ class Run:
         if say:
             await self.say(say)
         task = self.p.spawn(work(), key=f"sop:{self.name}:step", supersede=True)
+        companions = [
+            self.p.spawn(make(), key=f"sop:{self.name}:alongside:{i}", supersede=True)
+            for i, make in enumerate(alongside)
+        ]
         try:
             result = await task
         except asyncio.CancelledError:
@@ -142,6 +157,12 @@ class Run:
             record.status = "failed"
             await self._changed("step", step=step_id, status="failed")
             raise
+        finally:
+            for companion in companions:
+                companion.cancel()
+            for companion in companions:
+                with contextlib.suppress(BaseException):
+                    await companion
         record.status = "done"
         await self._changed("step", step=step_id, status="done")
         return result

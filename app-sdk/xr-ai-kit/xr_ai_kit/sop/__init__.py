@@ -8,15 +8,17 @@ Checks                  Check (what a visual check verifies: question, criteria,
                         optionally the facts it needs and escalation guidance), Facts,
                         judge, Criteria, Judgment (positive / negative / unknown, from an
                         observation and a decision)
-Steps                   verify (judge frames until N of the last M confirm; with an
-                        Escalation and the check's guidance it may ask the person when
-                        stuck, otherwise it never asks), timer,
+Steps                   verify (the fast loop: judge frames until N of the last M
+                        confirm; reads the step's StepContext, never asks), timer,
                         identify (read into a schema, then derive a result, optionally
                         from retrieved text); each reports its state through ``on_state``
+Escalation              gather (a side task beside a step: a reasoning model judges
+                        periodically whether to ask the person, and adds answers to
+                        the step's StepContext), question_for (one such judgement)
 Runs                    SopRunner (a component: one run per participant, controls as a
                         router destination, a summary for the conversation), Run (what
-                        the procedure function receives: ``await run.step(...)``,
-                        ``await run.ask(question)``)
+                        the procedure function receives: ``await run.step(...,
+                        alongside=[...])``, ``await run.ask(question)``)
 ======================  =================================================================
 
 A procedure is ordinary Python::
@@ -32,17 +34,17 @@ each can be used, tested and evaluated on its own (an evaluation calls :func:`ju
 
 from __future__ import annotations
 
+from .escalate import gather, question_for
 from .identify import Identification, identify
-from .judge import LABELS, Check, Criteria, Facts, Judgment, Label, judge
+from .judge import LABELS, Check, Criteria, Facts, Judgment, Label, StepContext, judge
 from .runner import CONTROLS, MESSAGES, Run, SopRunner, StepRecord
 from .timer import TimerState, timer
-from .verify import Escalation, Verification, escalation_question, verify
+from .verify import Verification, verify
 
 __all__ = [
     "CONTROLS",
     "Check",
     "Criteria",
-    "Escalation",
     "Facts",
     "Identification",
     "Judgment",
@@ -51,12 +53,14 @@ __all__ = [
     "MESSAGES",
     "Run",
     "SopRunner",
+    "StepContext",
     "StepRecord",
     "TimerState",
     "Verification",
+    "gather",
     "identify",
     "judge",
+    "question_for",
     "timer",
-    "escalation_question",
     "verify",
 ]

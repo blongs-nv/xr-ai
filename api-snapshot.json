@@ -228,7 +228,6 @@
         "CONTROLS",
         "Check",
         "Criteria",
-        "Escalation",
         "Facts",
         "Identification",
         "Judgment",
@@ -237,12 +236,14 @@
         "MESSAGES",
         "Run",
         "SopRunner",
+        "StepContext",
         "StepRecord",
         "TimerState",
         "Verification",
-        "escalation_question",
+        "gather",
         "identify",
         "judge",
+        "question_for",
         "timer",
         "verify"
       ]

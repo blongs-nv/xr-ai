@@ -13,17 +13,21 @@ steep       a countdown for the recommended time (timer)
 Each step is a call of an xr_ai_kit.sop function with its inputs; the
 runner (SopRunner in app.py) owns the run, skips and stops. A skipped
 identification falls back to the default settings here, in the procedure,
-never inside a step. The three visual checks may ask the person when they
-get stuck, as steps.yaml's escalation guidance allows; the heating check
-also declares what it may need to know that the display does not show
-(DisplayFacts), seeded from app.yaml when the kettle's unit is configured.
+never inside a step. Each visual step is a fast check (verify: no
+reasoning, never asks) and, beside it, a side escalation (gather): every
+review_every_s a reasoning model looks at the latest frame and the guide's
+state and, following steps.yaml's escalation guidance, may ask the person
+something the camera cannot establish. Answers go into the step's context,
+which the fast check reads on every frame; the heating check declares the
+typed fact it may need (DisplayFacts), seeded from app.yaml when the
+kettle's unit is configured.
 """
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from functools import partial
 from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict
@@ -36,13 +40,13 @@ from tea import (
     fahrenheit,
     reconcile,
 )
-from xr_ai_app import Role
+from xr_ai_app import Participant, Role
 from xr_ai_kit.sop import (
     Check,
     Criteria,
-    Escalation,
-    Facts,
     Run,
+    StepContext,
+    gather,
     identify,
     timer,
     verify,
@@ -109,6 +113,7 @@ class TeaSettings(BaseModel):
     window: int = 4  # ... among the last this many decidable frames
     interval_s: float = 2.0
     timeout_s: float = 30.0
+    review_every_s: float = 20.0  # the side escalation's pace
 
 
 def target(temperature_c: float, unit: str | None) -> str:
@@ -142,34 +147,60 @@ def checks(
     }
 
 
-def known_facts(unit: str | None) -> Facts | None:
-    """What the heating check knows at the start: the configured unit."""
-    return Facts(DisplayFacts(unit=unit)) if unit else None
-
-
 def make_tea(
     *,
     observe: Role,
     answer: Role,
     decide: Role,
+    review: Role,
     steps: Steps,
     settings: TeaSettings,
+    situation: Callable[[Participant], Awaitable[str]] | None = None,
 ) -> Callable[[Run], Awaitable[None]]:
-    """The procedure for SopRunner, bound to its roles, wording and settings."""
+    """The procedure for SopRunner, bound to its roles, wording and settings.
+
+    observe and decide run the fast checks; review (a reasoning model that
+    takes images) and answer (reasoning, text) run the side escalation;
+    situation tells it what is going on (the guide's state, the dialogue).
+    """
     say = steps.say
 
     async def procedure(run: Run) -> None:
-        look = partial(
-            verify,
-            run.p.frames,
-            observe=observe,
-            decide=decide,
-            escalation=Escalation(answer, run.ask),
-            required=settings.required,
-            window=settings.window,
-            interval_s=settings.interval_s,
-            timeout_s=settings.timeout_s,
-        )
+        def watched(check: Check, step_id: str, known: Any = None):
+            """A step's fast check and its side escalation, sharing one
+            context: the check reads it, the escalation adds to it."""
+            context = StepContext(known)
+
+            async def what_is_going_on() -> str:
+                return await situation(run.p) if situation else ""
+
+            def fast():
+                return verify(
+                    run.p.frames,
+                    check,
+                    observe=observe,
+                    decide=decide,
+                    context=context,
+                    required=settings.required,
+                    window=settings.window,
+                    interval_s=settings.interval_s,
+                    timeout_s=settings.timeout_s,
+                    on_state=run.report(step_id),
+                )
+
+            def side():
+                return gather(
+                    context,
+                    check,
+                    run.p.frames,
+                    role=review,
+                    ask=run.ask,
+                    reader=answer,
+                    situation=what_is_going_on,
+                    every_s=settings.review_every_s,
+                )
+
+            return fast, [side]
 
         # 1. Identify the tea and its settings; defaults when skipped.
         found = await run.step(
@@ -216,24 +247,20 @@ def make_tea(
         built = checks(steps, temperature_c=temperature_c, unit=unit)
 
         # 2. Water in the kettle.
+        fast, side = watched(built["fill_water"], "fill_water")
         if await run.step(
-            "fill_water",
-            lambda: look(
-                built["fill_water"], on_state=run.report("fill_water")
-            ),
-            say=say["fill_water"],
+            "fill_water", fast, say=say["fill_water"], alongside=side
         ):
             await run.say(say["water_seen"])
 
         # 3. The display reads at least the target.
+        known = DisplayFacts(unit=unit) if unit else None
+        fast, side = watched(built["heat_water"], "heat_water", known)
         heated = await run.step(
             "heat_water",
-            lambda: look(
-                built["heat_water"],
-                facts=known_facts(unit),
-                on_state=run.report("heat_water"),
-            ),
+            fast,
             say=say["heat_water"].format(temperature_c=temperature_c),
+            alongside=side,
         )
         if heated:
             reading = next(
@@ -250,13 +277,9 @@ def make_tea(
             await run.say(say["hot_enough"].format(reading=shown))
 
         # 4. Tea in the water; 5. the countdown starts now either way.
+        fast, side = watched(built["start_steeping"], "start_steeping")
         await run.step(
-            "start_steeping",
-            lambda: look(
-                built["start_steeping"],
-                on_state=run.report("start_steeping"),
-            ),
-            say=say["start_steeping"],
+            "start_steeping", fast, say=say["start_steeping"], alongside=side
         )
         if await run.step(
             "steep",

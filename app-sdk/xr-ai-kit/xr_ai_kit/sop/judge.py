@@ -132,6 +132,25 @@ class Facts:
         return Facts(merged, (*self.said, line))
 
 
+class StepContext:
+    """A step's external context channel: what is known from outside the fast loop.
+
+    The check reads :attr:`facts` on every frame and never writes; anything outside the loop (an app setting at the
+    start, the side escalation with what the person answered) adds to it with :meth:`add`. One per step run.
+    """
+
+    def __init__(self, known: BaseModel | None = None) -> None:
+        self._facts = Facts(known)
+
+    @property
+    def facts(self) -> Facts:
+        return self._facts
+
+    def add(self, line: str, known: BaseModel | None = None) -> None:
+        """Add one piece of context (and the typed facts it established, if any)."""
+        self._facts = self._facts.with_answer(line, known)
+
+
 async def judge(
     frame: Frame,
     check: Check,

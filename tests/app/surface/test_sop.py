@@ -15,7 +15,20 @@ from xr_ai_app import App, Participant, Turn
 from xr_ai_app._base.app import AppConfig
 from xr_ai_app.testing import FakeModels, solid_frame
 from xr_ai_kit import DestinationResult
-from xr_ai_kit.sop import Check, Criteria, Escalation, Facts, Run, SopRunner, identify, judge, timer, verify
+from xr_ai_kit.sop import (
+    Check,
+    Criteria,
+    Facts,
+    Run,
+    SopRunner,
+    StepContext,
+    gather,
+    identify,
+    judge,
+    question_for,
+    timer,
+    verify,
+)
 
 WATER = Criteria(
     "Is there water in the kettle?",
@@ -156,31 +169,17 @@ def _escalating_check() -> Check:
     return Check(
         "Read the display.",
         WATER,
-        escalation="If the display's unit cannot be read, ask the person which unit it shows.",
+        escalation="Some displays print no unit; the person knows which unit theirs uses.",
         needs=Display,
         observation_model=Reading,
         can_assess=lambda r, known: (r.unit or (known and known.unit)) is not None,
     )
 
 
-async def test_a_stuck_check_asks_once_and_the_typed_answer_unblocks_it() -> None:
-    models = FakeModels(
-        {
-            "observe": [{"value": 176}] * 6,
-            "decide": ["positive", "positive"],
-            "helper": [
-                {"ask": True, "question": "Is the display in Celsius or Fahrenheit?", "reason": "no unit"},
-                {"unit": "fahrenheit"},
-            ],
-        }
-    )
+async def test_the_fast_loop_reads_context_added_while_it_runs() -> None:
+    models = FakeModels({"observe": [{"value": 176}] * 8, "decide": ["positive", "positive"]})
     app = _app()
-    asked: list[str] = []
-
-    async def ask(question: str) -> str | None:
-        asked.append(question)
-        return "Fahrenheit"
-
+    context = StepContext()
     async with app.test_session(models=models) as s:
         await s.join()
         p = s.participant()
@@ -190,51 +189,100 @@ async def test_a_stuck_check_asks_once_and_the_typed_answer_unblocks_it() -> Non
                 _escalating_check(),
                 observe=app.role("observe"),
                 decide=app.role("decide"),
-                escalation=Escalation(models.role("helper"), ask, review_every_s=0, min_gap_s=60),
+                context=context,
                 interval_s=0.01,
             )
         )
+        await _until(s, lambda: len(models.calls("observe")) >= 3, frames=True)
+        assert models.calls("decide") == []  # no unit known: nothing to decide
+        context.add('Asked the person: "Unit?" They answered: "F"', Display(unit="fahrenheit"))
         await _until(s, job.done, frames=True)
         result = job.result()
-    assert asked == ["Is the display in Celsius or Fahrenheit?"]
-    assert result.status == "completed" and result.asked == tuple(asked)
-    assert result.facts.known == Display(unit="fahrenheit")
-    assert all(call.thinking for call in models.calls("helper"))  # outside the fast loop: reasoning
-    assert "They answered" in result.facts.text()
+    assert result.status == "completed" and result.facts.known == Display(unit="fahrenheit")
 
 
-async def test_a_check_never_asks_while_it_decides_negatives_or_without_guidance() -> None:
-    for check, observed, decided in (
-        (_escalating_check(), [{"value": 70, "unit": "F"}] * 5, ["negative"] * 4 + ["positive", "positive"]),
-        (
-            Check("Read the display.", WATER, observation_model=Reading),
-            [{"value": 176}] * 6,
-            ["unknown"] * 4 + ["positive", "positive"],
-        ),
-    ):
-        models = FakeModels({"observe": observed + [{"value": 176, "unit": "F"}] * 2, "decide": decided, "helper": []})
-        app = _app()
-        asked: list[str] = []
+async def test_gather_asks_and_only_adds_to_the_steps_context() -> None:
+    models = FakeModels(
+        {
+            "reviewer": [
+                {"ask": True, "question": "Celsius or Fahrenheit?", "reason": "no unit"},
+                {"ask": False, "reason": "known now"},
+            ],
+            "reader": [{"unit": "fahrenheit"}],
+        }
+    )
+    app = _app()
+    context = StepContext()
+    asked: list[str] = []
 
-        async def ask(question: str) -> str | None:
-            asked.append(question)
-            return None
+    async def ask(question: str) -> str | None:
+        asked.append(question)
+        return "Fahrenheit"
 
-        async with app.test_session(models=models) as s:
-            await s.join()
-            p = s.participant()
-            job = asyncio.ensure_future(
-                verify(
-                    p.frames,
-                    check,
-                    observe=app.role("observe"),
-                    decide=app.role("decide"),
-                    escalation=Escalation(models.role("helper"), ask, review_every_s=0, min_gap_s=0),
-                    interval_s=0.01,
-                )
+    async with app.test_session(models=models) as s:
+        await s.join()
+        p = s.participant()
+        await s.show_frame(solid_frame())
+        side = asyncio.ensure_future(
+            gather(
+                context,
+                _escalating_check(),
+                p.frames,
+                role=models.role("reviewer"),
+                ask=ask,
+                reader=models.role("reader"),
+                every_s=0.01,
+                min_gap_s=0,
             )
-            await _until(s, job.done, frames=True)
-        assert asked == [] and models.calls("helper") == []
+        )
+        await _until(s, lambda: len(models.calls("reviewer")) >= 2, frames=True)
+        side.cancel()
+    assert asked == ["Celsius or Fahrenheit?"]
+    assert context.facts.known == Display(unit="fahrenheit")
+    assert "They answered" in context.facts.text()
+    assert all(call.thinking for call in models.calls("reviewer"))  # reasoning, off the fast loop
+    assert models.calls("reviewer")[0].frame is not None  # it sees the latest frame
+
+
+async def test_without_guidance_there_is_no_escalation() -> None:
+    models = FakeModels({"reviewer": []})
+    app = _app()
+    async with app.test_session(models=models) as s:
+        await s.join()
+        assert await question_for(WATER_CHECK, models.role("reviewer"), solid_frame()) is None
+        await gather(StepContext(), WATER_CHECK, s.participant().frames, role=models.role("reviewer"), ask=None)  # type: ignore[arg-type]
+    assert models.calls("reviewer") == []
+
+
+async def test_a_steps_companions_end_with_it_and_cannot_fail_it() -> None:
+    app = _app()
+    events: list[str] = []
+
+    async def companion() -> None:
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            events.append("companion cancelled")
+            raise
+
+    async def broken() -> None:
+        raise ValueError("side task failed")
+
+    async def procedure(run: Run) -> None:
+        events.append(
+            str(await run.step("s", lambda: asyncio.sleep(0.05, result="done"), alongside=[companion, broken]))
+        )
+
+    models = FakeModels()
+    runner = _runner(app, procedure, models)
+    async with app.test_session(models=models) as s:
+        await s.join()
+        p = s.participant()
+        await runner.start(p)
+        await _until(s, lambda: not runner.running(p))
+        run = runner.run(p)
+    assert events == ["companion cancelled", "done"]
+    assert run.status == "completed"
 
 
 async def test_timer_counts_down_and_reports() -> None:

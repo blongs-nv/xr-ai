@@ -23,6 +23,29 @@
         "base_url": "http://localhost:8108"
       }
     },
+    "perceive_with_reasoning": {
+      "category": "vlm",
+      "adapter": {
+        "kind": "openai_compat",
+        "model_name": "llm",
+        "reasoning_field": "reasoning_content",
+        "capabilities": {
+          "streaming": true,
+          "vision": true,
+          "json_schema": true
+        },
+        "default_extras": {
+          "max_tokens": 4096,
+          "temperature": 0.2,
+          "chat_template_kwargs": {
+            "enable_thinking": true
+          }
+        }
+      },
+      "endpoint": {
+        "base_url": "http://localhost:8108"
+      }
+    },
     "answer_with_reasoning": {
       "adapter": {
         "preset": "nemotron_omni",

@@ -57,12 +57,15 @@ frames) is replayed over them:
 | `either` | always (ambiguous footage, reported only) |
 
 A group may also give `facts` (what the person already said, typed as the
-check's `needs`, for example `{unit: fahrenheit}`), and test escalation:
-`asks: true` means the check should get stuck here and ask the person
-(`asks_about` lists words its question must include), `asks: false` that it
-must not ask. The harness finds where the check would get stuck (3
-unknowns in a row, as live) and asks the same model the live check uses
-what it would ask (`escalation_question`); nothing is asked of anyone.
+check's `needs`, for example `{unit: fahrenheit}`), and test the side
+escalation that runs beside the check: `asks: true` means it should ask
+the person something during this group (`asks_about` lists words its
+question must include), `asks: false` that it must not. The harness replays
+its pacing (one judgement every `review_every_s` seconds of the recording,
+with the latest frame, the step's state and the check's latest report, and
+the facts) on the same reasoning model as live (`question_for`); nothing
+is asked of anyone. The escalation never decides the step, so `expect`
+scores the fast check alone.
 
 Groups from other steps' parts of the recording test what happens when a
 step sees the wrong scene: frames of the label while the guide waits for
