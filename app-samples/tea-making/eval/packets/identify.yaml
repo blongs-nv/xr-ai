@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Reading the tea's label. Done: a tea type is read from the label.
+step: identify
+state:
+  steps: {identify: running}
+  detail: "looking (3 frames): nothing readable yet."
+frames:
+  - {name: label_held_up, at: [4, 16], expect: done}
+  - name: kettle_and_mug_only
+    at: [0, 4]
+    expect: not_done
+  - name: heating_packet_at_the_edge
+    at: [30, 120]
+    expect: either
+    why: the packet lies at the edge of the view, partly readable
+  - name: steeping_packet_at_the_edge
+    at: [364, 381]
+    expect: either
+utterances:
+  - say: It's a green tea.
+    expect: {route: conversation}  # the guide reads labels; a statement is not a control
+  - say: I can't find the label.
+    expect: {route: conversation}
+  - say: Just use the default settings.
+    expect: {control: [skip, none]}

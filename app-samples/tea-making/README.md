@@ -85,13 +85,13 @@ uv --config-file ../../uv.toml run pytest
 With `--real-models` and your own pictures (`--media-dir`, same file
 names) the same scenario runs on the real models.
 
-## Step accuracy on a recording
+## Test packets
 
-`eval/step_eval.py` scores each check on frames of a labeled recording of
-someone making tea, judging every frame exactly as the running procedure
-does (the same wording, roles and `judge`). For each step it reports, by
-frame, how often done frames are judged positive and not-done frames are
-not, how often the model cannot tell, and whether frames that only look
-done (a trap) are judged positive; then it replays the live rule (2 of the
-last 4) over the frames in time order: does the check complete in time,
-too early, or never? See `eval/README.md`.
+`eval/` holds one test packet per step: the frames the camera may show
+while that step is active (its own scene, other steps' scenes, look-alikes
+such as the kettle's target setting flashing on its display) and what the
+user may say then (questions such as "what's the next step?", controls,
+chatter, negated or quoted controls), each with what the guide should do.
+`eval/harness.py` runs them against the app's own decisions and models and
+reports false completions, unintended state changes, missed controls and
+ungrounded answers. See `eval/README.md`.

@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Tea in the water. Done: a real tea bag touches real water in the mug.
+step: start_steeping
+state:
+  steps: {identify: done, fill_water: done, heat_water: done, start_steeping: running}
+  noted: {tea: {tea_name: Bigelow, tea_type: green tea}, temperature_c: 80, duration_s: 120, settings_from: recommended}
+frames:
+  - name: bag_in_the_empty_mug
+    at: [346, 359]
+    expect: not_done
+  - {name: steeping, at: [364, 381], expect: done}
+  - name: heating_empty_mug
+    at: [26, 321]
+    expect: not_done
+  - name: packet_artwork
+    at: [4, 16]
+    expect: not_done
+    why: the packet shows a picture of a cup of tea
+utterances:
+  - say: Should I pour the water first or put the bag in first?
+    expect: {route: conversation}
+  - say: The bag is in.
+    expect: {route: conversation}

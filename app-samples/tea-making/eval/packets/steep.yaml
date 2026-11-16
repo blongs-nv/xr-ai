@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# The steeping countdown (no camera check).
+step: steep
+state:
+  steps: {identify: done, fill_water: done, heat_water: done, start_steeping: done, steep: running}
+  detail: "running: 75 of 120 seconds left."
+  noted: {tea: {tea_name: Bigelow, tea_type: green tea}, temperature_c: 80, duration_s: 120, settings_from: recommended}
+utterances:
+  - say: How long is left?
+    expect: {route: conversation, answer: {mentions: ["75", seconds, minute]}}
+  - say: Is my tea ready?
+    expect: {route: conversation}
+  - say: I like it strong, can I leave the bag in longer?
+    expect: {route: conversation}

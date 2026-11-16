@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# After the guide finished.
+step: null
+state:
+  status: completed
+  steps: {identify: done, fill_water: done, heat_water: done, start_steeping: done, steep: done}
+  noted: {tea: {tea_name: Bigelow, tea_type: green tea}, temperature_c: 80, duration_s: 120, settings_from: recommended}
+utterances:
+  - say: What's the next step?
+    expect: {route: conversation, answer: {mentions: [done, complete, finished, ready, enjoy]}}
+  - say: Make another cup.
+    expect: {control: [start, restart]}
+  - say: Thanks, that was great.
+    expect: {route: conversation}

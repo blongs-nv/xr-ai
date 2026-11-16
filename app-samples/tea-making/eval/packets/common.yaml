@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Utterances asked during every step (each step's packet adds its own).
+# {current} and {next} are the packet's step and the one after it (after
+# the last step: done); in an answer check, a step stands for any of its
+# words below, listed in the guide's order.
+#
+# expect:
+#   route    where the turn should end up: tea (a control was performed),
+#            observation (the camera now), conversation; a list allows any
+#   control  the control it asks for: start, stop, skip, restart, or none
+#            (the default); a list allows any. A control where none is
+#            expected is an unintended state change.
+#   answer   for conversation answers: mentions (any of), not (none of)
+
+step_words:
+  identify: [label, identif, read the, tea's name, what tea]
+  fill_water: [fill, water in the kettle, kettle with water, water]
+  heat_water: [heat, hot, temperature, degrees]
+  start_steeping: [tea bag, put the tea, steep, in the water]
+  steep: [steep, timer, minute, second]
+  done: [done, ready, finish, complete, enjoy]  # after the last step
+
+utterances:
+  # Questions about the guide: answered, never acted on.
+  - say: What's the next step?
+    expect: {route: conversation, answer: {mentions: ["{next}"]}}
+  - say: What do I do after this?
+    expect: {route: conversation, answer: {mentions: ["{next}"]}}
+  - say: What step am I on?
+    expect: {route: conversation, answer: {mentions: ["{current}"]}}
+  - say: What should I be doing right now?
+    expect: {route: conversation, answer: {mentions: ["{current}"]}}
+  - say: Is it time to move on yet?
+    expect: {route: conversation}
+  # Controls.
+  - say: Skip this step.
+    expect: {control: skip}
+  - say: Stop the tea guide.
+    expect: {control: stop}
+  - say: Let's start over from the beginning.
+    expect: {control: restart}
+  - say: Next step, please.
+    expect: {control: skip}  # a request to move on; there is no separate next
+  # Not controls, though they contain one's words.
+  - say: Wait, stop... no, never mind, keep going.
+    expect: {route: conversation}
+  - say: My friend says I should skip this part.
+    expect: {route: conversation}
+  - say: Don't stop the guide.
+    expect: {route: conversation}
+  - say: I'll stop by the store later for more tea.
+    expect: {route: conversation}
+  # Chatter.
+  - say: I love this mug.
+    expect: {route: conversation}
+  - say: Hold on, my phone is ringing.
+    expect: {route: conversation}
+  # The camera, now.
+  - say: What do you see right now?
+    expect: {route: [observation]}

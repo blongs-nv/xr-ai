@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted replies for a plumbing run of harness.py (--fakes): every call
+# gets the same kind of answer, so the numbers mean nothing.
+decide:
+  by_prompt:
+    - ["Which control of the procedure", none]
+    - ["Which option fits", conversation]
+  otherwise: negative
+perceive:
+  by_prompt:
+    - ["Read only clearly legible text", {tea_name: Bigelow, tea_type: green tea}]
+  otherwise: A kettle and a mug on a desk.
+answer_with_reasoning:
+  otherwise: You're on reading the label; next, fill the kettle with water.
+  by_prompt: []

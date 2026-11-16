@@ -1,69 +1,32 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Step labels for one recording of someone making green tea (a 381 s,
-# first-person video: a tea packet held up, an electric kettle heating from
-# 68 to 176 on its display, a tea bag put in a mug, water poured, steeping).
-# The recording and its frames are not in the repository; pass their local
-# path to step_eval.py (--frames-index).
+# One recording of someone making green tea: a 381 s first-person video. The
+# recording and its frames are not in the repository; pass their local
+# index to harness.py (--frames-index). The packets refer to its frames by
+# time (seconds from the start).
 #
-# Provenance: the intervals were derived from timestamped captions of the
+# What it shows (times in seconds):
+#   0-4      a black frame, then the kettle and the mug
+#   4-16     a Bigelow Premium Green Tea packet held up to the camera (the
+#            packet's artwork shows a cup of tea)
+#   16-22    the kettle's lid opened, the kettle switched on
+#   22.5-25.5  the display shows 176 while the button is pressed: the
+#            kettle's target setting, not the water's temperature
+#   26-321   the display rises from 73 to 171; an empty mug beside it
+#   321-339  the display flickers between 170 and 176
+#   339-346  the display reads 176
+#   346-359  a tea bag put into the empty mug
+#   359-364  water poured from the kettle into the mug
+#   364-381  the tea bag steeps in the mug
+# The kettle was filled before the recording started.
+#
+# Provenance: these times were derived from timestamped captions of the
 # video at 1 frame per second (per-frame captions and semantic segments
 # from a captioning pipeline), then each boundary was checked by looking at
-# the frames around it. They are not frame-exact human annotations: frames
-# within `margin_s` of a boundary are not scored.
-#
-# Times are seconds from the start of the video. For each step:
-#   positive  the step's condition holds (the check should judge positive)
-#   negative  it visibly does not hold (the check should not)
-#   exclude   ambiguous (in transition, flickering), never scored
-#   traps     frames that look like the condition but are not (scored
-#             separately: a trap judged positive is a false completion)
-#   watch     the part of the video the step would watch, for replaying the
-#             N-of-M rule as it runs live
+# the frames around it. They are good to about a second, not frame-exact.
 
 recording: green-tea-04
 duration_s: 381
-margin_s: 1.0
 display_unit: fahrenheit  # the kettle shows no unit; 68 at room temperature
-target_c: 80  # green tea; 176 degrees Fahrenheit on this display
-
-steps:
-  identify:
-    note: >-
-      Bigelow Premium Green Tea packet held up to the camera. Outside this
-      window the packet lies at the edge of the view, partly readable, so
-      those frames are excluded rather than negative.
-    expect: {tea_type_contains: green, tea_name_contains: bigelow}
-    watch: [0, 26]
-    positive: [[4, 16]]
-    negative: [[0, 4]]  # a black frame, then the kettle and mug only
-    exclude: [[16, 26]]
-
-  fill_water:
-    note: >-
-      Not in this recording: the kettle was filled before it started (its
-      glass top was not labeled). No frames are scored.
-    no_data: true
-
-  heat_water:
-    note: >-
-      The display rises from 73 (26 s) to 176 (339 s). At 23-25 s it shows
-      176 while the button is pressed: the kettle's target setting, not the
-      water's temperature. From 321 to 339 s it flickers between 170 and
-      176.
-    # From before the setpoint flash, which must not complete the check.
-    watch: [20, 346]
-    positive: [[339, 346]]
-    negative: [[26, 321]]
-    exclude: [[321, 339]]
-    traps: [[22.5, 25.5]]  # the setpoint flash
-
-  start_steeping:
-    note: >-
-      The bag is put into an empty mug (346-359 s), water is poured
-      (359-364 s), then the bag steeps in the tea until the end.
-    watch: [346, 381]
-    positive: [[364, 381]]
-    negative: [[346, 359]]
-    exclude: [[359, 364]]
+target_c: 80  # green tea: 176 degrees Fahrenheit on this display

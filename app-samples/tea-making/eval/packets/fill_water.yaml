@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Water in the kettle. The recording has no filling (the kettle was filled
+# before it started), so there is no done group; frames from other steps
+# must not complete the check.
+step: fill_water
+state:
+  steps: {identify: done, fill_water: running}
+  noted: {tea: {tea_name: Bigelow, tea_type: green tea}, temperature_c: 80, duration_s: 120, settings_from: recommended}
+frames:
+  - name: label_held_up
+    at: [4, 16]
+    expect: not_done
+    why: the kettle's inside is not visible
+  - name: pouring_into_the_mug
+    at: [359, 364]
+    expect: either
+    why: water is visible, leaving the kettle
+utterances:
+  - say: I already filled the kettle.
+    expect: {route: conversation}
+  - say: How much water do I need?
+    expect: {route: conversation}

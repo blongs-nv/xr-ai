@@ -11,7 +11,7 @@
           "vision": true
         },
         "default_extras": {
-          "max_tokens": 128,
+          "max_tokens": 512,
           "temperature": 0.0,
           "chat_template_kwargs": {
             "enable_thinking": false

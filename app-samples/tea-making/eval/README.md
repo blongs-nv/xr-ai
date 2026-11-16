@@ -3,66 +3,116 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Step accuracy on a labeled recording
+# Test packets for the tea guide
 
-`step_eval.py` measures each visual check of the tea procedure on frames
-of a real recording whose steps are labeled with times. It calls exactly
-what runs live: `xr_ai_kit.sop.judge` (and, for identification, the same
-label schema), with `steps.yaml`'s wording, `app.yaml`'s tea settings and
-`yaml/models.json`'s roles.
+One packet per step says what can reasonably happen while that step is
+active, and what the guide should do about it. `harness.py` runs every
+packet against the app's own code and models and reports what passed.
 
-## Labels
+```text
+packets/
+  common.yaml          utterances asked during every step; step words
+  not_started.yaml     before the guide starts
+  identify.yaml        one file per step: its state, frames, utterances
+  fill_water.yaml
+  heat_water.yaml
+  start_steeping.yaml
+  steep.yaml
+  completed.yaml       after the guide finished
+recordings/
+  green-tea-04.yaml    what the recording shows, when, and where the times came from
+```
 
-A label file (`labels/green-tea-04.yaml` is one recording) gives, for each
-step, intervals in seconds from the start of the video:
+## A packet
 
-| Key | Meaning |
+```yaml
+step: heat_water
+state:                       # the run while this step is active
+  steps: {identify: done, fill_water: done, heat_water: running}
+  detail: "running: 0 of 2 confirmations ..."   # the running step's latest report
+  noted: {temperature_c: 80, duration_s: 120}
+frames:                      # what the camera may show during this step
+  - {name: rising, at: [26, 321], expect: not_done}
+  - {name: at_target, at: [339, 346], expect: done}
+  - name: setpoint_flash     # looks done, is not
+    at: [22.5, 25.5]
+    expect: not_done
+    why: 176 is the kettle's target setting while the button is pressed
+utterances:                  # what the user may say during this step
+  - say: What temperature are we waiting for?
+    expect: {route: conversation, answer: {mentions: ["80", "176"]}}
+```
+
+**Frames** are times in the recording. The step's check (exactly the live
+one: `judge` with `steps.yaml`'s wording) is run on a frame every 2 s of
+the group, and the live rule (2 positive among the last 4 decidable
+frames) is replayed over them:
+
+| `expect` | Passes when |
 |---|---|
-| `positive` | the step's condition holds: the check should judge positive |
-| `negative` | it visibly does not hold: the check should not |
-| `exclude` | ambiguous (in transition, flickering); never scored |
-| `traps` | frames that look done and are not (a kettle's target setting shown on its display); a trap judged positive is a false completion |
-| `watch` | the part of the video the step watches, to replay the live rule |
-| `no_data` | the recording does not show this step |
+| `done` | the rule completes the step on the group |
+| `not_done` | it does not: completing here is a false completion |
+| `either` | always (ambiguous footage, reported only) |
 
-Frames within `margin_s` of a positive or negative boundary are not
-scored. The file says where its labels came from; the green-tea labels were
-derived from timestamped captions of the video and checked by looking at
-the frames at each boundary, so they are good to about a second, not
-frame-exact.
+Groups from other steps' parts of the recording test what happens when a
+step sees the wrong scene: frames of the label while the guide waits for
+hot water, frames of the heating kettle while it waits for the tea bag.
+
+**Utterances** are judged in the packet's state, through the app's own
+decisions, performing nothing: the Router's choice (`Router.choose`), the
+guide's control decision (`SopRunner.classify`; a non-control passes the
+turn on, as live) and the Conversation's answer (`Conversation.answer`
+with the guide's state as context).
+
+| `expect` key | Meaning |
+|---|---|
+| `route` | where the turn ends up: `tea` (a control was performed), `observation` (the camera now), `conversation`; a list allows any |
+| `control` | the control asked for: `start`, `stop`, `skip`, `restart`, or `none` (the default); a list allows any |
+| `answer.mentions` | the conversation's answer contains at least one of these |
+| `answer.not` | it contains none of these |
+
+In `common.yaml`, `{current}` and `{next}` are the packet's step and the
+next one, and in an answer check a step id stands for any of its
+`step_words`. So "What's the next step?" during `fill_water` must be
+answered (not acted on) with words of `heat_water`.
+
+## Adding cases
+
+- A new thing the user might say during one step: one entry under that
+  packet's `utterances`; during every step: one entry in `common.yaml`.
+- A new part of a recording: one entry under a packet's `frames`, with its
+  `why` when it is a trap.
+- A new step: one packet file, and its words in `common.yaml`.
+- A new recording: one file in `recordings/` and frame groups that use its
+  times (one recording per run, `--recording`).
+
+No code changes for any of these.
 
 ## Run
 
-The recording's frames are not in the repository. Extract them at 1 frame
-per second (or more) and write an index CSV with the columns
-`source_time_s` and `frame_image` (paths relative to the CSV). Then, from
-the sample's folder, with the models in `yaml/models.json` running (the perceive
-and decide roles):
+The frames are not in the repository. Extract the recording at 1 frame per
+second or more and write an index CSV with `source_time_s` and
+`frame_image` (paths relative to the CSV). From the sample's folder, with
+the models in `yaml/models.json` running:
 
 ```bash
-uv --config-file ../../uv.toml run python eval/step_eval.py \
-    --labels eval/labels/green-tea-04.yaml \
-    --frames-index /path/to/frames/index.csv --out runs/eval/
+uv --config-file ../../uv.toml run python eval/harness.py \
+    --frames-index /path/to/frames/index.csv --out runs/packets/
 ```
 
-`--fakes eval/smoke.fakes.yaml` runs the same plumbing on scripted replies
-(no models; the numbers then mean nothing). Frames are judged every
-`interval_s` of `app.yaml`'s tea settings (2 s), as the checks look live;
-`--concurrency` bounds the model calls in flight.
+Without `--frames-index` only the utterances run. `--only heat_water
+steep` runs some packets; `--fakes eval/smoke.fakes.yaml` runs the plumbing
+on scripted replies (the numbers then mean nothing). The exit code is 0 when
+everything passed.
 
 ## Output
 
-`runs/eval/summary.md` (and `summary.json`):
+`runs/packets/report.md`: the totals (frame groups and utterances passed;
+false completions; unintended state changes, a control from something
+that is not one; missed controls), then each packet's frame groups (judged
+positive, negative, unknown; when the rule completed) and utterances
+(route, control, what was wrong). `results.json` has every frame's verdict
+with the model's observation and every answer, for reading why.
 
-| Column | Meaning |
-|---|---|
-| Recall | positive frames judged positive |
-| False pos. | negative frames judged positive |
-| Precision | of the frames judged positive, how many were positive frames |
-| Unknown | scored frames the model could not tell (they neither confirm nor reset a live check) |
-| Traps judged pos. | trap frames judged positive |
-| Live rule | the 2-of-the-last-4 rule replayed over the watch window: `ok` at a time at or after the labeled start of done, `early` (a false completion), or `never` |
-
-For identification, positive means a tea type was read; the summary also
-gives how often the type and the name were right. `frames.jsonl` has every
-frame's verdict with the model's observation, for reading why.
+The labels come from one recording, derived from captions and checked by
+eye; read the numbers with that in mind.

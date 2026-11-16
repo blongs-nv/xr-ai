@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Before the guide starts: no run, nothing established.
+step: null
+state: null
+utterances:
+  - say: Let's make some tea.
+    expect: {control: start}
+  - say: Can you help me make green tea?
+    expect: {control: start}
+  - say: What's the first step?
+    expect: {route: conversation, answer: {mentions: [label, identif, start, begin]}}
+  - say: What step am I on?
+    expect: {route: conversation, answer: {mentions: [not started, haven't started, not begun, no step, start]}}
+  - say: Stop.
+    expect: {control: [stop, none]}  # nothing to stop: either is harmless
+  - say: Skip this step.
+    expect: {control: [skip, none]}
+  - say: I'm thinking about making tea later.
+    expect: {route: conversation}
+  - say: How hot should the water be for green tea?
+    expect: {route: conversation}
