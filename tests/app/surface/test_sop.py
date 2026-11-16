@@ -14,7 +14,7 @@ from xr_ai_app import App, Participant, Turn
 from xr_ai_app._base.app import AppConfig
 from xr_ai_app.testing import FakeModels, solid_frame
 from xr_ai_kit import DestinationResult
-from xr_ai_kit.sop import Criteria, Run, SopRunner, identify, judge, timer, verify
+from xr_ai_kit.sop import Check, Criteria, Escalation, Facts, Run, SopRunner, identify, judge, timer, verify
 
 WATER = Criteria(
     "Is there water in the kettle?",
@@ -24,8 +24,15 @@ WATER = Criteria(
 )
 
 
+WATER_CHECK = Check("Water?", WATER)
+
+
 class Reading(BaseModel):
     value: float | None = None
+    unit: str | None = None
+
+
+class Display(BaseModel):
     unit: str | None = None
 
 
@@ -62,9 +69,7 @@ async def test_judge_describes_the_frame_then_decides_against_the_criteria() -> 
     async with app.test_session(models=models) as s:
         await s.join()
         frame = solid_frame("white")
-        j = await judge(
-            frame, observe=app.role("observe"), decide=app.role("decide"), question="Water?", criteria=WATER
-        )
+        j = await judge(frame, WATER_CHECK, observe=app.role("observe"), decide=app.role("decide"))
     assert (j.label, j.description) == ("positive", "The kettle is half full of water.")
     assert "half full" in models.calls("decide")[0].context
 
@@ -75,10 +80,36 @@ async def test_judge_with_a_schema_skips_the_decision_when_the_reading_cannot_be
     async with app.test_session(models=models) as s:
         await s.join()
         frame = solid_frame("white")
-        args = dict(observe=app.role("observe"), decide=app.role("decide"), question="Read it.", criteria=WATER)
-        no_unit = await judge(frame, **args, observation_model=Reading, can_assess=lambda r: r.unit is not None)
+        check = Check(
+            "Read it.",
+            WATER,
+            needs=Display,
+            observation_model=Reading,
+            can_assess=lambda r, known: (r.unit or (known and known.unit)) is not None,
+        )
+        args = dict(observe=app.role("observe"), decide=app.role("decide"))
+        no_unit = await judge(frame, check, **args)
     assert (no_unit.label, no_unit.reason, no_unit.parsed) == ("unknown", "not assessable", Reading(value=68))
     assert models.calls("decide") == []
+
+
+async def test_facts_reach_the_check_in_code_and_the_decision_not_the_observation() -> None:
+    models = FakeModels({"observe": [{"value": 176}], "decide": ["positive"]})
+    app = _app()
+    check = Check(
+        "Read it.",
+        WATER,
+        needs=Display,
+        observation_model=Reading,
+        can_assess=lambda r, known: (r.unit or (known and known.unit)) is not None,
+    )
+    facts = Facts(Display(unit="fahrenheit"), ('Asked the person: "Unit?" They answered: "Fahrenheit"',))
+    async with app.test_session(models=models) as s:
+        await s.join()
+        j = await judge(solid_frame(), check, observe=app.role("observe"), decide=app.role("decide"), facts=facts)
+    assert j.label == "positive"
+    assert "fahrenheit" in models.calls("decide")[0].context
+    assert "Fahrenheit" not in models.calls("observe")[0].prompt
 
 
 # ------------------------------------------------------------------------------- steps
@@ -103,10 +134,9 @@ async def test_verify_completes_on_n_of_the_last_m_decidable_frames_and_unknowns
         check = asyncio.ensure_future(
             verify(
                 p.frames,
+                WATER_CHECK,
                 observe=app.role("observe"),
                 decide=app.role("decide"),
-                question="Water?",
-                criteria=WATER,
                 required=2,
                 window=3,
                 interval_s=0.01,
@@ -119,6 +149,90 @@ async def test_verify_completes_on_n_of_the_last_m_decidable_frames_and_unknowns
     assert result.window == ("negative", "positive", "positive")
     assert [st.positives for st in states] == [0, 0, 1, 2]
     assert len({j.frame_us for j in result.judgments}) == 4  # never the same frame twice
+
+
+def _escalating_check() -> Check:
+    return Check(
+        "Read the display.",
+        WATER,
+        escalation="If the display's unit cannot be read, ask the person which unit it shows.",
+        needs=Display,
+        observation_model=Reading,
+        can_assess=lambda r, known: (r.unit or (known and known.unit)) is not None,
+    )
+
+
+async def test_a_stuck_check_asks_once_and_the_typed_answer_unblocks_it() -> None:
+    models = FakeModels(
+        {
+            "observe": [{"value": 176}] * 6,
+            "decide": ["positive", "positive"],
+            "helper": [
+                {"ask": True, "question": "Is the display in Celsius or Fahrenheit?", "reason": "no unit"},
+                {"unit": "fahrenheit"},
+            ],
+        }
+    )
+    app = _app()
+    asked: list[str] = []
+
+    async def ask(question: str) -> str | None:
+        asked.append(question)
+        return "Fahrenheit"
+
+    async with app.test_session(models=models) as s:
+        await s.join()
+        p = s.participant()
+        job = asyncio.ensure_future(
+            verify(
+                p.frames,
+                _escalating_check(),
+                observe=app.role("observe"),
+                decide=app.role("decide"),
+                escalation=Escalation(models.role("helper"), ask, after_unknowns=3, min_gap_s=0),
+                interval_s=0.01,
+            )
+        )
+        await _until(s, job.done, frames=True)
+        result = job.result()
+    assert asked == ["Is the display in Celsius or Fahrenheit?"]
+    assert result.status == "completed" and result.asked == tuple(asked)
+    assert result.facts.known == Display(unit="fahrenheit")
+    assert "They answered" in result.facts.text()
+
+
+async def test_a_check_never_asks_while_it_decides_negatives_or_without_guidance() -> None:
+    for check, observed, decided in (
+        (_escalating_check(), [{"value": 70, "unit": "F"}] * 5, ["negative"] * 4 + ["positive", "positive"]),
+        (
+            Check("Read the display.", WATER, observation_model=Reading),
+            [{"value": 176}] * 6,
+            ["unknown"] * 4 + ["positive", "positive"],
+        ),
+    ):
+        models = FakeModels({"observe": observed + [{"value": 176, "unit": "F"}] * 2, "decide": decided, "helper": []})
+        app = _app()
+        asked: list[str] = []
+
+        async def ask(question: str) -> str | None:
+            asked.append(question)
+            return None
+
+        async with app.test_session(models=models) as s:
+            await s.join()
+            p = s.participant()
+            job = asyncio.ensure_future(
+                verify(
+                    p.frames,
+                    check,
+                    observe=app.role("observe"),
+                    decide=app.role("decide"),
+                    escalation=Escalation(models.role("helper"), ask, after_unknowns=2, min_gap_s=0),
+                    interval_s=0.01,
+                )
+            )
+            await _until(s, job.done, frames=True)
+        assert asked == [] and models.calls("helper") == []
 
 
 async def test_timer_counts_down_and_reports() -> None:
@@ -295,6 +409,76 @@ async def test_with_a_plan_the_summary_says_what_comes_next() -> None:
     assert "Its steps, in order, once started:" in before and "- steep: Steep the tea." in before
     assert "- heat (Heat the water.): running." in during
     assert "- steep (Steep the tea.): ahead." in during
+
+
+async def test_a_step_asks_and_the_guide_sorts_each_reply_while_the_question_is_pending() -> None:
+    models = FakeModels({"decide": ["none", "answer"]})
+    app = _app()
+    answers: list[str | None] = []
+
+    async def procedure(run: Run) -> None:
+        async def unit() -> None:
+            answers.append(await run.ask("Celsius or Fahrenheit?", timeout_s=5))
+
+        await run.step("heat", unit)
+
+    runner = _runner(app, procedure, models)
+    async with app.test_session(models=models) as s:
+        await s.join()
+        p = s.participant()
+        await runner.start(p)
+        await _until(s, lambda: runner.run(p).asking is not None)
+        assert await runner.control.holds_focus(p)  # the reply reaches the guide first
+        assert "Waiting for the person's answer to: Celsius or Fahrenheit?" in runner.summary(p)
+        side = await runner.control(Turn("How hot should it be?", 0, "t1"), p)
+        assert side.kind == "pass" and runner.run(p).asking  # still pending
+        await runner.control(Turn("Fahrenheit, I think", 0, "t2"), p)
+        await _until(s, lambda: not runner.running(p))
+        run = runner.run(p)
+    assert answers == ["Fahrenheit, I think"]
+    assert run.status == "completed" and run.asking is None
+    assert "pending_question" in models.calls("decide")[0].context
+    assert "answer" in models.calls("decide")[0].choices
+
+
+async def test_skipping_while_a_question_is_pending_cancels_the_step_and_the_question() -> None:
+    models = FakeModels({"decide": ["skip"]})
+    app = _app()
+
+    async def procedure(run: Run) -> None:
+        await run.step("heat", lambda: run.ask("Celsius or Fahrenheit?", timeout_s=5))
+
+    runner = _runner(app, procedure, models)
+    async with app.test_session(models=models) as s:
+        await s.join()
+        p = s.participant()
+        await runner.start(p)
+        await _until(s, lambda: runner.run(p).asking is not None)
+        await runner.control(Turn("skip this", 0, "t"), p)
+        await _until(s, lambda: not runner.running(p))
+        run = runner.run(p)
+    assert [(st.id, st.status) for st in run.steps] == [("heat", "skipped")]
+    assert run.asking is None
+
+
+async def test_an_unanswered_question_times_out_to_none() -> None:
+    app = _app()
+    got: list[str | None] = []
+
+    async def procedure(run: Run) -> None:
+        async def unit() -> None:
+            got.append(await run.ask("Celsius or Fahrenheit?", timeout_s=0.05))
+
+        await run.step("heat", unit)
+
+    models = FakeModels()
+    runner = _runner(app, procedure, models)
+    async with app.test_session(models=models) as s:
+        await s.join()
+        p = s.participant()
+        await runner.start(p)
+        await _until(s, lambda: not runner.running(p))
+    assert got == [None]
 
 
 async def test_classify_names_the_control_without_performing_it() -> None:

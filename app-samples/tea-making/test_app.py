@@ -16,7 +16,7 @@ from pathlib import Path
 
 import app as module
 import pytest
-from tea import Thermometer, assessable
+from tea import DisplayFacts, Thermometer, assessable
 from xr_ai_app.devkit import (
     Scenario,
     fakes_from_file,
@@ -82,4 +82,5 @@ def test_each_change_of_the_run_is_recorded(tmp_path: Path) -> None:
 def test_only_a_measured_reading_with_a_unit_is_judged(
     reading, unit, ok
 ) -> None:
-    assert assessable(Thermometer(**reading), unit) is ok
+    known = DisplayFacts(unit=unit) if unit else None
+    assert assessable(Thermometer(**reading), known) is ok

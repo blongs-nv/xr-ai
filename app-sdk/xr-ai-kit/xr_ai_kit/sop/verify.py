@@ -1,21 +1,49 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Watch the camera until enough distinct frames confirm a step: :func:`judge` in a loop with an evidence window."""
+"""Watch the camera until enough distinct frames confirm a check: :func:`judge` in a loop with an evidence window.
+
+A check is visual verification and nothing more, unless it declares escalation guidance and the caller passes an
+:class:`Escalation`: then, when the check gets stuck (several frames in a row it cannot decide), a text model reads
+the guidance, the recent observations and the facts so far, and either writes one question for the person or keeps
+watching. The answer becomes a fact for every later frame (typed, when the check declares ``needs``).
+"""
 
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
-from typing import Literal, TypeVar
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass, field
+from typing import Literal
 
-from pydantic import BaseModel
-from xr_ai_app import FrameStream, Role, clock
+from pydantic import BaseModel, Field
+from xr_ai_app import FrameStream, Role, StructuredOutputError, clock
 
-from .judge import Criteria, Judgment, Label, judge
+from .judge import Check, Facts, Judgment, Label, judge
 
-_Observed = TypeVar("_Observed", bound=BaseModel)
+
+@dataclass(frozen=True, slots=True)
+class Escalation:
+    """How a check may ask the person: who writes the question, how it is asked, and how often.
+
+    ``role`` is a text model (an LLM: it writes questions and reads answers into the check's ``needs``). ``ask``
+    speaks a question and returns the person's answer, or ``None`` when none came (``Run.ask``). The check asks after
+    ``after_unknowns`` undecidable frames in a row, at most ``max_questions`` times, never the same question twice,
+    and at least ``min_gap_s`` apart. Negative frames never trigger a question: the check is not stuck, the step is
+    just not done yet.
+    """
+
+    role: Role
+    ask: Callable[[str], Awaitable[str | None]]
+    after_unknowns: int = 3
+    max_questions: int = 2
+    min_gap_s: float = 20.0
+
+
+class _Decision(BaseModel):
+    ask: bool = Field(description="true only when a question to the person would let the check decide")
+    question: str | None = Field(default=None, description="one short spoken question, when ask is true")
+    reason: str = Field(default="", description="why ask, or why keep watching")
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,26 +65,35 @@ class Verification:
     updated_s: float
     """Times on the core clock (``xr_ai_app.clock.now``)."""
 
+    facts: Facts = field(default_factory=Facts)
+    """What is known beyond the camera: the starting facts and what the person answered."""
+
+    asked: tuple[str, ...] = ()
+    """The questions asked so far, in order."""
+
     def summary(self) -> str:
-        """One line for context and logs: progress toward completion and the latest observation."""
+        """One line for context and logs: progress toward completion, the latest observation, the facts."""
         latest = self.judgments[-1] if self.judgments else None
         seen = f" Latest: {latest.label}: {latest.description[:300]}" if latest else " No frame judged yet."
-        return f"{self.status}: {self.positives} of {self.required} confirmations in the last {self.window_size}.{seen}"
+        known = f" {self.facts.text()}" if self.facts.text() else ""
+        return (
+            f"{self.status}: {self.positives} of {self.required} confirmations in the last {self.window_size}."
+            f"{seen}{known}"
+        )
 
 
 async def verify(
     frames: FrameStream,
+    check: Check,
     *,
     observe: Role,
     decide: Role,
-    question: str,
-    criteria: Criteria,
+    facts: Facts | None = None,
+    escalation: Escalation | None = None,
     required: int = 2,
     window: int = 4,
     interval_s: float = 2.0,
     history: int = 8,
-    observation_model: type[_Observed] | None = None,
-    can_assess: Callable[[_Observed], bool] | None = None,
     timeout_s: float | None = 15.0,
     on_state: Callable[[Verification], Awaitable[None]] | None = None,
 ) -> Verification:
@@ -64,39 +101,54 @@ async def verify(
 
     Frames come from ``frames.every`` (so a device with no video stream is asked for a picture on each tick), and a
     frame is never judged twice. ``unknown`` judgments are kept for context but take no slot in the window, so an
-    obscured view neither confirms nor resets the check. ``on_state`` is awaited after every judged frame in this
-    task; its errors propagate. Cancelling the task (a skip, a stop) ends the check with ``CancelledError``.
+    obscured view neither confirms nor resets the check. ``facts`` are what is known at the start (an app setting,
+    as an instance of ``check.needs``). With ``escalation`` and ``check.escalation`` guidance the check may ask the
+    person when it gets stuck (see :class:`Escalation`); watching pauses while it waits for the answer. ``on_state``
+    is awaited after every judged frame in this task; its errors propagate. Cancelling the task (a skip, a stop)
+    ends the check with ``CancelledError``.
     """
     if not 1 <= required <= window:
         raise ValueError("required must be between 1 and window")
     if interval_s <= 0 or history < 1:
         raise ValueError("interval_s and history must be positive")
     started = clock.now()
+    facts = facts or Facts()
     labels: deque[Label] = deque(maxlen=window)
     recent: deque[Judgment] = deque(maxlen=history)
+    asked: list[str] = []
+    stuck = 0
+    last_asked: float | None = None
     last: tuple[int, int] | None = None  # (capture time, sequence) of the last judged frame
+    can_ask = escalation is not None and bool(check.escalation)
     async for frame in frames.every(interval_s, timeout_s=timeout_s or 5.0):
         if (frame.timestamp_us, frame.sequence) == last:
             continue
         last = (frame.timestamp_us, frame.sequence)
-        judgment = await judge(
-            frame,
-            observe=observe,
-            decide=decide,
-            question=question,
-            criteria=criteria,
-            observation_model=observation_model,
-            can_assess=can_assess,
-            timeout_s=timeout_s,
-        )
+        judgment = await judge(frame, check, observe=observe, decide=decide, facts=facts, timeout_s=timeout_s)
         recent.append(judgment)
-        if judgment.label != "unknown":
+        if judgment.label == "unknown":
+            stuck += 1
+        else:
+            stuck = 0
             labels.append(judgment.label)
         positives = sum(1 for label in labels if label == "positive")
         done = positives >= required
+        if (
+            can_ask
+            and not done
+            and escalation is not None
+            and stuck >= escalation.after_unknowns
+            and len(asked) < escalation.max_questions
+            and (last_asked is None or clock.now() - last_asked >= escalation.min_gap_s)
+        ):
+            facts, question = await _escalate(check, escalation, tuple(recent), facts, asked, timeout_s)
+            if question is not None:
+                asked.append(question)
+                last_asked = clock.now()
+            stuck = 0  # judge a few more frames, with what was learned, before considering asking again
         state = Verification(
             "completed" if done else "running",
-            question,
+            check.question,
             tuple(recent),
             tuple(labels),
             positives,
@@ -104,9 +156,82 @@ async def verify(
             window,
             started,
             clock.now(),
+            facts,
+            tuple(asked),
         )
         if on_state is not None:
             await on_state(state)
         if done:
             return state
     raise RuntimeError("the frame stream ended before the check completed")  # the participant left
+
+
+async def escalation_question(
+    check: Check,
+    role: Role,
+    recent: Sequence[Judgment],
+    facts: Facts,
+    asked: Sequence[str] = (),
+    timeout_s: float | None = None,
+) -> str | None:
+    """The one question a stuck check would ask the person now, or ``None`` to keep watching; asks nothing.
+
+    ``role`` (a text model) reads the check, its escalation guidance, the recent observations, the facts and the
+    questions already asked. ``None`` too when the check has no guidance, when the model cannot answer, or when it
+    proposes a question already asked. :func:`verify` asks what this returns; an evaluation can call it alone.
+    """
+    if not check.escalation:
+        return None
+    lines = [
+        "A visual check is stuck: its recent frames could not be decided.",
+        f"What it verifies: {check.criteria.instructions}",
+        f"Done when: {check.criteria.positive}",
+        f"Escalation guidance: {check.escalation}",
+        "Recent observations, oldest first (label, why unknown, what was seen):",
+        *(f"- {j.label}{f' ({j.reason})' if j.reason else ''}: {j.description[:300]}" for j in recent),
+    ]
+    if facts.text():
+        lines.append(f"Already known:\n{facts.text()}")
+    if asked:
+        lines.append("Already asked (never ask these again): " + " | ".join(asked))
+    lines.append(
+        "Following the guidance, should the assistant ask the person one short spoken question now, to get what "
+        "the camera cannot establish? Ask only about what the guidance allows and what is still missing; never "
+        "ask the person to do the step, and never ask what the camera can show."
+    )
+    try:
+        decision = await role.ask(None, "\n".join(lines), response_format=_Decision, timeout_s=timeout_s)
+    except (StructuredOutputError, TimeoutError):
+        return None
+    question = (decision.question or "").strip()
+    if not decision.ask or not question or question in asked:
+        return None
+    return question
+
+
+async def _escalate(
+    check: Check,
+    escalation: Escalation,
+    recent: tuple[Judgment, ...],
+    facts: Facts,
+    asked: list[str],
+    timeout_s: float | None,
+) -> tuple[Facts, str | None]:
+    """Ask the person one question when the guidance calls for it; the facts with the answer, and the question."""
+    question = await escalation_question(check, escalation.role, recent, facts, asked, timeout_s)
+    if question is None:
+        return facts, None
+    answer = await escalation.ask(question)
+    if answer is None:
+        return facts.with_answer(f'Asked the person: "{question}" No answer came.'), question
+    known = None
+    if check.needs is not None:
+        prompt = (
+            f'The assistant asked: "{question}" The person answered: "{answer}". Fill in only what the answer '
+            "states; leave everything else null. 'I don't know' states nothing."
+        )
+        try:
+            known = await escalation.role.ask(None, prompt, response_format=check.needs, timeout_s=timeout_s)
+        except (StructuredOutputError, TimeoutError):
+            known = None
+    return facts.with_answer(f'Asked the person: "{question}" They answered: "{answer}"', known), question

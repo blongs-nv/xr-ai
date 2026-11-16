@@ -9,9 +9,10 @@
 # expect:
 #   route    where the turn should end up: tea (a control was performed),
 #            observation (the camera now), conversation; a list allows any
-#   control  the control it asks for: start, stop, skip, restart, or none
-#            (the default); a list allows any. A control where none is
-#            expected is an unintended state change.
+#   control  the control it asks for: start, stop, skip, restart, answer
+#            (a reply to the guide's pending question), or none (the
+#            default); a list allows any. A control where none is expected
+#            is an unintended state change.
 #   answer   for conversation answers: mentions (any of), not (none of)
 
 step_words:

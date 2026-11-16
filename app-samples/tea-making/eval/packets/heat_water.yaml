@@ -8,11 +8,20 @@ state:
   detail: "running: 0 of 2 confirmations in the last 4. Latest: negative: {\"value\":131.0,\"unit_text\":\"°\"}"
   noted: {tea: {tea_name: Bigelow, tea_type: green tea}, temperature_c: 80, duration_s: 120, settings_from: recommended}
 frames:
-  - {name: rising, at: [26, 321], expect: not_done}
-  - {name: at_target, at: [339, 346], expect: done}
+  # The display prints no unit. Without one the check cannot decide, so it
+  # should get stuck and ask the person which unit it uses (and nothing else).
+  - name: rising_unit_unknown
+    at: [26, 60]
+    expect: not_done
+    asks: true
+    asks_about: [unit, celsius, fahrenheit]
+  # After the person said Fahrenheit: decidable, so no question.
+  - {name: rising, at: [26, 321], expect: not_done, facts: {unit: fahrenheit}, asks: false}
+  - {name: at_target, at: [339, 346], expect: done, facts: {unit: fahrenheit}}
   - name: setpoint_flash
     at: [22.5, 25.5]
     expect: not_done
+    facts: {unit: fahrenheit}
     why: 176 is the kettle's target setting while the button is pressed
   - name: label_held_up
     at: [4, 16]

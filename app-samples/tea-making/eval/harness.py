@@ -52,8 +52,8 @@ SAMPLE = Path(__file__).resolve().parents[1]
 EVAL = Path(__file__).resolve().parent
 sys.path.insert(0, str(SAMPLE))
 
-from procedure import Steps, target  # noqa: E402
-from tea import TeaLabel, Thermometer, assessable  # noqa: E402
+from procedure import Steps, checks  # noqa: E402
+from tea import TeaLabel  # noqa: E402
 from xr_ai_app import (  # noqa: E402
     Frame,
     Participant,
@@ -63,7 +63,15 @@ from xr_ai_app import (  # noqa: E402
     Turn,
 )
 from xr_ai_kit import Conversation  # noqa: E402
-from xr_ai_kit.sop import Run, StepRecord, judge  # noqa: E402
+from xr_ai_kit.sop import (  # noqa: E402
+    Check,
+    Facts,
+    Judgment,
+    Run,
+    StepRecord,
+    escalation_question,
+    judge,
+)
 
 CONTROLS = ("start", "stop", "skip", "restart", "none")
 
@@ -147,9 +155,36 @@ def frame_of(t: float, path: Path) -> Frame:
     return Frame(data, int(t * 1_000_000), width, height, mime)
 
 
+def step_check(step: str, models: Models, recording: dict[str, Any]) -> Check:
+    """The step's Check, built exactly as the procedure builds it."""
+    target_c = float(
+        recording.get("target_c", models.settings.default_temperature_c)
+    )
+    built = checks(
+        models.steps, temperature_c=target_c, unit=models.settings.display_unit
+    )
+    return built[step]
+
+
+def group_facts(check: Check, group: dict[str, Any]) -> Facts | None:
+    """The facts a group starts with: what the person already said (typed)."""
+    given = group.get("facts")
+    if not given:
+        return None
+    if check.needs is None:
+        raise ValueError(
+            f"group {group['name']}: facts for a check without needs"
+        )
+    return Facts(check.needs(**given), ("(Given in the test packet.)",))
+
+
 async def check(
-    step: str, frame: Frame, models: Models, recording: dict[str, Any]
-) -> dict[str, Any]:
+    step: str,
+    frame: Frame,
+    models: Models,
+    recording: dict[str, Any],
+    facts: Facts | None,
+) -> tuple[Judgment | None, dict[str, Any]]:
     """The step's live check on one frame: positive, negative or unknown."""
     steps, settings = models.steps, models.settings
     if step == "identify":
@@ -161,36 +196,47 @@ async def check(
                 timeout_s=settings.timeout_s,
             )
         except StructuredOutputError:
-            return {"label": "unknown", "reason": "unreadable"}
+            return None, {"label": "unknown", "reason": "unreadable"}
         ready = tea.tea_type is not None  # the procedure's ready()
-        return {
+        return None, {
             "label": "positive" if ready else "negative",
             "observed": tea.model_dump_json(exclude_none=True),
         }
-    unit = recording.get("display_unit", settings.display_unit)
-    spec = getattr(steps, step)
-    extra: dict[str, Any] = {}
-    if step == "heat_water":
-        target_c = float(recording.get("target_c", 80))
-        criteria = spec.to_criteria(
-            unit=unit or "not known", minimum=target(target_c, unit)
-        )
-        extra = {
-            "observation_model": Thermometer,
-            "can_assess": lambda reading: assessable(reading, unit),
-        }
-    else:
-        criteria = spec.to_criteria()
     j = await judge(
         frame,
+        step_check(step, models, recording),
         observe=models.perceive,
         decide=models.decide,
-        question=spec.question,
-        criteria=criteria,
+        facts=facts,
         timeout_s=settings.timeout_s,
-        **extra,
     )
-    return {"label": j.label, "observed": j.description, "reason": j.reason}
+    return j, {"label": j.label, "observed": j.description, "reason": j.reason}
+
+
+async def would_ask(
+    step: str,
+    judgments: list[Judgment],
+    models: Models,
+    recording: dict[str, Any],
+    facts: Facts | None,
+    after_unknowns: int,
+) -> tuple[float | None, str | None]:
+    """When the check gets stuck in this group (after_unknowns unknowns in a
+    row), the question the live check would ask then; (None, None) if never."""
+    streak = 0
+    for i, j in enumerate(judgments):
+        streak = streak + 1 if j.label == "unknown" else 0
+        if streak >= after_unknowns:
+            recent = judgments[max(0, i - 7) : i + 1]
+            question = await escalation_question(
+                step_check(step, models, recording),
+                models.answer,
+                recent,
+                facts or Facts(),
+                timeout_s=models.settings.timeout_s,
+            )
+            return j.frame_us / 1_000_000, question
+    return None, None
 
 
 def fires(labels: list[str], required: int, window: int) -> int | None:
@@ -213,6 +259,23 @@ def group_verdict(expect: str, fired: int | None, labels: list[str]) -> bool:
     return fired is None
 
 
+def ask_verdict(group: dict[str, Any], question: str | None) -> list[str]:
+    """What is wrong with the asking in this group (asks, asks_about)."""
+    problems = []
+    if "asks" in group and bool(question) != bool(group["asks"]):
+        problems.append(
+            f"asked: {question!r}" if question else "did not ask when stuck"
+        )
+    about = group.get("asks_about")
+    if (
+        question
+        and about
+        and not any(w.lower() in question.lower() for w in about)
+    ):
+        problems.append(f"question is not about any of {about}")
+    return problems
+
+
 async def run_frames(
     packet: Packet,
     index: list[tuple[float, Path]],
@@ -224,33 +287,53 @@ async def run_frames(
         return []
     settings = models.settings
 
-    async def one(t: float, path: Path) -> dict[str, Any]:
+    async def one(
+        t: float, path: Path, facts: Facts | None
+    ) -> tuple[Judgment | None, dict[str, Any]]:
         async with gate:
             began = time.monotonic()
             try:
-                out = await check(
-                    packet.step, frame_of(t, path), models, recording
+                j, out = await check(
+                    packet.step, frame_of(t, path), models, recording, facts
                 )
             except Exception as exc:  # noqa: BLE001 - scored as unknown
-                out = {"label": "unknown", "reason": f"error: {exc!r}"}
+                j, out = None, {"label": "unknown", "reason": f"error: {exc!r}"}
             out.update(t=round(t, 2), s=round(time.monotonic() - began, 2))
-            return out
+            return j, out
 
     groups = []
     for group in packet.frames:
         grid = on_grid(index, group["at"], settings.interval_s)
-        frames = list(await asyncio.gather(*(one(t, p) for t, p in grid)))
+        facts = None
+        if packet.step != "identify":
+            facts = group_facts(
+                step_check(packet.step, models, recording), group
+            )
+        done = await asyncio.gather(*(one(t, p, facts) for t, p in grid))
+        frames = [out for _, out in done]
         labels = [f["label"] for f in frames]
         fired = fires(labels, settings.required, settings.window)
+        asked_at, question = None, None
+        if "asks" in group or "asks_about" in group:
+            judged = [j for j, _ in done if j is not None]
+            asked_at, question = await would_ask(
+                packet.step, judged, models, recording, facts, after_unknowns=3
+            )
+        problems = ask_verdict(group, question)
         groups.append(
             {
                 "name": group["name"],
                 "expect": group["expect"],
                 "why": group.get("why", ""),
+                "facts": group.get("facts"),
                 "frames": frames,
                 "counts": {k: labels.count(k) for k in set(labels)},
                 "fired_at": None if fired is None else frames[fired]["t"],
-                "ok": group_verdict(group["expect"], fired, labels),
+                "asked_at": asked_at,
+                "question": question,
+                "problems": problems,
+                "ok": group_verdict(group["expect"], fired, labels)
+                and not problems,
             }
         )
     return groups
@@ -290,6 +373,7 @@ def run_in_state(packet: Packet, p: Participant) -> Run | None:
         status=state.get("status", "running"),
         steps=records,
         values=dict(state.get("noted") or {}),
+        asking=state.get("asking"),
     )
 
 
@@ -567,7 +651,11 @@ def main(argv: list[str] | None = None) -> int:
         Packet.load(path, common)
         for path in sorted(args.packets.glob("*.yaml"))
         if path.name != "common.yaml"
-        and (not args.only or path.stem in args.only)
+        and (
+            not args.only
+            or path.stem in args.only
+            or path.stem.split(".")[0] in args.only
+        )
     ]
     recording = (
         yaml.safe_load(args.recording.read_text("utf-8"))

@@ -74,6 +74,55 @@ def test_the_live_rule_decides_a_frame_group(labels, expect, ok) -> None:
     assert harness.group_verdict(expect, fired, labels) is ok
 
 
+def test_asking_is_scored_against_the_group() -> None:
+    must = {"asks": True, "asks_about": ["unit"]}
+    assert harness.ask_verdict(must, "Which unit is the display in?") == []
+    assert harness.ask_verdict(must, None) == ["did not ask when stuck"]
+    assert harness.ask_verdict(must, "Is the water hot?") == [
+        "question is not about any of ['unit']"
+    ]
+    assert harness.ask_verdict({"asks": False}, "Which unit?") == [
+        "asked: 'Which unit?'"
+    ]
+
+
+def frames_index(tmp_path: Path, seconds: int = 60) -> Path:
+    rows = ["source_time_s,frame_image"]
+    for t in range(seconds):
+        name = f"f{t:03d}.jpg"
+        Image.new("RGB", (32, 24), "gray").save(tmp_path / name)
+        rows.append(f"{t},{name}")
+    (tmp_path / "index.csv").write_text("\n".join(rows) + "\n")
+    return tmp_path / "index.csv"
+
+
+def test_a_stuck_heating_check_says_what_it_would_ask(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    here = Path(__file__).resolve().parent
+    harness.main(
+        [
+            "--only",
+            "heat_water",
+            "--frames-index",
+            str(frames_index(tmp_path)),
+            "--fakes",
+            str(here / "smoke.fakes.yaml"),
+            "--out",
+            str(out),
+        ]
+    )
+    results = json.loads((out / "results.json").read_text())
+    by_name = {r["packet"]: r for r in results}
+    assert set(by_name) == {"heat_water", "heat_water.asking"}
+    (stuck,) = [
+        g
+        for g in by_name["heat_water"]["frames"]
+        if g["name"] == "rising_unit_unknown"
+    ]
+    assert stuck["question"] == "Does the display show Celsius or Fahrenheit?"
+    assert stuck["counts"] == {"unknown": len(stuck["frames"])}  # no unit
+
+
 def test_a_plumbing_run_writes_a_report(tmp_path: Path) -> None:
     rows = ["source_time_s,frame_image"]
     for t in range(20):

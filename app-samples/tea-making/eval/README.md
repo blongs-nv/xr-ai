@@ -16,6 +16,7 @@ packets/
   identify.yaml        one file per step: its state, frames, utterances
   fill_water.yaml
   heat_water.yaml
+  heat_water.asking.yaml  the same step while it waits for the person's answer
   start_steeping.yaml
   steep.yaml
   completed.yaml       after the guide finished
@@ -30,6 +31,7 @@ step: heat_water
 state:                       # the run while this step is active
   steps: {identify: done, fill_water: done, heat_water: running}
   detail: "running: 0 of 2 confirmations ..."   # the running step's latest report
+  asking: "..."            # optional: a question the step is waiting on
   noted: {temperature_c: 80, duration_s: 120}
 frames:                      # what the camera may show during this step
   - {name: rising, at: [26, 321], expect: not_done}
@@ -54,6 +56,14 @@ frames) is replayed over them:
 | `not_done` | it does not: completing here is a false completion |
 | `either` | always (ambiguous footage, reported only) |
 
+A group may also give `facts` (what the person already said, typed as the
+check's `needs`, for example `{unit: fahrenheit}`), and test escalation:
+`asks: true` means the check should get stuck here and ask the person
+(`asks_about` lists words its question must include), `asks: false` that it
+must not ask. The harness finds where the check would get stuck (3
+unknowns in a row, as live) and asks the same model the live check uses
+what it would ask (`escalation_question`); nothing is asked of anyone.
+
 Groups from other steps' parts of the recording test what happens when a
 step sees the wrong scene: frames of the label while the guide waits for
 hot water, frames of the heating kettle while it waits for the tea bag.
@@ -67,7 +77,7 @@ with the guide's state as context).
 | `expect` key | Meaning |
 |---|---|
 | `route` | where the turn ends up: `tea` (a control was performed), `observation` (the camera now), `conversation`; a list allows any |
-| `control` | the control asked for: `start`, `stop`, `skip`, `restart`, or `none` (the default); a list allows any |
+| `control` | the control asked for: `start`, `stop`, `skip`, `restart`, `answer` (a reply to the guide's pending question), or `none` (the default); a list allows any |
 | `answer.mentions` | the conversation's answer contains at least one of these |
 | `answer.not` | it contains none of these |
 

@@ -13,7 +13,10 @@ steep       a countdown for the recommended time (timer)
 Each step is a call of an xr_ai_kit.sop function with its inputs; the
 runner (SopRunner in app.py) owns the run, skips and stops. A skipped
 identification falls back to the default settings here, in the procedure,
-never inside a step.
+never inside a step. The three visual checks may ask the person when they
+get stuck, as steps.yaml's escalation guidance allows; the heating check
+also declares what it may need to know that the display does not show
+(DisplayFacts), seeded from app.yaml when the kettle's unit is configured.
 """
 
 from __future__ import annotations
@@ -24,9 +27,25 @@ from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, ConfigDict
-from tea import Brewing, TeaLabel, Thermometer, assessable, fahrenheit
+from tea import (
+    Brewing,
+    DisplayFacts,
+    TeaLabel,
+    Thermometer,
+    assessable,
+    fahrenheit,
+)
 from xr_ai_app import Role
-from xr_ai_kit.sop import Criteria, Run, identify, timer, verify
+from xr_ai_kit.sop import (
+    Check,
+    Criteria,
+    Escalation,
+    Facts,
+    Run,
+    identify,
+    timer,
+    verify,
+)
 
 
 class CheckCriteria(BaseModel):
@@ -37,15 +56,26 @@ class CheckCriteria(BaseModel):
     unknown: str
 
 
-class Check(BaseModel):
+class CheckSpec(BaseModel):
+    """One check's wording in steps.yaml."""
+
     model_config = ConfigDict(extra="forbid")
     question: str
     criteria: CheckCriteria
+    escalation: str | None = None
 
-    def to_criteria(self, **values: object) -> Criteria:
+    def to_check(
+        self, values: dict[str, object] | None = None, **code
+    ) -> Check:
+        """The kit's Check: this wording, placeholders filled from values.
+
+        What only code declares (needs, observation_model, can_assess) is
+        passed as keywords.
+        """
         c = self.criteria
         criteria = Criteria(c.instructions, c.positive, c.negative, c.unknown)
-        return criteria.format(**values)
+        check = Check(self.question, criteria, self.escalation, **code)
+        return check.format(**(values or {}))
 
 
 class Identify(BaseModel):
@@ -58,9 +88,9 @@ class Steps(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     identify: Identify
-    fill_water: Check
-    heat_water: Check
-    start_steeping: Check
+    fill_water: CheckSpec
+    heat_water: CheckSpec
+    start_steeping: CheckSpec
     say: dict[str, str]
 
     @classmethod
@@ -93,6 +123,28 @@ def target(temperature_c: float, unit: str | None) -> str:
     )
 
 
+def checks(
+    steps: Steps, *, temperature_c: float, unit: str | None
+) -> dict[str, Check]:
+    """The three visual checks, as the procedure runs them (the evaluation
+    builds them here too): steps.yaml's wording plus what code declares."""
+    return {
+        "fill_water": steps.fill_water.to_check(),
+        "heat_water": steps.heat_water.to_check(
+            {"minimum": target(temperature_c, unit)},
+            needs=DisplayFacts,
+            observation_model=Thermometer,
+            can_assess=assessable,
+        ),
+        "start_steeping": steps.start_steeping.to_check(),
+    }
+
+
+def known_facts(unit: str | None) -> Facts | None:
+    """What the heating check knows at the start: the configured unit."""
+    return Facts(DisplayFacts(unit=unit)) if unit else None
+
+
 def make_tea(
     *,
     observe: Role,
@@ -110,6 +162,7 @@ def make_tea(
             run.p.frames,
             observe=observe,
             decide=decide,
+            escalation=Escalation(answer, run.ask),
             required=settings.required,
             window=settings.window,
             interval_s=settings.interval_s,
@@ -156,30 +209,26 @@ def make_tea(
         else:
             await run.say(say["not_identified"])
 
+        # The visual checks, now that the target temperature is known.
+        unit = settings.display_unit
+        built = checks(steps, temperature_c=temperature_c, unit=unit)
+
         # 2. Water in the kettle.
         if await run.step(
             "fill_water",
             lambda: look(
-                question=steps.fill_water.question,
-                criteria=steps.fill_water.to_criteria(),
-                on_state=run.report("fill_water"),
+                built["fill_water"], on_state=run.report("fill_water")
             ),
             say=say["fill_water"],
         ):
             await run.say(say["water_seen"])
 
         # 3. The display reads at least the target.
-        unit = settings.display_unit
-        minimum = target(temperature_c, unit)
         heated = await run.step(
             "heat_water",
             lambda: look(
-                question=steps.heat_water.question,
-                criteria=steps.heat_water.to_criteria(
-                    unit=unit or "not known", minimum=minimum
-                ),
-                observation_model=Thermometer,
-                can_assess=lambda reading: assessable(reading, unit),
+                built["heat_water"],
+                facts=known_facts(unit),
                 on_state=run.report("heat_water"),
             ),
             say=say["heat_water"].format(temperature_c=temperature_c),
@@ -202,8 +251,7 @@ def make_tea(
         await run.step(
             "start_steeping",
             lambda: look(
-                question=steps.start_steeping.question,
-                criteria=steps.start_steeping.to_criteria(),
+                built["start_steeping"],
                 on_state=run.report("start_steeping"),
             ),
             say=say["start_steeping"],

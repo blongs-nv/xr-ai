@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Heating, while the check waits for the person's answer to its question
+# about the display's unit. The guide holds the router's focus: a reply
+# that answers resolves the question (control: answer); a control still
+# works; anything else passes on to the conversation and the question
+# stays pending.
+step: heat_water
+state:
+  steps: {identify: done, fill_water: done, heat_water: running}
+  noted: {tea: {tea_name: Bigelow, tea_type: green tea}, temperature_c: 80, duration_s: 120}
+  asking: Does your kettle's display show Celsius or Fahrenheit?
+utterances:
+  - say: Fahrenheit.
+    expect: {control: answer}
+  - say: It's in F.
+    expect: {control: answer}
+  - say: The American one, I think.
+    expect: {control: answer}
+  - say: I'm not sure, it doesn't say.
+    expect: {control: answer}  # "I don't know" is an answer
+  - say: Celsius, wait, no, Fahrenheit.
+    expect: {control: answer}
+  - say: How hot does the water need to be?
+    expect: {route: conversation}  # stays pending
+  - say: What are you waiting for?
+    expect: {route: conversation, answer: {mentions: [unit, celsius, fahrenheit]}}
+  - say: Skip this step.
+    expect: {control: skip}
+  - say: Stop the tea guide.
+    expect: {control: stop}

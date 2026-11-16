@@ -103,8 +103,12 @@ class Run:
     name: str = ""
     """The procedure's name (its runner's)."""
 
+    asking: str | None = None
+    """The question the run is waiting for the person to answer (see :meth:`ask`), if any."""
+
     output: Sink | None = field(default=None, repr=False)
     _publish: Callable[..., Awaitable[None]] | None = field(default=None, repr=False)
+    _answer: asyncio.Future[str] | None = field(default=None, repr=False)
 
     @property
     def current(self) -> StepRecord | None:
@@ -164,6 +168,37 @@ class Run:
         """Speak on the assistant's own initiative, tagged with the procedure's name (a newer line replaces it)."""
         await self.p.say(text, source=f"sop:{self.name}", to=self.output)
 
+    async def ask(self, question: str, *, timeout_s: float = 60.0) -> str | None:
+        """Ask the person ``question`` and wait for the answer; ``None`` when none came within ``timeout_s``.
+
+        While the question is pending the runner holds the router's focus, so the next turns reach it first: an
+        answer (including "I don't know") returns here, a control (stop, skip) still works (skipping cancels the
+        step and with it the question), and anything else passes on to the conversation while the question stays
+        pending. The question and the answer are in the run's summary and record.
+        """
+        future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+        self.asking, self._answer = question, future
+        await self._changed("ask", question=question)
+        await self.say(question)
+        answer: str | None = None
+        try:
+            answer = await asyncio.wait_for(asyncio.shield(future), timeout_s)
+        except TimeoutError:
+            answer = None
+        finally:
+            self.asking, self._answer = None, None
+            if not future.done():
+                future.cancel()
+        await self._changed("answer", question=question, answer=answer)
+        return answer
+
+    def answer(self, text: str) -> bool:
+        """Give the pending question its answer; whether one was pending."""
+        if self._answer is None or self._answer.done():
+            return False
+        self._answer.set_result(text)
+        return True
+
     async def _changed(self, op: str, **data: Any) -> None:
         if self._publish is not None:
             await self._publish(self, op, **data)
@@ -217,6 +252,7 @@ class SopRunner(Component):
                 f"about {title}, its steps, settings or progress."
             ),
             self._on_control,
+            focused=self._waiting,
         )
         """The router destination for control requests (anything else passes on)."""
 
@@ -239,6 +275,7 @@ class SopRunner(Component):
             steps=list(run.steps),
             values=dict(run.values),
             name=self.name,
+            asking=run.asking,
             output=self.output,
             _publish=self._changed,
         )
@@ -274,6 +311,8 @@ class SopRunner(Component):
             lines.append(f"- {step_id}{what}: {status}.{detail}")
         if run.current is None and run.status == "running":
             lines.append("No step is running at this moment.")
+        if run.asking:
+            lines.append(f"Waiting for the person's answer to: {run.asking}")
         if run.values:
             lines.append("Noted: " + json.dumps({k: _plain(v) for k, v in run.values.items()}, ensure_ascii=False))
         return "\n".join(lines)
@@ -339,16 +378,36 @@ class SopRunner(Component):
         return text
 
     async def classify(self, text: str, p: Participant) -> str:
-        """Which control ``text`` asks for (``start``, ``stop``, ``skip``, ``restart`` or ``none``); performs nothing.
+        """What ``text`` is to the run: a control (``start``, ``stop``, ``skip``, ``restart``), ``answer`` (a reply to
+        the question the run is asking, only while one is pending) or ``none``; performs nothing.
 
-        The decision :attr:`control` makes before it acts, on the run's current summary, for tests and evaluations.
+        The one decision :attr:`control` makes before it acts, on the run's current summary, for tests and
+        evaluations.
         """
+        run = self.run(p)
+        choices = dict(self._controls)
         state = {"request": text, "procedure": self.summary(p)}
-        return str(await self._decide.decide(self._question, choices=self._controls, context=json.dumps(state)))
+        if run is not None and run.asking:
+            state["pending_question"] = run.asking
+            choices["answer"] = (
+                f"A reply to the assistant's pending question ({run.asking!r}): the information asked for, a guess, "
+                "or that the person does not know."
+            )
+            choices["none"] += " Also anything that is not a reply to the pending question, such as another question."
+        return str(await self._decide.decide(self._question, choices=choices, context=json.dumps(state)))
+
+    def _waiting(self, p: Participant) -> bool:
+        run = self.run(p)
+        return run is not None and run.asking is not None
 
     async def _on_control(self, turn: Turn, p: Participant) -> DestinationResult:
         op = await self.classify(turn.text, p)
         trace.emit("sop", self.name, op="control", choice=op)
+        if op == "answer":
+            run = self.run(p)
+            if run is not None and run.answer(turn.text):
+                return DestinationResult("answer", "")
+            op = "none"
         action = {"start": self.start, "stop": self.stop, "skip": self.skip, "restart": self.restart}.get(op)
         if action is None:
             return DestinationResult("pass", reason=f"not a control of {self.title}")

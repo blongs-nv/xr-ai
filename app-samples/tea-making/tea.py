@@ -91,18 +91,28 @@ class Thermometer(BaseModel):
         }.get(text)
 
 
-def assessable(reading: Thermometer, unit: str | None) -> bool:
+class DisplayFacts(BaseModel):
+    """What the heating check may need to know that a display may not show:
+    learned from the person when the check gets stuck, or set in app.yaml."""
+
+    model_config = ConfigDict(extra="ignore")
+    unit: Literal["celsius", "fahrenheit"] | None = Field(
+        default=None,
+        description="the unit the kettle's display uses, as the person says",
+    )
+
+
+def assessable(reading: Thermometer, known: DisplayFacts | None) -> bool:
     """Whether a reading can be compared with the target at all.
 
-    ``unit`` is the display's unit when the app knows it (a setting); it
-    wins over the unit the model says it reads. A setpoint, or no unit at all
-    (neither known nor read), is not a measurement to judge; the frame then
-    counts as unknown.
+    A known unit (the person said it, or app.yaml set it) wins over the unit
+    the model says it reads: on a display that prints none, a read unit is
+    invented. A setpoint, or no unit at all (neither known nor read), is not
+    a measurement to judge; the frame then counts as unknown.
     """
     if reading.value is None or reading.role == "setpoint":
         return False
-    # The display's known unit is the authority: a unit the model claims to
-    # read on a display that prints none (this kettle) is not a conflict.
+    unit = known.unit if known is not None else None
     return (unit or reading.unit) is not None
 
 
