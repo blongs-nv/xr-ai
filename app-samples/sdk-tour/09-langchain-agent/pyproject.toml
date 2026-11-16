@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# What this sample needs from the repository and from PyPI. Run from this directory with
+# `uv run ...` (see ../README.md); uv installs exactly this.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xr-ai-app-sample-langchain-agent"
+version = "0.1.0"
+description = "xr-ai-app sample 09: A LangChain agent as a router destination."
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    "langchain-core>=1.0,<2",
+    "langgraph>=1.0,<2",
+    "xr-ai-app",
+    "xr-ai-kit[langchain]",
+]
+
+[tool.uv.sources]
+xr-ai-app = { path = "../../../app-sdk/xr-ai-app", editable = true }
+xr-ai-kit = { path = "../../../app-sdk/xr-ai-kit", editable = true }
+
+[project.scripts]
+langchain_agent_app = "app:app.run"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["app.py"]

@@ -12,7 +12,7 @@ such as a visual monitor and an agent that announces changes. Events let those
 agents cooperate while keeping their state and background work separate.
 
 ```{note}
-New applications use `xr_ai_next`, which covers this package's role. Names this package
+New applications use `xr_ai_app`, which covers this package's role. Names this package
 deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
 ```
 

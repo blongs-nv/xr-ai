@@ -25,9 +25,9 @@ def test_checked_in_snapshot_matches_the_tree(capsys) -> None:
 
 def test_snapshot_covers_the_sdk_and_tools_surface() -> None:
     modules = json.loads((_ROOT / "api-snapshot.json").read_text())["modules"]
-    assert {"xr_ai_next", "xr_ai_tools", "xr_ai_models", "xr_ai_runtime"} <= modules.keys()
+    assert {"xr_ai_app", "xr_ai_tools", "xr_ai_models", "xr_ai_runtime"} <= modules.keys()
     assert not any(m.startswith("agent") or "._" in m for m in modules)
-    assert "App" in modules["xr_ai_next"]["all"]
+    assert "App" in modules["xr_ai_app"]["all"]
 
 
 @pytest.fixture

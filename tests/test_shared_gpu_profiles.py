@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from xr_ai_app._base import profiles
 from xr_ai_model_server_stack import _stack
 from xr_ai_model_server_stack._stack import run_profile_services, service_key
-from xr_ai_next._base import profiles
 
 _ROOT = Path(__file__).resolve().parents[1]
 _SHARED = _ROOT / "deployment" / "gpu-profiles"

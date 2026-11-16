@@ -1,0 +1,77 @@
+{
+  "profile": {
+    "name": "default",
+    "description": "app SDK samples: shared model profile"
+  },
+  "models": {
+    "perceive": {
+      "adapter": {
+        "preset": "cosmos3_nano_reasoner"
+      },
+      "endpoint": {
+        "base_url": "http://localhost:8100"
+      }
+    },
+    "answer_with_reasoning": {
+      "adapter": {
+        "preset": "nemotron_omni",
+        "thinking": {
+          "control": "chat_template",
+          "default": true
+        },
+        "default_extras": {
+          "max_tokens": 4608,
+          "temperature": 0.25,
+          "chat_template_kwargs": {
+            "reasoning_budget": 4096
+          }
+        }
+      },
+      "endpoint": {
+        "base_url": "http://localhost:8108"
+      }
+    },
+    "answer_lightweight": {
+      "adapter": {
+        "preset": "nemotron_omni",
+        "thinking": {
+          "control": "chat_template",
+          "default": false
+        }
+      },
+      "endpoint": {
+        "base_url": "http://localhost:8108"
+      }
+    },
+    "decide": {
+      "category": "decision",
+      "kind": "systemone",
+      "model_name": "Cloudflare/clef-flash",
+      "base_url": "http://localhost:8120"
+    },
+    "speech_out": {
+      "adapter": {
+        "preset": "pocket_tts"
+      },
+      "endpoint": {
+        "base_url": "http://localhost:8105"
+      }
+    },
+    "speech_in": {
+      "category": "stt",
+      "adapter": {
+        "kind": "openai_compat",
+        "capabilities": {
+          "speaker_stream": true
+        }
+      },
+      "endpoint": {
+        "base_url": "http://127.0.0.1:8102"
+      },
+      "deployment": {
+        "ownership": "managed",
+        "service": "speaker-stt"
+      }
+    }
+  }
+}

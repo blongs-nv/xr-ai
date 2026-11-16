@@ -1,9 +1,0 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-
-# The working directory of the docs snippets tagged `cwd=yaml` (tests/next/docs/test_docs_snippets.py): an app
-# configuration with a `local` profile (models.local.json beside this file), as a sample's yaml/ directory holds.
-# No `profile:` key here: it would take precedence over the profile the launcher selects.
-voice:
-  enabled: true
-  voice_gate_yaml: voice_gate.yaml

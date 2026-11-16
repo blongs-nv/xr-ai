@@ -12,7 +12,7 @@ the live view to inspect readings, observations, or progress updates as you
 test the interaction.
 
 ```{note}
-New applications use `xr_ai_next`, which covers this package's role. Names this package
+New applications use `xr_ai_app`, which covers this package's role. Names this package
 deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
 ```
 

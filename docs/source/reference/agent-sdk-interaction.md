@@ -13,7 +13,7 @@ either interface and distinguish answers from unsolicited updates, such as a
 timer finishing or a monitored condition changing.
 
 ```{note}
-New applications use `xr_ai_next`, which covers this package's role. Names this package
+New applications use `xr_ai_app`, which covers this package's role. Names this package
 deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
 ```
 
@@ -50,7 +50,7 @@ that share a `response_id`, carry `final=False`, and end with an empty
 interrupt flags or stream identifiers themselves.
 
 `ResponseOutputs` frames these messages so agents do not build them by hand. It is deprecated at the package root:
-import it from `xr_ai_interaction._outputs` in plumbing code, and use `p.say` and `p.reply` in `xr_ai_next` applications.
+import it from `xr_ai_interaction._outputs` in plumbing code, and use `p.say` and `p.reply` in `xr_ai_app` applications.
 It wraps anything with an async `publish(topic, message, *, participant_id=...)`
 method, such as `AgentRuntime` or the `RuntimeContext` passed to a subscriber:
 

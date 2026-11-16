@@ -15,7 +15,7 @@ under [`third_party_licenses/`](third_party_licenses/).
 
 ## Python (server-side and AI services)
 
-Used by `agent-sdk/`, `xr-ai-next/`, `utils/`, `services/`,
+Used by `agent-sdk/`, `app-sdk/`, `app-samples/`, `utils/`, `services/`,
 `agent-samples/` and `tests/`.
 For the per-package dependency mapping, see [`DEPENDENCIES.md`](DEPENDENCIES.md).
 

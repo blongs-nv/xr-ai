@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xr-ai-app"
+version = "0.0.1"
+description = "App SDK core for XR AI agents on the xr-ai foundation packages: app lifecycle, participants, components, model roles, outputs, context, frames, tools, tracing and a local device for tests."
+readme = "README.md"
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    "httpx>=0.27",
+    "loguru>=0.7",
+    "nemo-relay>=0.10.0,<0.11",
+    "pydantic>=2.10",
+    "pyyaml>=6.0",
+    "xr-ai-agent-runtime",
+    "xr-ai-hub-client",
+    "xr-ai-interaction",
+    "xr-ai-models",
+    "xr-ai-tools[frames]",
+    "xr-ai-voice",
+    "xr-ai-voicegate",
+]
+
+[project.optional-dependencies]
+# Playing video files into the local device (scenarios, `xr-ai-dev exercise --video`); the repo's OpenCV pin.
+video = ["opencv-contrib-python-headless>=4.8,<5"]
+
+[project.scripts]
+xr-ai-dev = "xr_ai_app.devkit.__main__:main"
+
+[tool.uv.sources]
+xr-ai-agent-runtime = { path = "../../agent-sdk/xr-ai-runtime", editable = true }
+xr-ai-hub-client    = { path = "../../agent-sdk/xr-ai-hub", editable = true }
+xr-ai-interaction   = { path = "../../agent-sdk/xr-ai-interaction", editable = true }
+xr-ai-models        = { path = "../../agent-sdk/xr-ai-models", editable = true }
+xr-ai-tools         = { path = "../../agent-sdk/xr-ai-tools", editable = true }
+xr-ai-voice         = { path = "../../agent-sdk/xr-ai-voice", editable = true }
+xr-ai-voicegate     = { path = "../../utils/xr-ai-voicegate", editable = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["xr_ai_app"]

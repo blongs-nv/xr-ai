@@ -67,6 +67,57 @@
         "RAGService"
       ]
     },
+    "xr_ai_app": {
+      "path": "app-sdk/xr-ai-app/xr_ai_app/__init__.py",
+      "all": [
+        "App",
+        "Component",
+        "ContextLog",
+        "ContextValue",
+        "Decision",
+        "Frame",
+        "FrameStream",
+        "Hub",
+        "Participant",
+        "PerConnection",
+        "Persistent",
+        "Role",
+        "Session",
+        "Sink",
+        "StructuredOutputError",
+        "TextSink",
+        "Turn",
+        "Voice",
+        "current_turn",
+        "output_started",
+        "tool"
+      ]
+    },
+    "xr_ai_app.devkit": {
+      "path": "app-sdk/xr-ai-app/xr_ai_app/devkit/__init__.py",
+      "all": [
+        "Exercise",
+        "LocalDevice",
+        "Output",
+        "Probe",
+        "Report",
+        "Scenario",
+        "Step",
+        "StepResult",
+        "Unit",
+        "VirtualTimeLoop",
+        "components",
+        "exercise",
+        "fakes_from_file",
+        "image_frame",
+        "load_app",
+        "resolve_target",
+        "run_scenario",
+        "run_virtual",
+        "serve",
+        "target_kind"
+      ]
+    },
     "xr_ai_conversation": {
       "path": "agent-sdk/xr-ai-conversation/xr_ai_conversation/__init__.py",
       "all": [
@@ -143,7 +194,7 @@
       ]
     },
     "xr_ai_kit": {
-      "path": "xr-ai-next/packages/xr-ai-kit/xr_ai_kit/__init__.py",
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/__init__.py",
       "all": [
         "Ack",
         "Admission",
@@ -157,8 +208,8 @@
         "StartStopDestination"
       ]
     },
-    "xr_ai_langchain": {
-      "path": "xr-ai-next/packages/xr-ai-langchain/xr_ai_langchain/__init__.py",
+    "xr_ai_kit.langchain": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/langchain/__init__.py",
       "all": [
         "GraphBackend",
         "RoleChatModel",
@@ -278,59 +329,8 @@
         "get_preset"
       ]
     },
-    "xr_ai_next": {
-      "path": "xr-ai-next/packages/xr-ai-next/xr_ai_next/__init__.py",
-      "all": [
-        "App",
-        "Component",
-        "ContextLog",
-        "ContextValue",
-        "Decision",
-        "Frame",
-        "FrameStream",
-        "Hub",
-        "Participant",
-        "PerConnection",
-        "Persistent",
-        "Role",
-        "Session",
-        "Sink",
-        "StructuredOutputError",
-        "TextSink",
-        "Turn",
-        "Voice",
-        "current_turn",
-        "output_started",
-        "tool"
-      ]
-    },
-    "xr_ai_next.devkit": {
-      "path": "xr-ai-next/packages/xr-ai-next/xr_ai_next/devkit/__init__.py",
-      "all": [
-        "Exercise",
-        "LocalDevice",
-        "Output",
-        "Probe",
-        "Report",
-        "Scenario",
-        "Step",
-        "StepResult",
-        "Unit",
-        "VirtualTimeLoop",
-        "components",
-        "exercise",
-        "fakes_from_file",
-        "image_frame",
-        "load_app",
-        "resolve_target",
-        "run_scenario",
-        "run_virtual",
-        "serve",
-        "target_kind"
-      ]
-    },
     "xr_ai_procedures": {
-      "path": "xr-ai-next/packages/xr-ai-procedures/xr_ai_procedures/__init__.py",
+      "path": "app-sdk/xr-ai-procedures/xr_ai_procedures/__init__.py",
       "all": [
         "Caption",
         "CaptureSession",
@@ -358,7 +358,7 @@
       ]
     },
     "xr_ai_procedures.perception": {
-      "path": "xr-ai-next/packages/xr-ai-procedures/xr_ai_procedures/perception/__init__.py",
+      "path": "app-sdk/xr-ai-procedures/xr_ai_procedures/perception/__init__.py",
       "all": [
         "Confirmation",
         "Criteria",

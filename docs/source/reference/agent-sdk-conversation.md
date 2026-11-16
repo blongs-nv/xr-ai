@@ -13,7 +13,7 @@ combines that context with your application's instructions to answer follow-up
 questions.
 
 ```{note}
-New applications use `xr_ai_next`, which covers this package's role. Names this package
+New applications use `xr_ai_app`, which covers this package's role. Names this package
 deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
 ```
 
@@ -118,7 +118,7 @@ context = ContextManager(
 ```
 
 Feed the manager from your own handler with `await context.update(participant_id, source, update, mode=...)`
-(`source` is one of the configured topics, `update` a `ConversationContextUpdate`); applications built on `xr_ai_next`
+(`source` is one of the configured topics, `update` a `ConversationContextUpdate`); applications built on `xr_ai_app`
 feed context through its context channels (`ContextLog`, `ContextValue`) instead. `ContextManager.subscriber()`, which registered an agent that applied
 the topics for you, is deprecated. Each topic is an independent, participant-scoped source.
 A summary topic's update replaces its current state; incremental text appends

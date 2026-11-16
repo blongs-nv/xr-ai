@@ -11,7 +11,7 @@ __all__ = []
 # Names that left the public surface: still importable, each with a DeprecationWarning that names the
 # replacement. `__all__` no longer lists them (docs/source/reference/migrations.md has the before and after).
 _NOTE = (
-    "internal to the voice pipeline; configure voice in the voice: section of an xr_ai_next app.yaml "
+    "internal to the voice pipeline; configure voice in the voice: section of an xr_ai_app app.yaml "
     "(VoiceAgent builds the VAD). "
     "The voice package imports it from xr_ai_vad.detector"
 )

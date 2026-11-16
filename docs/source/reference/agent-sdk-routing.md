@@ -12,7 +12,7 @@ or note-taking. Routing lets those agents share one interaction and keep a
 task in focus, so a multi-step activity can continue across user turns.
 
 ```{note}
-New applications use `xr_ai_next`, which covers this package's role. Names this package
+New applications use `xr_ai_app`, which covers this package's role. Names this package
 deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
 ```
 

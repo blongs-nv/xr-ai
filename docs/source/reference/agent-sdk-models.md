@@ -13,7 +13,7 @@ the capabilities it needs while configuration selects the supported model
 adapter and endpoint.
 
 ```{note}
-New applications use `xr_ai_next`, which covers this package's role. Names this package
+New applications use `xr_ai_app`, which covers this package's role. Names this package
 deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
 ```
 

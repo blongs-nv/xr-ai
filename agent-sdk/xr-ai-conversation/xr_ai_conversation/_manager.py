@@ -173,12 +173,12 @@ class ContextManager:
         Register the result with the same ``AgentRuntime`` as the consumer.
         Configure at least one topic before calling this method.
 
-        Deprecated: the second way to feed context. Feed context through ``xr_ai_next`` context channels
+        Deprecated: the second way to feed context. Feed context through ``xr_ai_app`` context channels
            (``ContextLog``, ``ContextValue``) or :meth:`update` instead.
         """
 
         warnings.warn(
-            "ContextManager.subscriber() is deprecated: feed context with xr_ai_next context channels "
+            "ContextManager.subscriber() is deprecated: feed context with xr_ai_app context channels "
             "(ContextLog, ContextValue) or ContextManager.update()",
             DeprecationWarning,
             stacklevel=2,

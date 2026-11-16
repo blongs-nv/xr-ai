@@ -7,10 +7,10 @@
 
 ## Overview
 
-How an `xr_ai_next` application finds its models: the profile file, how a profile is selected, the model servers a
+How an `xr_ai_app` application finds its models: the profile file, how a profile is selected, the model servers a
 profile can name, and how to point a profile at hosted or NIM endpoints. This page is the single place for the
 profile file format; {doc}`choosing-models` says which model to put in it, and {doc}`deploying-with-nim` covers
-operating NIM endpoints. Samples that have not moved to `xr_ai_next` still use `yaml/models.json` with
+operating NIM endpoints. Samples that have not moved to `xr_ai_app` still use `yaml/models.json` with
 `model-servers/` launchers, documented in {doc}`customizing-model-servers`.
 
 ## The profile file

@@ -14,7 +14,7 @@ development, and reviews. Each directory follows the open
 
 To launch and verify the Simple VLM browser demo, use
 [`run-demo`](run-demo/SKILL.md). It follows `setup` when preparation is needed.
-To test an `xr_ai_next` app end to end without a device (typed turns, images and
+To test an `xr_ai_app` app end to end without a device (typed turns, images and
 videos as frames, a report and a trace), use
 [`test-with-local-device`](test-with-local-device/SKILL.md).
 

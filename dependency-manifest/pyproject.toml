@@ -45,6 +45,30 @@ repository = [
     "xr-ai-tools[capture,frames,image-editing,marker-tracking,relay,services,vision]",
     "xr-ai-voice",
     "xr-ai-web-events",
+    "xr-ai-app-sample-conversation",
+    "xr-ai-app-sample-conversation-model-servers",
+    "xr-ai-app-sample-lab-instruments",
+    "xr-ai-app-sample-lab-instruments-model-servers",
+    "xr-ai-app-samples-sdk-tour",
+    "xr-ai-app-sample-hello-voice",
+    "xr-ai-app-sample-vision-qa",
+    "xr-ai-app-sample-camera-monitor",
+    "xr-ai-app-sample-notes-mode",
+    "xr-ai-app-sample-manual-dispatch",
+    "xr-ai-app-sample-shared-room",
+    "xr-ai-app-sample-delegate-a2a",
+    "xr-ai-app-sample-a2a-research-agent",
+    "xr-ai-app-sample-delegate-langgraph",
+    "xr-ai-app-sample-langchain-agent",
+    "xr-ai-app-sample-guided-procedure",
+    "xr-ai-app-sample-tracing",
+    "xr-ai-app-sample-procedure-capture",
+    "xr-ai-app-samples-sdk-tour-model-servers",
+    "xr-ai-app-sample-simple-vlm",
+    "xr-ai-app-sample-simple-vlm-model-servers",
+    "xr-ai-app[video]",
+    "xr-ai-kit[a2a,langchain]",
+    "xr-ai-procedures",
     "xr-ai-eval-adapters",
     "xr-ai-eval",
     "clef-server",
@@ -64,31 +88,6 @@ repository = [
     "xr-ai-vad",
     "xr-ai-vllm",
     "xr-ai-voicegate",
-    "xr-ai-kit[a2a]",
-    "xr-ai-langchain",
-    "xr-ai-next[video]",
-    "xr-ai-procedures",
-    "xr-ai-next-sample-conversation",
-    "xr-ai-next-sample-conversation-model-servers",
-    "xr-ai-next-sample-lab-instruments",
-    "xr-ai-next-sample-lab-instruments-model-servers",
-    "xr-ai-next-samples-sdk-tour",
-    "xr-ai-next-sample-hello-voice",
-    "xr-ai-next-sample-vision-qa",
-    "xr-ai-next-sample-camera-monitor",
-    "xr-ai-next-sample-notes-mode",
-    "xr-ai-next-sample-manual-dispatch",
-    "xr-ai-next-sample-shared-room",
-    "xr-ai-next-sample-delegate-a2a",
-    "xr-ai-next-sample-a2a-research-agent",
-    "xr-ai-next-sample-delegate-langgraph",
-    "xr-ai-next-sample-langchain-agent",
-    "xr-ai-next-sample-guided-procedure",
-    "xr-ai-next-sample-tracing",
-    "xr-ai-next-sample-procedure-capture",
-    "xr-ai-next-samples-sdk-tour-model-servers",
-    "xr-ai-next-sample-simple-vlm",
-    "xr-ai-next-sample-simple-vlm-model-servers",
 ]
 vllm = [
     "embedding-server",
@@ -102,80 +101,79 @@ package = false
 conflicts = [[{ extra = "repository" }, { extra = "vllm" }]]
 
 [tool.uv.sources]
-"conversation-example"                            = { path = "../agent-samples/conversation-example", editable = true }
-"conversation-example-model-servers"              = { path = "../agent-samples/conversation-example/model-servers", editable = true }
-"conversation-example-worker"                     = { path = "../agent-samples/conversation-example/worker", editable = true }
-"lab-instrument-monitoring"                       = { path = "../agent-samples/lab-instrument-monitoring", editable = true }
-"lab-instrument-monitoring-model-servers"         = { path = "../agent-samples/lab-instrument-monitoring/model-servers", editable = true }
-"lab-instrument-monitoring-worker"                = { path = "../agent-samples/lab-instrument-monitoring/worker", editable = true }
-"procedure-capture-guide"                         = { path = "../agent-samples/procedure-capture-guide", editable = true }
-"procedure-capture-guide-model-servers"           = { path = "../agent-samples/procedure-capture-guide/model-servers", editable = true }
-"procedure-capture-guide-worker"                  = { path = "../agent-samples/procedure-capture-guide/worker", editable = true }
-"simple-vlm-example"                              = { path = "../agent-samples/simple-vlm-example", editable = true }
-"simple-vlm-example-model-servers"                = { path = "../agent-samples/simple-vlm-example/model-servers", editable = true }
-"simple-vlm-example-worker"                       = { path = "../agent-samples/simple-vlm-example/worker", editable = true }
-"tea-making-sample"                               = { path = "../agent-samples/tea-making-sample", editable = true }
-"tea-making-sample-model-servers"                 = { path = "../agent-samples/tea-making-sample/model-servers", editable = true }
-"tea-making-worker"                               = { path = "../agent-samples/tea-making-sample/worker", editable = true }
-"xr-render-demo"                                  = { path = "../agent-samples/xr-render-demo", editable = true }
-"xr-render-demo-eval"                             = { path = "../agent-samples/xr-render-demo/eval", editable = true }
-"xr-render-demo-model-servers"                    = { path = "../agent-samples/xr-render-demo/model-servers", editable = true }
-"xr-render-scene"                                 = { path = "../agent-samples/xr-render-demo/scene", editable = true }
-"xr-render-demo-worker"                           = { path = "../agent-samples/xr-render-demo/worker", editable = true }
-"xr-ai-conversation"                              = { path = "../agent-sdk/xr-ai-conversation", editable = true }
-"xr-ai-hub-client"                                = { path = "../agent-sdk/xr-ai-hub", editable = true }
-"xr-ai-interaction"                               = { path = "../agent-sdk/xr-ai-interaction", editable = true }
-"xr-ai-models"                                    = { path = "../agent-sdk/xr-ai-models", editable = true }
-"xr-ai-routing"                                   = { path = "../agent-sdk/xr-ai-routing", editable = true }
-"xr-ai-agent-runtime"                             = { path = "../agent-sdk/xr-ai-runtime", editable = true }
-"xr-ai-tools"                                     = { path = "../agent-sdk/xr-ai-tools", editable = true }
-"xr-ai-voice"                                     = { path = "../agent-sdk/xr-ai-voice", editable = true }
-"xr-ai-web-events"                                = { path = "../agent-sdk/xr-ai-web-events", editable = true }
-"xr-ai-eval-adapters"                             = { path = "../evals/adapters", editable = true }
-"xr-ai-eval"                                      = { path = "../evals/runner", editable = true }
-"clef-server"                                     = { path = "../services/clef-server", editable = true }
-"cloudxr-runtime"                                 = { path = "../services/cloudxr-runtime", editable = true }
-"device-io-hub"                                   = { path = "../services/device-io-hub", editable = true }
-"embedding-server"                                = { path = "../services/embedding-server", editable = true }
-"magpie-tts-server"                               = { path = "../services/magpie-tts", editable = true }
-"nemotron-omni-llm-server"                        = { path = "../services/nemotron-omni-llm", editable = true }
-"nemotron3-nano-llm-server"                       = { path = "../services/nemotron3-nano-llm", editable = true }
-"xr-openxr-service"                               = { path = "../services/openxr-service", editable = true }
-"pocket-tts-server"                               = { path = "../services/pocket-tts", editable = true }
-"xr-rag-service"                                  = { path = "../services/rag-service", editable = true }
-"stt-server"                                      = { path = "../services/stt-server", editable = true }
-"xr-video-memory-service"                         = { path = "../services/video-memory-service", editable = true }
-"vlm-server"                                      = { path = "../services/vlm-server", editable = true }
-"xr-ai-tests"                                     = { path = "../tests", editable = true }
-"xr-ai-gpu"                                       = { path = "../utils/xr-ai-gpu", editable = true }
-"xr-ai-launcher"                                  = { path = "../utils/xr-ai-launcher", editable = true }
-"xr-ai-logging"                                   = { path = "../utils/xr-ai-logging", editable = true }
-"xr-ai-model-server-stack"                        = { path = "../utils/xr-ai-model-server-stack", editable = true }
-"xr-ai-vad"                                       = { path = "../utils/xr-ai-vad", editable = true }
-"xr-ai-vllm"                                      = { path = "../utils/xr-ai-vllm", editable = true }
-"xr-ai-voicegate"                                 = { path = "../utils/xr-ai-voicegate", editable = true }
-"xr-ai-kit"                                       = { path = "../xr-ai-next/packages/xr-ai-kit", editable = true }
-"xr-ai-langchain"                                 = { path = "../xr-ai-next/packages/xr-ai-langchain", editable = true }
-"xr-ai-next"                                      = { path = "../xr-ai-next/packages/xr-ai-next", editable = true }
-"xr-ai-procedures"                                = { path = "../xr-ai-next/packages/xr-ai-procedures", editable = true }
-"xr-ai-next-sample-conversation"                  = { path = "../xr-ai-next/samples/conversation", editable = true }
-"xr-ai-next-sample-conversation-model-servers"    = { path = "../xr-ai-next/samples/conversation/model-servers", editable = true }
-"xr-ai-next-sample-lab-instruments"               = { path = "../xr-ai-next/samples/lab-instruments", editable = true }
-"xr-ai-next-sample-lab-instruments-model-servers" = { path = "../xr-ai-next/samples/lab-instruments/model-servers", editable = true }
-"xr-ai-next-samples-sdk-tour"                     = { path = "../xr-ai-next/samples/sdk-tour", editable = true }
-"xr-ai-next-sample-hello-voice"                   = { path = "../xr-ai-next/samples/sdk-tour/01-hello-voice", editable = true }
-"xr-ai-next-sample-vision-qa"                     = { path = "../xr-ai-next/samples/sdk-tour/02-vision-qa", editable = true }
-"xr-ai-next-sample-camera-monitor"                = { path = "../xr-ai-next/samples/sdk-tour/03-camera-monitor", editable = true }
-"xr-ai-next-sample-notes-mode"                    = { path = "../xr-ai-next/samples/sdk-tour/04-notes-mode", editable = true }
-"xr-ai-next-sample-manual-dispatch"               = { path = "../xr-ai-next/samples/sdk-tour/05-manual-dispatch", editable = true }
-"xr-ai-next-sample-shared-room"                   = { path = "../xr-ai-next/samples/sdk-tour/06-shared-room", editable = true }
-"xr-ai-next-sample-delegate-a2a"                  = { path = "../xr-ai-next/samples/sdk-tour/07-delegate-a2a", editable = true }
-"xr-ai-next-sample-a2a-research-agent"            = { path = "../xr-ai-next/samples/sdk-tour/07-delegate-a2a/research_agent", editable = true }
-"xr-ai-next-sample-delegate-langgraph"            = { path = "../xr-ai-next/samples/sdk-tour/08-delegate-langgraph", editable = true }
-"xr-ai-next-sample-langchain-agent"               = { path = "../xr-ai-next/samples/sdk-tour/09-langchain-agent", editable = true }
-"xr-ai-next-sample-guided-procedure"              = { path = "../xr-ai-next/samples/sdk-tour/10-guided-procedure", editable = true }
-"xr-ai-next-sample-tracing"                       = { path = "../xr-ai-next/samples/sdk-tour/11-tracing", editable = true }
-"xr-ai-next-sample-procedure-capture"             = { path = "../xr-ai-next/samples/sdk-tour/12-procedure-capture", editable = true }
-"xr-ai-next-samples-sdk-tour-model-servers"       = { path = "../xr-ai-next/samples/sdk-tour/model-servers", editable = true }
-"xr-ai-next-sample-simple-vlm"                    = { path = "../xr-ai-next/samples/simple-vlm", editable = true }
-"xr-ai-next-sample-simple-vlm-model-servers"      = { path = "../xr-ai-next/samples/simple-vlm/model-servers", editable = true }
+"conversation-example"                           = { path = "../agent-samples/conversation-example", editable = true }
+"conversation-example-model-servers"             = { path = "../agent-samples/conversation-example/model-servers", editable = true }
+"conversation-example-worker"                    = { path = "../agent-samples/conversation-example/worker", editable = true }
+"lab-instrument-monitoring"                      = { path = "../agent-samples/lab-instrument-monitoring", editable = true }
+"lab-instrument-monitoring-model-servers"        = { path = "../agent-samples/lab-instrument-monitoring/model-servers", editable = true }
+"lab-instrument-monitoring-worker"               = { path = "../agent-samples/lab-instrument-monitoring/worker", editable = true }
+"procedure-capture-guide"                        = { path = "../agent-samples/procedure-capture-guide", editable = true }
+"procedure-capture-guide-model-servers"          = { path = "../agent-samples/procedure-capture-guide/model-servers", editable = true }
+"procedure-capture-guide-worker"                 = { path = "../agent-samples/procedure-capture-guide/worker", editable = true }
+"simple-vlm-example"                             = { path = "../agent-samples/simple-vlm-example", editable = true }
+"simple-vlm-example-model-servers"               = { path = "../agent-samples/simple-vlm-example/model-servers", editable = true }
+"simple-vlm-example-worker"                      = { path = "../agent-samples/simple-vlm-example/worker", editable = true }
+"tea-making-sample"                              = { path = "../agent-samples/tea-making-sample", editable = true }
+"tea-making-sample-model-servers"                = { path = "../agent-samples/tea-making-sample/model-servers", editable = true }
+"tea-making-worker"                              = { path = "../agent-samples/tea-making-sample/worker", editable = true }
+"xr-render-demo"                                 = { path = "../agent-samples/xr-render-demo", editable = true }
+"xr-render-demo-eval"                            = { path = "../agent-samples/xr-render-demo/eval", editable = true }
+"xr-render-demo-model-servers"                   = { path = "../agent-samples/xr-render-demo/model-servers", editable = true }
+"xr-render-scene"                                = { path = "../agent-samples/xr-render-demo/scene", editable = true }
+"xr-render-demo-worker"                          = { path = "../agent-samples/xr-render-demo/worker", editable = true }
+"xr-ai-conversation"                             = { path = "../agent-sdk/xr-ai-conversation", editable = true }
+"xr-ai-hub-client"                               = { path = "../agent-sdk/xr-ai-hub", editable = true }
+"xr-ai-interaction"                              = { path = "../agent-sdk/xr-ai-interaction", editable = true }
+"xr-ai-models"                                   = { path = "../agent-sdk/xr-ai-models", editable = true }
+"xr-ai-routing"                                  = { path = "../agent-sdk/xr-ai-routing", editable = true }
+"xr-ai-agent-runtime"                            = { path = "../agent-sdk/xr-ai-runtime", editable = true }
+"xr-ai-tools"                                    = { path = "../agent-sdk/xr-ai-tools", editable = true }
+"xr-ai-voice"                                    = { path = "../agent-sdk/xr-ai-voice", editable = true }
+"xr-ai-web-events"                               = { path = "../agent-sdk/xr-ai-web-events", editable = true }
+"xr-ai-app-sample-conversation"                  = { path = "../app-samples/conversation", editable = true }
+"xr-ai-app-sample-conversation-model-servers"    = { path = "../app-samples/conversation/model-servers", editable = true }
+"xr-ai-app-sample-lab-instruments"               = { path = "../app-samples/lab-instruments", editable = true }
+"xr-ai-app-sample-lab-instruments-model-servers" = { path = "../app-samples/lab-instruments/model-servers", editable = true }
+"xr-ai-app-samples-sdk-tour"                     = { path = "../app-samples/sdk-tour", editable = true }
+"xr-ai-app-sample-hello-voice"                   = { path = "../app-samples/sdk-tour/01-hello-voice", editable = true }
+"xr-ai-app-sample-vision-qa"                     = { path = "../app-samples/sdk-tour/02-vision-qa", editable = true }
+"xr-ai-app-sample-camera-monitor"                = { path = "../app-samples/sdk-tour/03-camera-monitor", editable = true }
+"xr-ai-app-sample-notes-mode"                    = { path = "../app-samples/sdk-tour/04-notes-mode", editable = true }
+"xr-ai-app-sample-manual-dispatch"               = { path = "../app-samples/sdk-tour/05-manual-dispatch", editable = true }
+"xr-ai-app-sample-shared-room"                   = { path = "../app-samples/sdk-tour/06-shared-room", editable = true }
+"xr-ai-app-sample-delegate-a2a"                  = { path = "../app-samples/sdk-tour/07-delegate-a2a", editable = true }
+"xr-ai-app-sample-a2a-research-agent"            = { path = "../app-samples/sdk-tour/07-delegate-a2a/research_agent", editable = true }
+"xr-ai-app-sample-delegate-langgraph"            = { path = "../app-samples/sdk-tour/08-delegate-langgraph", editable = true }
+"xr-ai-app-sample-langchain-agent"               = { path = "../app-samples/sdk-tour/09-langchain-agent", editable = true }
+"xr-ai-app-sample-guided-procedure"              = { path = "../app-samples/sdk-tour/10-guided-procedure", editable = true }
+"xr-ai-app-sample-tracing"                       = { path = "../app-samples/sdk-tour/11-tracing", editable = true }
+"xr-ai-app-sample-procedure-capture"             = { path = "../app-samples/sdk-tour/12-procedure-capture", editable = true }
+"xr-ai-app-samples-sdk-tour-model-servers"       = { path = "../app-samples/sdk-tour/model-servers", editable = true }
+"xr-ai-app-sample-simple-vlm"                    = { path = "../app-samples/simple-vlm", editable = true }
+"xr-ai-app-sample-simple-vlm-model-servers"      = { path = "../app-samples/simple-vlm/model-servers", editable = true }
+"xr-ai-app"                                      = { path = "../app-sdk/xr-ai-app", editable = true }
+"xr-ai-kit"                                      = { path = "../app-sdk/xr-ai-kit", editable = true }
+"xr-ai-procedures"                               = { path = "../app-sdk/xr-ai-procedures", editable = true }
+"xr-ai-eval-adapters"                            = { path = "../evals/adapters", editable = true }
+"xr-ai-eval"                                     = { path = "../evals/runner", editable = true }
+"clef-server"                                    = { path = "../services/clef-server", editable = true }
+"cloudxr-runtime"                                = { path = "../services/cloudxr-runtime", editable = true }
+"device-io-hub"                                  = { path = "../services/device-io-hub", editable = true }
+"embedding-server"                               = { path = "../services/embedding-server", editable = true }
+"magpie-tts-server"                              = { path = "../services/magpie-tts", editable = true }
+"nemotron-omni-llm-server"                       = { path = "../services/nemotron-omni-llm", editable = true }
+"nemotron3-nano-llm-server"                      = { path = "../services/nemotron3-nano-llm", editable = true }
+"xr-openxr-service"                              = { path = "../services/openxr-service", editable = true }
+"pocket-tts-server"                              = { path = "../services/pocket-tts", editable = true }
+"xr-rag-service"                                 = { path = "../services/rag-service", editable = true }
+"stt-server"                                     = { path = "../services/stt-server", editable = true }
+"xr-video-memory-service"                        = { path = "../services/video-memory-service", editable = true }
+"vlm-server"                                     = { path = "../services/vlm-server", editable = true }
+"xr-ai-tests"                                    = { path = "../tests", editable = true }
+"xr-ai-gpu"                                      = { path = "../utils/xr-ai-gpu", editable = true }
+"xr-ai-launcher"                                 = { path = "../utils/xr-ai-launcher", editable = true }
+"xr-ai-logging"                                  = { path = "../utils/xr-ai-logging", editable = true }
+"xr-ai-model-server-stack"                       = { path = "../utils/xr-ai-model-server-stack", editable = true }
+"xr-ai-vad"                                      = { path = "../utils/xr-ai-vad", editable = true }
+"xr-ai-vllm"                                     = { path = "../utils/xr-ai-vllm", editable = true }
+"xr-ai-voicegate"                                = { path = "../utils/xr-ai-voicegate", editable = true }

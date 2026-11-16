@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Resolve a profile (``PROFILES_SCHEMA.md`` of ``xr-ai-next``) to the endpoint that fills each role.
+"""Resolve a profile (``PROFILES_SCHEMA.md`` of ``xr-ai-app``) to the endpoint that fills each role.
 
-This is a deliberate, small duplicate of the resolver in ``xr_ai_next._base.profiles``. The runner
-does not import ``xr_ai_next``, so evals run without the app SDK installed. It does not check categories or
+This is a deliberate, small duplicate of the resolver in ``xr_ai_app._base.profiles``. The runner
+does not import ``xr_ai_app``, so evals run without the app SDK installed. It does not check categories or
 ``budgets``.
 """
 

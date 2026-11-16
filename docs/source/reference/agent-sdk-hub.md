@@ -13,7 +13,7 @@ hub client provides that connection to DeviceIOHub, letting you build a custom
 processor without implementing the device-facing transport.
 
 ```{note}
-New applications use `xr_ai_next`, which covers this package's role. Names this package
+New applications use `xr_ai_app`, which covers this package's role. Names this package
 deprecated still import with a warning; {doc}`migrations` lists the replacement for each.
 ```
 

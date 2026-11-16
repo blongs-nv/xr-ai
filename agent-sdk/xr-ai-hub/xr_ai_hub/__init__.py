@@ -45,7 +45,7 @@ __all__ = [
 # Names that left the public surface: still importable, each with a DeprecationWarning that names the
 # replacement. `__all__` no longer lists them (docs/source/reference/migrations.md has the before and after).
 _WIRE = (
-    "internal wire type; apps use xr_ai_next (Hub, Participant.send_data, Frame). "
+    "internal wire type; apps use xr_ai_app (Hub, Participant.send_data, Frame). "
     "Hub plumbing imports it from xr_ai_hub._types"
 )
 _SHM = (

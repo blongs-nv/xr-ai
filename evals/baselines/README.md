@@ -158,10 +158,10 @@ run confirms each parser against live output, and fix the parser rather than the
 Only the runner path was exercised, against a stub OpenAI-compatible server (no model stack):
 
 ```bash
-# serve a stub (tests/next/eval/eval_support.StubServer) and write models.stub.json pointing at it, then
+# serve a stub (tests/app/eval/eval_support.StubServer) and write models.stub.json pointing at it, then
 uv --config-file uv.toml run --project tests xr-ai-eval run --suite conversation-context \
     --profile <scratch>/models.stub.json --out <scratch>/out.jsonl
 ```
 
 Result: 10 records written with the profile, commit and latency fields filled and every case failing, as expected for a canned
-answer. This is not a baseline and was written outside this directory. The runner tests are in `tests/next/eval/`.
+answer. This is not a baseline and was written outside this directory. The runner tests are in `tests/app/eval/`.

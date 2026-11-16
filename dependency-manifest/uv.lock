@@ -8421,6 +8421,411 @@ requires-dist = [
 ]
 
 [[package]]
+name = "xr-ai-app"
+version = "0.0.1"
+source = { editable = "../app-sdk/xr-ai-app" }
+dependencies = [
+    { name = "httpx" },
+    { name = "loguru" },
+    { name = "nemo-relay" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "xr-ai-agent-runtime" },
+    { name = "xr-ai-hub-client" },
+    { name = "xr-ai-interaction" },
+    { name = "xr-ai-models" },
+    { name = "xr-ai-tools", extra = ["frames"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
+    { name = "xr-ai-voice" },
+    { name = "xr-ai-voicegate" },
+]
+
+[package.optional-dependencies]
+video = [
+    { name = "opencv-contrib-python-headless" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "loguru", specifier = ">=0.7" },
+    { name = "nemo-relay", specifier = ">=0.10.0,<0.11" },
+    { name = "opencv-contrib-python-headless", marker = "extra == 'video'", specifier = ">=4.8,<5" },
+    { name = "pydantic", specifier = ">=2.10" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "xr-ai-agent-runtime", editable = "../agent-sdk/xr-ai-runtime" },
+    { name = "xr-ai-hub-client", editable = "../agent-sdk/xr-ai-hub" },
+    { name = "xr-ai-interaction", editable = "../agent-sdk/xr-ai-interaction" },
+    { name = "xr-ai-models", editable = "../agent-sdk/xr-ai-models" },
+    { name = "xr-ai-tools", extras = ["frames"], editable = "../agent-sdk/xr-ai-tools" },
+    { name = "xr-ai-voice", editable = "../agent-sdk/xr-ai-voice" },
+    { name = "xr-ai-voicegate", editable = "../utils/xr-ai-voicegate" },
+]
+provides-extras = ["video"]
+
+[[package]]
+name = "xr-ai-app-sample-a2a-research-agent"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/07-delegate-a2a/research_agent" }
+dependencies = [
+    { name = "a2a-sdk", extra = ["http-server"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
+    { name = "uvicorn", extra = ["standard"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "a2a-sdk", extras = ["http-server"], specifier = ">=1.2,<2" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.29" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-camera-monitor"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/03-camera-monitor" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "xr-ai-app", extra = ["video"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
+    { name = "xr-ai-kit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.10" },
+    { name = "xr-ai-app", extras = ["video"], editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-conversation"
+version = "0.1.0"
+source = { editable = "../app-samples/conversation" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "xr-ai-app" },
+    { name = "xr-ai-kit" },
+    { name = "xr-ai-launcher" },
+    { name = "xr-ai-logging" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2" },
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
+    { name = "xr-ai-launcher", editable = "../utils/xr-ai-launcher" },
+    { name = "xr-ai-logging", editable = "../utils/xr-ai-logging" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-conversation-model-servers"
+version = "0.1.0"
+source = { editable = "../app-samples/conversation/model-servers" }
+dependencies = [
+    { name = "xr-ai-model-server-stack" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "xr-ai-model-server-stack", editable = "../utils/xr-ai-model-server-stack" }]
+
+[[package]]
+name = "xr-ai-app-sample-delegate-a2a"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/07-delegate-a2a" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "xr-ai-app" },
+    { name = "xr-ai-kit", extra = ["a2a"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.10" },
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", extras = ["a2a"], editable = "../app-sdk/xr-ai-kit" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-delegate-langgraph"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/08-delegate-langgraph" }
+dependencies = [
+    { name = "langchain-core" },
+    { name = "langgraph" },
+    { name = "xr-ai-app" },
+    { name = "xr-ai-kit", extra = ["langchain"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "langchain-core", specifier = ">=1.0,<2" },
+    { name = "langgraph", specifier = ">=1.0,<2" },
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", extras = ["langchain"], editable = "../app-sdk/xr-ai-kit" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-guided-procedure"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/10-guided-procedure" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "xr-ai-app", extra = ["video"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
+    { name = "xr-ai-kit" },
+    { name = "xr-ai-procedures" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.10" },
+    { name = "xr-ai-app", extras = ["video"], editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
+    { name = "xr-ai-procedures", editable = "../app-sdk/xr-ai-procedures" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-hello-voice"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/01-hello-voice" }
+dependencies = [
+    { name = "xr-ai-app" },
+    { name = "xr-ai-kit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-lab-instruments"
+version = "0.1.0"
+source = { editable = "../app-samples/lab-instruments" }
+dependencies = [
+    { name = "pillow" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "xr-ai-app" },
+    { name = "xr-ai-kit" },
+    { name = "xr-ai-launcher" },
+    { name = "xr-ai-logging" },
+    { name = "xr-ai-tools", extra = ["marker-tracking"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pillow", specifier = ">=13.0.0" },
+    { name = "pydantic", specifier = ">=2" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
+    { name = "xr-ai-launcher", editable = "../utils/xr-ai-launcher" },
+    { name = "xr-ai-logging", editable = "../utils/xr-ai-logging" },
+    { name = "xr-ai-tools", extras = ["marker-tracking"], editable = "../agent-sdk/xr-ai-tools" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-lab-instruments-model-servers"
+version = "0.1.0"
+source = { editable = "../app-samples/lab-instruments/model-servers" }
+dependencies = [
+    { name = "xr-ai-model-server-stack" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "xr-ai-model-server-stack", editable = "../utils/xr-ai-model-server-stack" }]
+
+[[package]]
+name = "xr-ai-app-sample-langchain-agent"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/09-langchain-agent" }
+dependencies = [
+    { name = "langchain-core" },
+    { name = "langgraph" },
+    { name = "xr-ai-app" },
+    { name = "xr-ai-kit", extra = ["langchain"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "langchain-core", specifier = ">=1.0,<2" },
+    { name = "langgraph", specifier = ">=1.0,<2" },
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", extras = ["langchain"], editable = "../app-sdk/xr-ai-kit" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-manual-dispatch"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/05-manual-dispatch" }
+dependencies = [
+    { name = "xr-ai-app" },
+    { name = "xr-ai-kit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-notes-mode"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/04-notes-mode" }
+dependencies = [
+    { name = "xr-ai-app" },
+    { name = "xr-ai-kit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-procedure-capture"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/12-procedure-capture" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "xr-ai-app" },
+    { name = "xr-ai-procedures" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.10" },
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-procedures", editable = "../app-sdk/xr-ai-procedures" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-shared-room"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/06-shared-room" }
+dependencies = [
+    { name = "xr-ai-app" },
+    { name = "xr-ai-kit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-simple-vlm"
+version = "0.1.0"
+source = { editable = "../app-samples/simple-vlm" }
+dependencies = [
+    { name = "xr-ai-app" },
+    { name = "xr-ai-launcher" },
+    { name = "xr-ai-logging" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-launcher", editable = "../utils/xr-ai-launcher" },
+    { name = "xr-ai-logging", editable = "../utils/xr-ai-logging" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-simple-vlm-model-servers"
+version = "0.1.0"
+source = { editable = "../app-samples/simple-vlm/model-servers" }
+dependencies = [
+    { name = "xr-ai-model-server-stack" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "xr-ai-model-server-stack", editable = "../utils/xr-ai-model-server-stack" }]
+
+[[package]]
+name = "xr-ai-app-sample-tracing"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/11-tracing" }
+dependencies = [
+    { name = "xr-ai-app" },
+    { name = "xr-ai-kit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-vision-qa"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/02-vision-qa" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "xr-ai-app" },
+    { name = "xr-ai-kit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.10" },
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23" },
+]
+
+[[package]]
+name = "xr-ai-app-samples-sdk-tour"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour" }
+dependencies = [
+    { name = "xr-ai-launcher" },
+    { name = "xr-ai-logging" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "xr-ai-launcher", editable = "../utils/xr-ai-launcher" },
+    { name = "xr-ai-logging", editable = "../utils/xr-ai-logging" },
+]
+
+[[package]]
+name = "xr-ai-app-samples-sdk-tour-model-servers"
+version = "0.1.0"
+source = { editable = "../app-samples/sdk-tour/model-servers" }
+dependencies = [
+    { name = "xr-ai-model-server-stack" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "xr-ai-model-server-stack", editable = "../utils/xr-ai-model-server-stack" }]
+
+[[package]]
 name = "xr-ai-conversation"
 version = "0.1.0"
 source = { editable = "../agent-sdk/xr-ai-conversation" }
@@ -8475,40 +8880,39 @@ repository = [
     { name = "tea-making-sample-model-servers" },
     { name = "tea-making-worker" },
     { name = "xr-ai-agent-runtime" },
+    { name = "xr-ai-app", extra = ["video"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
+    { name = "xr-ai-app-sample-a2a-research-agent" },
+    { name = "xr-ai-app-sample-camera-monitor" },
+    { name = "xr-ai-app-sample-conversation" },
+    { name = "xr-ai-app-sample-conversation-model-servers" },
+    { name = "xr-ai-app-sample-delegate-a2a" },
+    { name = "xr-ai-app-sample-delegate-langgraph" },
+    { name = "xr-ai-app-sample-guided-procedure" },
+    { name = "xr-ai-app-sample-hello-voice" },
+    { name = "xr-ai-app-sample-lab-instruments" },
+    { name = "xr-ai-app-sample-lab-instruments-model-servers" },
+    { name = "xr-ai-app-sample-langchain-agent" },
+    { name = "xr-ai-app-sample-manual-dispatch" },
+    { name = "xr-ai-app-sample-notes-mode" },
+    { name = "xr-ai-app-sample-procedure-capture" },
+    { name = "xr-ai-app-sample-shared-room" },
+    { name = "xr-ai-app-sample-simple-vlm" },
+    { name = "xr-ai-app-sample-simple-vlm-model-servers" },
+    { name = "xr-ai-app-sample-tracing" },
+    { name = "xr-ai-app-sample-vision-qa" },
+    { name = "xr-ai-app-samples-sdk-tour" },
+    { name = "xr-ai-app-samples-sdk-tour-model-servers" },
     { name = "xr-ai-conversation" },
     { name = "xr-ai-eval" },
     { name = "xr-ai-eval-adapters" },
     { name = "xr-ai-gpu" },
     { name = "xr-ai-hub-client" },
     { name = "xr-ai-interaction" },
-    { name = "xr-ai-kit", extra = ["a2a"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-    { name = "xr-ai-langchain" },
+    { name = "xr-ai-kit", extra = ["a2a", "langchain"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
     { name = "xr-ai-launcher" },
     { name = "xr-ai-logging" },
     { name = "xr-ai-model-server-stack" },
     { name = "xr-ai-models", extra = ["riva", "speaker"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-    { name = "xr-ai-next", extra = ["video"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-    { name = "xr-ai-next-sample-a2a-research-agent" },
-    { name = "xr-ai-next-sample-camera-monitor" },
-    { name = "xr-ai-next-sample-conversation" },
-    { name = "xr-ai-next-sample-conversation-model-servers" },
-    { name = "xr-ai-next-sample-delegate-a2a" },
-    { name = "xr-ai-next-sample-delegate-langgraph" },
-    { name = "xr-ai-next-sample-guided-procedure" },
-    { name = "xr-ai-next-sample-hello-voice" },
-    { name = "xr-ai-next-sample-lab-instruments" },
-    { name = "xr-ai-next-sample-lab-instruments-model-servers" },
-    { name = "xr-ai-next-sample-langchain-agent" },
-    { name = "xr-ai-next-sample-manual-dispatch" },
-    { name = "xr-ai-next-sample-notes-mode" },
-    { name = "xr-ai-next-sample-procedure-capture" },
-    { name = "xr-ai-next-sample-shared-room" },
-    { name = "xr-ai-next-sample-simple-vlm" },
-    { name = "xr-ai-next-sample-simple-vlm-model-servers" },
-    { name = "xr-ai-next-sample-tracing" },
-    { name = "xr-ai-next-sample-vision-qa" },
-    { name = "xr-ai-next-samples-sdk-tour" },
-    { name = "xr-ai-next-samples-sdk-tour-model-servers" },
     { name = "xr-ai-procedures" },
     { name = "xr-ai-routing", extra = ["runtime"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
     { name = "xr-ai-tests" },
@@ -8562,41 +8966,40 @@ requires-dist = [
     { name = "tea-making-worker", marker = "extra == 'repository'", editable = "../agent-samples/tea-making-sample/worker" },
     { name = "vlm-server", marker = "extra == 'vllm'", editable = "../services/vlm-server" },
     { name = "xr-ai-agent-runtime", marker = "extra == 'repository'", editable = "../agent-sdk/xr-ai-runtime" },
+    { name = "xr-ai-app", extras = ["video"], marker = "extra == 'repository'", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-app-sample-a2a-research-agent", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/07-delegate-a2a/research_agent" },
+    { name = "xr-ai-app-sample-camera-monitor", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/03-camera-monitor" },
+    { name = "xr-ai-app-sample-conversation", marker = "extra == 'repository'", editable = "../app-samples/conversation" },
+    { name = "xr-ai-app-sample-conversation-model-servers", marker = "extra == 'repository'", editable = "../app-samples/conversation/model-servers" },
+    { name = "xr-ai-app-sample-delegate-a2a", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/07-delegate-a2a" },
+    { name = "xr-ai-app-sample-delegate-langgraph", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/08-delegate-langgraph" },
+    { name = "xr-ai-app-sample-guided-procedure", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/10-guided-procedure" },
+    { name = "xr-ai-app-sample-hello-voice", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/01-hello-voice" },
+    { name = "xr-ai-app-sample-lab-instruments", marker = "extra == 'repository'", editable = "../app-samples/lab-instruments" },
+    { name = "xr-ai-app-sample-lab-instruments-model-servers", marker = "extra == 'repository'", editable = "../app-samples/lab-instruments/model-servers" },
+    { name = "xr-ai-app-sample-langchain-agent", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/09-langchain-agent" },
+    { name = "xr-ai-app-sample-manual-dispatch", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/05-manual-dispatch" },
+    { name = "xr-ai-app-sample-notes-mode", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/04-notes-mode" },
+    { name = "xr-ai-app-sample-procedure-capture", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/12-procedure-capture" },
+    { name = "xr-ai-app-sample-shared-room", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/06-shared-room" },
+    { name = "xr-ai-app-sample-simple-vlm", marker = "extra == 'repository'", editable = "../app-samples/simple-vlm" },
+    { name = "xr-ai-app-sample-simple-vlm-model-servers", marker = "extra == 'repository'", editable = "../app-samples/simple-vlm/model-servers" },
+    { name = "xr-ai-app-sample-tracing", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/11-tracing" },
+    { name = "xr-ai-app-sample-vision-qa", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/02-vision-qa" },
+    { name = "xr-ai-app-samples-sdk-tour", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour" },
+    { name = "xr-ai-app-samples-sdk-tour-model-servers", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/model-servers" },
     { name = "xr-ai-conversation", marker = "extra == 'repository'", editable = "../agent-sdk/xr-ai-conversation" },
     { name = "xr-ai-eval", marker = "extra == 'repository'", editable = "../evals/runner" },
     { name = "xr-ai-eval-adapters", marker = "extra == 'repository'", editable = "../evals/adapters" },
     { name = "xr-ai-gpu", marker = "extra == 'repository'", editable = "../utils/xr-ai-gpu" },
     { name = "xr-ai-hub-client", marker = "extra == 'repository'", editable = "../agent-sdk/xr-ai-hub" },
     { name = "xr-ai-interaction", marker = "extra == 'repository'", editable = "../agent-sdk/xr-ai-interaction" },
-    { name = "xr-ai-kit", extras = ["a2a"], marker = "extra == 'repository'", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-langchain", marker = "extra == 'repository'", editable = "../xr-ai-next/packages/xr-ai-langchain" },
+    { name = "xr-ai-kit", extras = ["a2a", "langchain"], marker = "extra == 'repository'", editable = "../app-sdk/xr-ai-kit" },
     { name = "xr-ai-launcher", marker = "extra == 'repository'", editable = "../utils/xr-ai-launcher" },
     { name = "xr-ai-logging", marker = "extra == 'repository'", editable = "../utils/xr-ai-logging" },
     { name = "xr-ai-model-server-stack", marker = "extra == 'repository'", editable = "../utils/xr-ai-model-server-stack" },
     { name = "xr-ai-models", extras = ["riva", "speaker"], marker = "extra == 'repository'", editable = "../agent-sdk/xr-ai-models" },
-    { name = "xr-ai-next", extras = ["video"], marker = "extra == 'repository'", editable = "../xr-ai-next/packages/xr-ai-next" },
-    { name = "xr-ai-next-sample-a2a-research-agent", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/07-delegate-a2a/research_agent" },
-    { name = "xr-ai-next-sample-camera-monitor", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/03-camera-monitor" },
-    { name = "xr-ai-next-sample-conversation", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/conversation" },
-    { name = "xr-ai-next-sample-conversation-model-servers", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/conversation/model-servers" },
-    { name = "xr-ai-next-sample-delegate-a2a", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/07-delegate-a2a" },
-    { name = "xr-ai-next-sample-delegate-langgraph", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/08-delegate-langgraph" },
-    { name = "xr-ai-next-sample-guided-procedure", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/10-guided-procedure" },
-    { name = "xr-ai-next-sample-hello-voice", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/01-hello-voice" },
-    { name = "xr-ai-next-sample-lab-instruments", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/lab-instruments" },
-    { name = "xr-ai-next-sample-lab-instruments-model-servers", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/lab-instruments/model-servers" },
-    { name = "xr-ai-next-sample-langchain-agent", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/09-langchain-agent" },
-    { name = "xr-ai-next-sample-manual-dispatch", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/05-manual-dispatch" },
-    { name = "xr-ai-next-sample-notes-mode", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/04-notes-mode" },
-    { name = "xr-ai-next-sample-procedure-capture", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/12-procedure-capture" },
-    { name = "xr-ai-next-sample-shared-room", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/06-shared-room" },
-    { name = "xr-ai-next-sample-simple-vlm", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/simple-vlm" },
-    { name = "xr-ai-next-sample-simple-vlm-model-servers", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/simple-vlm/model-servers" },
-    { name = "xr-ai-next-sample-tracing", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/11-tracing" },
-    { name = "xr-ai-next-sample-vision-qa", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/02-vision-qa" },
-    { name = "xr-ai-next-samples-sdk-tour", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour" },
-    { name = "xr-ai-next-samples-sdk-tour-model-servers", marker = "extra == 'repository'", editable = "../xr-ai-next/samples/sdk-tour/model-servers" },
-    { name = "xr-ai-procedures", marker = "extra == 'repository'", editable = "../xr-ai-next/packages/xr-ai-procedures" },
+    { name = "xr-ai-procedures", marker = "extra == 'repository'", editable = "../app-sdk/xr-ai-procedures" },
     { name = "xr-ai-routing", extras = ["runtime"], marker = "extra == 'repository'", editable = "../agent-sdk/xr-ai-routing" },
     { name = "xr-ai-tests", marker = "extra == 'repository'", editable = "../tests" },
     { name = "xr-ai-tools", extras = ["capture", "frames", "image-editing", "marker-tracking", "relay", "services", "vision"], marker = "extra == 'repository'", editable = "../agent-sdk/xr-ai-tools" },
@@ -8680,10 +9083,10 @@ requires-dist = [{ name = "pydantic", specifier = ">=2.10" }]
 [[package]]
 name = "xr-ai-kit"
 version = "0.0.1"
-source = { editable = "../xr-ai-next/packages/xr-ai-kit" }
+source = { editable = "../app-sdk/xr-ai-kit" }
 dependencies = [
     { name = "pydantic" },
-    { name = "xr-ai-next" },
+    { name = "xr-ai-app" },
 ]
 
 [package.optional-dependencies]
@@ -8691,36 +9094,21 @@ a2a = [
     { name = "a2a-sdk" },
     { name = "httpx" },
 ]
+langchain = [
+    { name = "langchain-core" },
+    { name = "langgraph" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "a2a-sdk", marker = "extra == 'a2a'", specifier = ">=1.2,<2" },
     { name = "httpx", marker = "extra == 'a2a'", specifier = ">=0.27" },
+    { name = "langchain-core", marker = "extra == 'langchain'", specifier = ">=1.0,<2" },
+    { name = "langgraph", marker = "extra == 'langchain'", specifier = ">=1.0,<2" },
     { name = "pydantic", specifier = ">=2.10" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
 ]
-provides-extras = ["a2a"]
-
-[[package]]
-name = "xr-ai-langchain"
-version = "0.0.1"
-source = { editable = "../xr-ai-next/packages/xr-ai-langchain" }
-dependencies = [
-    { name = "langchain-core" },
-    { name = "langgraph" },
-    { name = "pydantic" },
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-next" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "langchain-core", specifier = ">=1.0,<2" },
-    { name = "langgraph", specifier = ">=1.0,<2" },
-    { name = "pydantic", specifier = ">=2.10" },
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-]
+provides-extras = ["a2a", "langchain"]
 
 [[package]]
 name = "xr-ai-launcher"
@@ -8794,431 +9182,22 @@ requires-dist = [
 provides-extras = ["riva", "speaker"]
 
 [[package]]
-name = "xr-ai-next"
-version = "0.0.1"
-source = { editable = "../xr-ai-next/packages/xr-ai-next" }
-dependencies = [
-    { name = "httpx" },
-    { name = "loguru" },
-    { name = "nemo-relay" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-    { name = "xr-ai-agent-runtime" },
-    { name = "xr-ai-hub-client" },
-    { name = "xr-ai-interaction" },
-    { name = "xr-ai-models" },
-    { name = "xr-ai-tools", extra = ["frames"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-    { name = "xr-ai-voice" },
-    { name = "xr-ai-voicegate" },
-]
-
-[package.optional-dependencies]
-video = [
-    { name = "opencv-contrib-python-headless" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "loguru", specifier = ">=0.7" },
-    { name = "nemo-relay", specifier = ">=0.10.0,<0.11" },
-    { name = "opencv-contrib-python-headless", marker = "extra == 'video'", specifier = ">=4.8,<5" },
-    { name = "pydantic", specifier = ">=2.10" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "xr-ai-agent-runtime", editable = "../agent-sdk/xr-ai-runtime" },
-    { name = "xr-ai-hub-client", editable = "../agent-sdk/xr-ai-hub" },
-    { name = "xr-ai-interaction", editable = "../agent-sdk/xr-ai-interaction" },
-    { name = "xr-ai-models", editable = "../agent-sdk/xr-ai-models" },
-    { name = "xr-ai-tools", extras = ["frames"], editable = "../agent-sdk/xr-ai-tools" },
-    { name = "xr-ai-voice", editable = "../agent-sdk/xr-ai-voice" },
-    { name = "xr-ai-voicegate", editable = "../utils/xr-ai-voicegate" },
-]
-provides-extras = ["video"]
-
-[[package]]
-name = "xr-ai-next-sample-a2a-research-agent"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/07-delegate-a2a/research_agent" }
-dependencies = [
-    { name = "a2a-sdk", extra = ["http-server"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-    { name = "uvicorn", extra = ["standard"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "a2a-sdk", extras = ["http-server"], specifier = ">=1.2,<2" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.29" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-camera-monitor"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/03-camera-monitor" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-next", extra = ["video"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pydantic", specifier = ">=2.10" },
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-next", extras = ["video"], editable = "../xr-ai-next/packages/xr-ai-next" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-conversation"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/conversation" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-launcher" },
-    { name = "xr-ai-logging" },
-    { name = "xr-ai-next" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pydantic", specifier = ">=2" },
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-launcher", editable = "../utils/xr-ai-launcher" },
-    { name = "xr-ai-logging", editable = "../utils/xr-ai-logging" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-asyncio", specifier = ">=0.23" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-conversation-model-servers"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/conversation/model-servers" }
-dependencies = [
-    { name = "xr-ai-model-server-stack" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "xr-ai-model-server-stack", editable = "../utils/xr-ai-model-server-stack" }]
-
-[[package]]
-name = "xr-ai-next-sample-delegate-a2a"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/07-delegate-a2a" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "xr-ai-kit", extra = ["a2a"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-    { name = "xr-ai-next" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pydantic", specifier = ">=2.10" },
-    { name = "xr-ai-kit", extras = ["a2a"], editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-delegate-langgraph"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/08-delegate-langgraph" }
-dependencies = [
-    { name = "langchain-core" },
-    { name = "langgraph" },
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-langchain" },
-    { name = "xr-ai-next" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "langchain-core", specifier = ">=1.0,<2" },
-    { name = "langgraph", specifier = ">=1.0,<2" },
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-langchain", editable = "../xr-ai-next/packages/xr-ai-langchain" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-guided-procedure"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/10-guided-procedure" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-next", extra = ["video"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-    { name = "xr-ai-procedures" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pydantic", specifier = ">=2.10" },
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-next", extras = ["video"], editable = "../xr-ai-next/packages/xr-ai-next" },
-    { name = "xr-ai-procedures", editable = "../xr-ai-next/packages/xr-ai-procedures" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-hello-voice"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/01-hello-voice" }
-dependencies = [
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-next" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-lab-instruments"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/lab-instruments" }
-dependencies = [
-    { name = "pillow" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-launcher" },
-    { name = "xr-ai-logging" },
-    { name = "xr-ai-next" },
-    { name = "xr-ai-tools", extra = ["marker-tracking"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pillow", specifier = ">=13.0.0" },
-    { name = "pydantic", specifier = ">=2" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-launcher", editable = "../utils/xr-ai-launcher" },
-    { name = "xr-ai-logging", editable = "../utils/xr-ai-logging" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-    { name = "xr-ai-tools", extras = ["marker-tracking"], editable = "../agent-sdk/xr-ai-tools" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-asyncio", specifier = ">=0.23" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-lab-instruments-model-servers"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/lab-instruments/model-servers" }
-dependencies = [
-    { name = "xr-ai-model-server-stack" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "xr-ai-model-server-stack", editable = "../utils/xr-ai-model-server-stack" }]
-
-[[package]]
-name = "xr-ai-next-sample-langchain-agent"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/09-langchain-agent" }
-dependencies = [
-    { name = "langchain-core" },
-    { name = "langgraph" },
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-langchain" },
-    { name = "xr-ai-next" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "langchain-core", specifier = ">=1.0,<2" },
-    { name = "langgraph", specifier = ">=1.0,<2" },
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-langchain", editable = "../xr-ai-next/packages/xr-ai-langchain" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-manual-dispatch"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/05-manual-dispatch" }
-dependencies = [
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-next" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-notes-mode"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/04-notes-mode" }
-dependencies = [
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-next" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-procedure-capture"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/12-procedure-capture" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "xr-ai-next" },
-    { name = "xr-ai-procedures" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pydantic", specifier = ">=2.10" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-    { name = "xr-ai-procedures", editable = "../xr-ai-next/packages/xr-ai-procedures" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-shared-room"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/06-shared-room" }
-dependencies = [
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-next" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-simple-vlm"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/simple-vlm" }
-dependencies = [
-    { name = "xr-ai-launcher" },
-    { name = "xr-ai-logging" },
-    { name = "xr-ai-next" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "xr-ai-launcher", editable = "../utils/xr-ai-launcher" },
-    { name = "xr-ai-logging", editable = "../utils/xr-ai-logging" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-asyncio", specifier = ">=0.23" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-simple-vlm-model-servers"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/simple-vlm/model-servers" }
-dependencies = [
-    { name = "xr-ai-model-server-stack" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "xr-ai-model-server-stack", editable = "../utils/xr-ai-model-server-stack" }]
-
-[[package]]
-name = "xr-ai-next-sample-tracing"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/11-tracing" }
-dependencies = [
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-next" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-]
-
-[[package]]
-name = "xr-ai-next-sample-vision-qa"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/02-vision-qa" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "xr-ai-kit" },
-    { name = "xr-ai-next" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pydantic", specifier = ">=2.10" },
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-asyncio", specifier = ">=0.23" },
-]
-
-[[package]]
-name = "xr-ai-next-samples-sdk-tour"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour" }
-dependencies = [
-    { name = "xr-ai-launcher" },
-    { name = "xr-ai-logging" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "xr-ai-launcher", editable = "../utils/xr-ai-launcher" },
-    { name = "xr-ai-logging", editable = "../utils/xr-ai-logging" },
-]
-
-[[package]]
-name = "xr-ai-next-samples-sdk-tour-model-servers"
-version = "0.1.0"
-source = { editable = "../xr-ai-next/samples/sdk-tour/model-servers" }
-dependencies = [
-    { name = "xr-ai-model-server-stack" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "xr-ai-model-server-stack", editable = "../utils/xr-ai-model-server-stack" }]
-
-[[package]]
 name = "xr-ai-procedures"
 version = "0.0.1"
-source = { editable = "../xr-ai-next/packages/xr-ai-procedures" }
+source = { editable = "../app-sdk/xr-ai-procedures" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "xr-ai-app" },
     { name = "xr-ai-kit" },
-    { name = "xr-ai-next" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "xr-ai-kit", editable = "../xr-ai-next/packages/xr-ai-kit" },
-    { name = "xr-ai-next", editable = "../xr-ai-next/packages/xr-ai-next" },
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
 ]
 
 [[package]]
@@ -9263,18 +9242,18 @@ dependencies = [
     { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "xr-ai-agent-runtime" },
+    { name = "xr-ai-app", extra = ["video"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
     { name = "xr-ai-conversation" },
     { name = "xr-ai-eval" },
     { name = "xr-ai-eval-adapters" },
     { name = "xr-ai-gpu" },
     { name = "xr-ai-hub-client" },
     { name = "xr-ai-interaction" },
-    { name = "xr-ai-kit", extra = ["a2a"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
+    { name = "xr-ai-kit", extra = ["a2a", "langchain"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
     { name = "xr-ai-launcher" },
     { name = "xr-ai-logging" },
     { name = "xr-ai-model-server-stack" },
     { name = "xr-ai-models", extra = ["riva"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-    { name = "xr-ai-next", extra = ["video"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
     { name = "xr-ai-procedures" },
     { name = "xr-ai-routing" },
     { name = "xr-ai-tools", extra = ["frames", "image-editing", "marker-tracking", "services", "vision"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
@@ -9304,19 +9283,19 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "xr-ai-agent-runtime", editable = "../agent-sdk/xr-ai-runtime" },
+    { name = "xr-ai-app", extras = ["video"], editable = "../app-sdk/xr-ai-app" },
     { name = "xr-ai-conversation", editable = "../agent-sdk/xr-ai-conversation" },
     { name = "xr-ai-eval", editable = "../evals/runner" },
     { name = "xr-ai-eval-adapters", editable = "../evals/adapters" },
     { name = "xr-ai-gpu", editable = "../utils/xr-ai-gpu" },
     { name = "xr-ai-hub-client", editable = "../agent-sdk/xr-ai-hub" },
     { name = "xr-ai-interaction", editable = "../agent-sdk/xr-ai-interaction" },
-    { name = "xr-ai-kit", extras = ["a2a"], editable = "../xr-ai-next/packages/xr-ai-kit" },
+    { name = "xr-ai-kit", extras = ["a2a", "langchain"], editable = "../app-sdk/xr-ai-kit" },
     { name = "xr-ai-launcher", editable = "../utils/xr-ai-launcher" },
     { name = "xr-ai-logging", editable = "../utils/xr-ai-logging" },
     { name = "xr-ai-model-server-stack", editable = "../utils/xr-ai-model-server-stack" },
     { name = "xr-ai-models", extras = ["riva"], editable = "../agent-sdk/xr-ai-models" },
-    { name = "xr-ai-next", extras = ["video"], editable = "../xr-ai-next/packages/xr-ai-next" },
-    { name = "xr-ai-procedures", editable = "../xr-ai-next/packages/xr-ai-procedures" },
+    { name = "xr-ai-procedures", editable = "../app-sdk/xr-ai-procedures" },
     { name = "xr-ai-routing", editable = "../agent-sdk/xr-ai-routing" },
     { name = "xr-ai-tools", extras = ["frames", "image-editing", "marker-tracking", "services", "vision"], editable = "../agent-sdk/xr-ai-tools" },
     { name = "xr-ai-vad", editable = "../utils/xr-ai-vad" },

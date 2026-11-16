@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xr-ai-kit"
+version = "0.0.1"
+description = "Kit components on xr-ai-app, built from its public names: Conversation with its tool loop, Router and destinations, Delegate and job back ends, and optional LangChain and LangGraph adapters."
+readme = "README.md"
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    "pydantic>=2.10",
+    "xr-ai-app",
+]
+
+[project.optional-dependencies]
+# A2ABackend: delegate jobs to remote agents over the Agent2Agent protocol.
+a2a = ["a2a-sdk>=1.2,<2", "httpx>=0.27"]
+# xr_ai_kit.langchain: roles as chat models, tools both ways, graphs as delegate back ends.
+langchain = ["langchain-core>=1.0,<2", "langgraph>=1.0,<2"]
+
+# The devkit's `exercise` finds the `destination:` target kind here.
+[project.entry-points."xr_ai_app.exercise_targets"]
+destination = "xr_ai_kit.routing:resolve_destination"
+
+[tool.uv.sources]
+xr-ai-app = { path = "../xr-ai-app", editable = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["xr_ai_kit"]

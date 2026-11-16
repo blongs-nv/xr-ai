@@ -7,7 +7,7 @@
 
 One runner and one result format for every xr-ai eval. Cases are YAML, the model stack is chosen with
 `--profile`, and results are JSONL. The contracts are in `evals/EVAL_SCHEMA.md` (cases and results) and
-`xr-ai-next/packages/xr-ai-next/docs/PROFILES_SCHEMA.md` (profiles).
+`app-sdk/xr-ai-app/docs/PROFILES_SCHEMA.md` (profiles).
 
 ```text
 evals/

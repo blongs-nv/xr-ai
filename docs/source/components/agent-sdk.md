@@ -12,7 +12,7 @@ say. It provides reusable support for device input, model calls, tools,
 conversation, and voice output, so you can focus on the behavior specific to
 your application.
 
-New applications import from `xr_ai_next` (the app SDK under `xr-ai-next/`); the per-package APIs
+New applications import from `xr_ai_app` (the app SDK under `app-sdk/`); the per-package APIs
 below remain for samples that have not moved, and {doc}`/reference/migrations` maps each deprecated name to its
 replacement.
 

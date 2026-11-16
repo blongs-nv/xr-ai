@@ -37,7 +37,7 @@ the role fails when the profile loads, with the file and role name in the messag
 
 <!-- docs-snippet: run group=roles cwd=yaml -->
 ```python
-from xr_ai_next import App, PerConnection
+from xr_ai_app import App, PerConnection
 
 app = App.from_config("app.yaml", profile="local", enrollment=PerConnection(admit=None))
 print(app.role("decide").name)

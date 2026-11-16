@@ -31,7 +31,7 @@ same place, now with one `DeprecationWarning` that names the replacement
 names leave each package's `__all__`, so `from package import *` no longer
 brings them in; this is deliberate, and explicit imports and attribute access
 keep working with the warning. Removal happens one release later. Application code should use
-`xr_ai_next` (the app SDK under `xr-ai-next/`); SDK and
+`xr_ai_app` (the app SDK under `app-sdk/`); SDK and
 service code that needs a plumbing name imports it from the module that defines
 it.
 
@@ -40,8 +40,8 @@ it.
 from xr_ai_hub import ParticipantEvent
 from xr_ai_interaction import ResponseOutputs
 
-# After: application code uses xr_ai_next (Hub, p.say, p.reply)
-from xr_ai_next import Hub
+# After: application code uses xr_ai_app (Hub, p.say, p.reply)
+from xr_ai_app import Hub
 
 # After: plumbing that still needs the wire type
 from xr_ai_hub._types import ParticipantEvent
@@ -49,15 +49,15 @@ from xr_ai_hub._types import ParticipantEvent
 
 | Before | After |
 |---|---|
-| `xr_ai_hub.AgentPresence`, `ConnectorRegistration`, `ControlMessage`, `FileMessage`, `FrameRequest`, `MsgType`, `ParticipantEvent`, `ReturnAudioFlush`, `RosterRequest`, `SubscriptionProbe` | Application code: the `xr_ai_next.Hub` component and `p.frames`. Plumbing: `xr_ai_hub._types.<name>` |
-| `xr_ai_hub.AGENT_STATUS_TOPIC` | Application code: none (an `xr_ai_next` app reports processing and idle per turn itself). Plumbing: `xr_ai_hub._processor.AGENT_STATUS_TOPIC` |
+| `xr_ai_hub.AgentPresence`, `ConnectorRegistration`, `ControlMessage`, `FileMessage`, `FrameRequest`, `MsgType`, `ParticipantEvent`, `ReturnAudioFlush`, `RosterRequest`, `SubscriptionProbe` | Application code: the `xr_ai_app.Hub` component and `p.frames`. Plumbing: `xr_ai_hub._types.<name>` |
+| `xr_ai_hub.AGENT_STATUS_TOPIC` | Application code: none (an `xr_ai_app` app reports processing and idle per turn itself). Plumbing: `xr_ai_hub._processor.AGENT_STATUS_TOPIC` |
 | `xr_ai_hub.ShmRingBuffer`, `SlotView` | `Participant.frames`. Plumbing: `xr_ai_hub._shm.<name>` |
 | `xr_ai_gpu.GPUDevice`, `GPUProcess`, `query_gpu_inventory`, `query_gpu_pci_bus_ids`, `query_gpu_processes` | `xr_ai_gpu._query.<name>` |
-| `xr_ai_vad.VadDetector`, `OnUtteranceCb`, `OnSpeechStartCb` | Configure voice in the `voice:` section of an `xr_ai_next` app's `app.yaml`; the voice package imports `xr_ai_vad.detector.<name>` |
+| `xr_ai_vad.VadDetector`, `OnUtteranceCb`, `OnSpeechStartCb` | Configure voice in the `voice:` section of an `xr_ai_app` app's `app.yaml`; the voice package imports `xr_ai_vad.detector.<name>` |
 | `xr_ai_models.KIND_OPENAI_COMPAT`, `KIND_SYSTEMONE`, `ModelKind` | Choose the adapter with `kind:` in the profile; `xr_ai_models._config.<name>` |
 | `xr_ai_models.ThinkingControl` | `ThinkingSpec(control=...)`; `xr_ai_models._thinking.ThinkingControl` |
 | `xr_ai_logging.print_task_done_banner` | None (dead code); log the milestone with loguru |
-| `xr_ai_interaction.ResponseOutputs` | `Participant.say()` and `Participant.reply()` (`xr_ai_next`) |
+| `xr_ai_interaction.ResponseOutputs` | `Participant.say()` and `Participant.reply()` (`xr_ai_app`) |
 
 Three duplicate spellings inside kept names also warn:
 
@@ -69,8 +69,8 @@ manager.subscriber()                                         # ContextManager
 
 # After
 LLMSpec(adapter=AdapterSpec(model_name="m"), endpoint=EndpointSpec(base_url="http://localhost:8100/v1"))
-Conversation(role=..., output=..., instructions=..., tools=[...])  # xr_ai_kit, or @xr_ai_next.tool
-ContextLog / ContextValue          # xr_ai_next context channels, or ContextManager.update()
+Conversation(role=..., output=..., instructions=..., tools=[...])  # xr_ai_kit, or @xr_ai_app.tool
+ContextLog / ContextValue          # xr_ai_app context channels, or ContextManager.update()
 ```
 
 `xr_ai_vllm` keeps its names for now (its replacement by launch specs is

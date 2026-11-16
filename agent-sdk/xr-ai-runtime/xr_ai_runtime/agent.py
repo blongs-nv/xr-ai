@@ -23,7 +23,7 @@ class Agent:
         if owned:
             warnings.warn(
                 "Agent(tools=...) is deprecated: the runtime only type-checks it; hand tools to the conversation "
-                "(xr_ai_next.Conversation(tools=...)) or declare them with @xr_ai_next.tool",
+                "(xr_ai_kit.Conversation(tools=...)) or declare them with @xr_ai_app.tool",
                 DeprecationWarning,
                 stacklevel=2,
             )

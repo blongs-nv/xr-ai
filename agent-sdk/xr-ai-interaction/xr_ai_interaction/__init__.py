@@ -18,7 +18,7 @@ __all__ = [
 # Names that left the public surface: still importable, each with a DeprecationWarning that names the
 # replacement. `__all__` no longer lists them (docs/source/reference/migrations.md has the before and after).
 _NOTE = (
-    'replaced by Participant.say() and Participant.reply() (xr_ai_next); '
+    'replaced by Participant.say() and Participant.reply() (xr_ai_app); '
     'the SDK imports it from xr_ai_interaction._outputs'
 )
 _DEPRECATED: dict[str, tuple[str, str]] = {

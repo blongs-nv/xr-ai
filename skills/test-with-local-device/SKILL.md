@@ -1,6 +1,6 @@
 ---
 name: test-with-local-device
-description: Test an xr-ai app end to end without a headset, hub or LiveKit by driving it like a user - typed turns, images, image folders and videos as timestamped frames - and reading back what it said and its trace. Use when checking or debugging an xr_ai_next app, writing an end-to-end scenario for it, reproducing a bug, or comparing behaviour before and after a prompt or code change.
+description: Test an xr-ai app end to end without a headset, hub or LiveKit by driving it like a user - typed turns, images, image folders and videos as timestamped frames - and reading back what it said and its trace. Use when checking or debugging an xr_ai_app app, writing an end-to-end scenario for it, reproducing a bug, or comparing behaviour before and after a prompt or code change.
 ---
 
 <!--
@@ -10,7 +10,7 @@ description: Test an xr-ai app end to end without a headset, hub or LiveKit by d
 
 # Test an app with the local device
 
-The local device (`xr_ai_next.devkit`) runs an app in-process with a fake device side in place of the hub. You
+The local device (`xr_ai_app.devkit`) runs an app in-process with a fake device side in place of the hub. You
 act as the user; the app runs unchanged.
 
 ## Choose the models first
@@ -43,14 +43,14 @@ steps:
 ```
 
 ```bash
-cd xr-ai-next/samples/sdk-tour/02-vision-qa   # the app's own uv project (its pyproject.toml)
+cd app-samples/sdk-tour/02-vision-qa   # the app's own uv project (its pyproject.toml)
 uv --config-file ../../../../uv.toml run xr-ai-dev run app.py scenarios/mug.yaml --out runs/mug/ [--relay]
 uv --config-file ../../../../uv.toml run xr-ai-dev run app.py scenarios/ --out runs/   # every scenario, a summary
 uv --config-file ../../../../uv.toml run xr-ai-dev run app.py scenarios/ --real-models \
     --media-dir ~/recordings/02 --out runs/real/   # real models, the user's own recordings (same file names)
 ```
 
-Every sample in `xr-ai-next/samples/` has such a `scenarios/` folder (see its README for what each evaluates and
+Every sample in `app-samples/` has such a `scenarios/` folder (see its README for what each evaluates and
 what to record). `--clock virtual` skips idle waits inside the app (look intervals, timers) for scripted runs.
 
 An app without its own `pyproject.toml` can run from the `tests/` project instead:
@@ -80,7 +80,7 @@ Run ONE piece of the app through its real code, the app unchanged: a procedure s
 demonstration where it should happen, a router destination on one turn, or any `async fn(p, probe)`.
 
 ```bash
-cd xr-ai-next/samples/sdk-tour/10-guided-procedure
+cd app-samples/sdk-tour/10-guided-procedure
 uv --config-file ../../../../uv.toml run xr-ai-dev exercise app.py step:bed_clear \
     --video demo.mp4 --from 12 --to 31.5 --fakes fakes.yaml \
     --expect Done --between 14 30 --out runs/bed/
@@ -97,7 +97,7 @@ uv --config-file ../../../../uv.toml run xr-ai-dev exercise app.py step:bed_clea
 turn into the app mid-window. `exercise.json` gives the outcome (`Done`/`Needs`/`Stuck`, `returned`,
 `unfinished`), the clip time it ended at (check it against an annotated earliest/latest with `--between`), the
 step's report lines with clip times, what was said, and the model calls; `trace.jsonl` has every event. Exit 0
-when `--expect`/`--between` hold. Playing a video needs `xr-ai-next[video]`. With scripted roles it runs on a
+when `--expect`/`--between` hold. Playing a video needs `xr-ai-app[video]`. With scripted roles it runs on a
 virtual clock (`--clock virtual`, the default then): idle waits such as look intervals and timers are skipped, so a
 long window takes moments; real model calls still take real time. `--real-models` defaults to `--clock real`. In Python:
 `await exercise(app, resolve_target(app, "step:bed_clear"), video=..., from_s=..., to_s=..., models=...)`.
@@ -105,8 +105,8 @@ long window takes moments; real model calls still take real time. `--real-models
 ## In tests
 
 ```python
-from xr_ai_next.devkit import LocalDevice, Scenario, run_scenario
-from xr_ai_next.testing import FakeModels
+from xr_ai_app.devkit import LocalDevice, Scenario, run_scenario
+from xr_ai_app.testing import FakeModels
 
 report = await run_scenario(app, Scenario.load("scenario.yaml"), models=FakeModels({...}))
 assert report.passed, report.transcript()
