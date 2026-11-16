@@ -52,7 +52,7 @@ def test_the_conversation_answers_from_the_guides_state(tmp_path: Path) -> None:
     assert report.passed, report.transcript()
     asked = [
         c
-        for c in fakes.calls("llm")
+        for c in fakes.calls("answer_with_reasoning")
         if "What step am I on" in (c.prompt or "") + (c.system or "")
     ]
     assert asked, "the question did not reach the conversation"

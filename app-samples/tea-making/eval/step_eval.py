@@ -23,7 +23,7 @@ Run from the sample's folder, with the recording's frames and an index CSV
         --labels eval/labels/green-tea-04.yaml \\
         --frames-index /path/to/run/timeline.csv --out runs/eval/
 
-Real models are yaml/models.json's (vlm and decision must be running);
+Real models are yaml/models.json's (perceive and decide must be running);
 `--fakes FILE` uses scripted replies instead (a smoke test).
 """
 
@@ -118,10 +118,10 @@ def expected(t: float, spec: dict[str, Any], margin_s: float) -> str | None:
 
 
 async def judge_identify(
-    frame: Frame, vlm: Role, steps: Steps, timeout_s: float
+    frame: Frame, perceive: Role, steps: Steps, timeout_s: float
 ) -> dict[str, Any]:
     try:
-        tea = await vlm.ask(
+        tea = await perceive.ask(
             frame,
             steps.identify.question,
             response_format=TeaLabel,
@@ -142,8 +142,8 @@ async def judge_check(
     step_id: str,
     frame: Frame,
     *,
-    vlm: Role,
-    decision: Role,
+    perceive: Role,
+    decide: Role,
     steps: Steps,
     unit: str | None,
     target_c: float,
@@ -163,8 +163,8 @@ async def judge_check(
         criteria = check.to_criteria()
     j = await judge(
         frame,
-        observe=vlm,
-        decide=decision,
+        observe=perceive,
+        decide=decide,
         question=check.question,
         criteria=criteria,
         timeout_s=timeout_s,
@@ -251,8 +251,8 @@ async def evaluate(
     labels: dict[str, Any],
     index: list[tuple[float, Path]],
     *,
-    vlm: Role,
-    decision: Role,
+    perceive: Role,
+    decide: Role,
     steps: Steps,
     settings: TeaSettings,
     concurrency: int,
@@ -275,14 +275,14 @@ async def evaluate(
                 try:
                     if step_id == "identify":
                         out = await judge_identify(
-                            frame, vlm, steps, settings.timeout_s
+                            frame, perceive, steps, settings.timeout_s
                         )
                     else:
                         out = await judge_check(
                             step_id,
                             frame,
-                            vlm=vlm,
-                            decision=decision,
+                            perceive=perceive,
+                            decide=decide,
                             steps=steps,
                             unit=unit,
                             target_c=target_c,
@@ -382,19 +382,19 @@ def main(argv: list[str] | None = None) -> int:
         from xr_ai_app.devkit import fakes_from_file
 
         fakes = fakes_from_file(args.fakes)
-        vlm, decision = fakes.role("vlm"), fakes.role("decision")
+        perceive, decide = fakes.role("perceive"), fakes.role("decide")
         models = f"scripted ({args.fakes.name})"
     else:
-        vlm, decision = sample.vlm, sample.decision
-        models = "yaml/models.json (vlm, decision)"
+        perceive, decide = sample.perceive, sample.decide
+        models = "yaml/models.json (perceive, decide)"
     labels = yaml.safe_load(args.labels.read_text(encoding="utf-8"))
     index = load_index(args.frames_index)
     results = asyncio.run(
         evaluate(
             labels,
             index,
-            vlm=vlm,
-            decision=decision,
+            perceive=perceive,
+            decide=decide,
             steps=steps,
             settings=settings,
             concurrency=args.concurrency,

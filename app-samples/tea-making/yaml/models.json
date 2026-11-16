@@ -1,14 +1,6 @@
 {
   "models": {
-    "llm": {
-      "adapter": {
-        "preset": "nemotron_omni"
-      },
-      "endpoint": {
-        "base_url": "http://localhost:8108"
-      }
-    },
-    "vlm": {
+    "perceive": {
       "category": "vlm",
       "adapter": {
         "kind": "openai_compat",
@@ -30,23 +22,15 @@
         "base_url": "http://localhost:8108"
       }
     },
-    "embedding": {
+    "answer_with_reasoning": {
       "adapter": {
-        "preset": "nemotron_embedding"
+        "preset": "nemotron_omni"
       },
       "endpoint": {
-        "base_url": "http://localhost:8109"
+        "base_url": "http://localhost:8108"
       }
     },
-    "tts": {
-      "adapter": {
-        "preset": "pocket_tts"
-      },
-      "endpoint": {
-        "base_url": "http://localhost:8105"
-      }
-    },
-    "decision": {
+    "decide": {
       "category": "decision",
       "adapter": {
         "kind": "systemone",
@@ -54,6 +38,14 @@
       },
       "endpoint": {
         "base_url": "http://localhost:8120"
+      }
+    },
+    "speech_out": {
+      "adapter": {
+        "preset": "pocket_tts"
+      },
+      "endpoint": {
+        "base_url": "http://localhost:8105"
       }
     }
   }

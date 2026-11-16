@@ -45,10 +45,10 @@ def test_scores_frames_by_label_and_replays_the_live_rule(
     labels = tmp_path / "labels.yaml"
     labels.write_text(LABELS)
     fakes = tmp_path / "fakes.yaml"
-    # Every reading is 176 with no unit; decision: always positive.
+    # Every reading is 176 with no unit; decide: always positive.
     fakes.write_text(
-        "vlm:\n  by_prompt:\n    - [Transcribe the number, {value: 176}]\n"
-        "decision:\n  by_prompt:\n    - [Has the water reached, positive]\n"
+        "perceive:\n  by_prompt:\n    - [Transcribe the number, {value: 176}]\n"
+        "decide:\n  by_prompt:\n    - [Has the water reached, positive]\n"
     )
     out = tmp_path / "out"
     code = step_eval.main(

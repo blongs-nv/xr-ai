@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # yaml/ holds the tea sample's hub, gate and capture files (upstream's) and
-# its model profile (omni for llm and vlm, Clef for decision, Pocket TTS).
+# its model profile (roles by job: perceive, answer_with_reasoning, decide,
+# speech_out).
 profile: yaml/models.json
 # Each run's record: artifacts/<participant>/sop-tea.jsonl.
 artifacts_dir: artifacts

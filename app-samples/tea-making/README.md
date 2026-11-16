@@ -54,8 +54,10 @@ and has no live event viewer.
 
 ## Run
 
-The models are `yaml/models.json`: Nemotron-3 Nano Omni (`llm`, `vlm`),
-Clef (`decision`) and Pocket TTS (`tts`), with speaker ASR for voice input.
+The roles are named by job, as in the teaching samples, and
+`yaml/models.json` binds them: `perceive` and `answer_with_reasoning`
+(Nemotron-3 Nano Omni, with and without images), `decide` (Clef) and
+`speech_out` (Pocket TTS); speaker ASR takes voice input.
 Start them, then the sample, from this directory:
 
 ```bash

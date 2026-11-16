@@ -36,8 +36,8 @@ frame-exact.
 The recording's frames are not in the repository. Extract them at 1 frame
 per second (or more) and write an index CSV with the columns
 `source_time_s` and `frame_image` (paths relative to the CSV). Then, from
-the sample's folder, with the models in `yaml/models.json` running (the vlm
-and decision roles):
+the sample's folder, with the models in `yaml/models.json` running (the perceive
+and decide roles):
 
 ```bash
 uv --config-file ../../uv.toml run python eval/step_eval.py \

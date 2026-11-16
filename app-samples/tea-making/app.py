@@ -16,8 +16,9 @@ Starting the guide starts a run that outlives the turn: a question, or an
 interruption, never cancels it. Each step watches the camera on its own
 clock (identify, verify, timer); the runner speaks each instruction and
 result, and the conversation answers from the same state. Roles are the
-entry names of yaml/models.json: llm and vlm (one omni model), decision
-(Clef) and tts.
+jobs, as in the teaching samples: perceive and answer_with_reasoning (one
+omni model, with and without images), decide (Clef) and speech_out (Pocket
+TTS); yaml/models.json binds them.
 """
 
 from pathlib import Path
@@ -47,13 +48,13 @@ def prompt(name: str) -> str:
 app = App.from_config(HERE / "app.yaml", enrollment=PerConnection(admit=None))
 SETTINGS = app.settings(Settings)
 app.add(Hub())  # the device connection: who is here, and their camera
-llm = app.role("llm")
-vlm = app.role("vlm")
-decision = app.role("decision")
+perceive = app.role("perceive")
+answer = app.role("answer_with_reasoning")
+decide = app.role("decide")
 voice = app.add(
     Voice(
-        tts=app.role("tts"),
-        summarize=llm,
+        tts=app.role("speech_out"),
+        summarize=answer,
         dialogue_budget_bytes=SETTINGS.dialogue_budget_bytes,
     )
 )
@@ -62,14 +63,14 @@ tea = app.add(
     SopRunner(
         "tea",
         make_tea(
-            observe=vlm,
-            answer=llm,
-            decide=decision,
+            observe=perceive,
+            answer=answer,
+            decide=decide,
             steps=Steps.load(HERE / "steps.yaml"),
             settings=SETTINGS.tea,
         ),
         title="Tea guidance",
-        decide=decision,
+        decide=decide,
         output=voice,
         description=(
             "Only explicit controls of the tea-making guide: start, stop, "
@@ -81,7 +82,7 @@ tea = app.add(
 
 conversation = app.add(
     Conversation(
-        role=llm,
+        role=answer,
         output=voice,
         instructions=prompt("conversation"),
         context=[tea.context, voice.dialogue],
@@ -105,7 +106,7 @@ async def look(turn: Turn, p: Participant) -> None:
     if frame is None:
         await p.reply("I couldn't get a camera frame. Please try again.")
         return
-    await p.reply(vlm.stream(frame, turn.text, system=prompt("view")))
+    await p.reply(perceive.stream(frame, turn.text, system=prompt("view")))
 
 
 view = OneShotDestination(
@@ -117,7 +118,7 @@ view = OneShotDestination(
 
 app.add(
     Router(
-        decide=decision,
+        decide=decide,
         destinations=[tea.control, view, chat],
         default=chat,
         history=voice.dialogue,

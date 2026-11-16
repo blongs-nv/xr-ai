@@ -3,11 +3,11 @@
 
 # Scripted replies for a smoke run of step_eval.py (--fakes): every frame
 # gets the same answers, so this checks the plumbing, not accuracy.
-decision:
+decide:
   by_prompt:
     - ["Has the water reached", negative]
   otherwise: positive
-vlm:
+perceive:
   by_prompt:
     - ["Read only clearly legible text", {tea_name: Bigelow, tea_type: green tea}]
     - ["Transcribe the number", {value: 150}]
