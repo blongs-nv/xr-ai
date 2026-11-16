@@ -77,7 +77,8 @@ are helpers, and anything else is a `RouterDestination` with its hooks.
 
   ```python
   chat = OneShotDestination("conversation", "Chat and questions.", conversation.answer)
-  Router(decide=decide, destinations=[chat, ...], default=chat)
+  routing = app.add(Router(decide=decide, destinations=[chat, ...], default=chat))
+  app.on_turn(routing.handle)  # the Router does not register itself
   ```
 
 - **`StartStopDestination(name, description, handler, *, decide, output, start, stop, content, other=..., started=None, stopped=None, prompt=...)`**:

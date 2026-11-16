@@ -30,7 +30,8 @@ Wiring::
                                         output=voice, decide=decide, reason=reasoning))
     Conversation(..., context=[voice.dialogue, procedure.channel])
     chat = OneShotDestination("conversation", "Questions, also about the procedure.", conversation.answer)
-    Router(..., destinations=[chat, procedure.control], default=chat)
+    routing = app.add(Router(..., destinations=[chat, procedure.control], default=chat))
+    app.on_turn(routing.handle)
 """
 
 from __future__ import annotations

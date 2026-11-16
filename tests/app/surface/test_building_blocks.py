@@ -142,6 +142,27 @@ async def test_router_retries_after_pass_and_decline_then_default() -> None:
     assert sink.said["p"] == ["default"]
 
 
+@pytest.mark.parametrize("wired", [True, False])
+async def test_a_router_takes_turns_only_once_the_app_makes_it_the_turn_handler(wired: bool) -> None:
+    """The Router does not register itself: ``app.on_turn(routing.handle)`` is the app's own, visible line."""
+    sink = TextSink()
+
+    async def answer(turn: Turn, p: Participant) -> None:
+        await p.reply(f"heard {turn.text}", to=sink)
+
+    only = RouterDestination("only", "the only one", answer)
+    models = FakeModels({"decide": ["only"]})
+    app = _app()
+    routing = app.add(Router(decide=models.role("decide"), destinations=[only], default=only))
+    if wired:
+        app.on_turn(routing.handle)
+    async with app.test_session(models=models) as s:
+        await s.join()
+        await s.say("hello")
+        await s.settle()
+    assert sink.said.get("p1", []) == (["heard hello"] if wired else [])
+
+
 async def test_router_ack_when_slow() -> None:
     sink = TextSink()
     models = FakeModels({"ack": ["One sec."]})

@@ -131,7 +131,7 @@ chat = OneShotDestination(
     'checklist", "next step", "skip this", "go back", "stop".',
     conversation.answer,
 )
-app.add(
+routing = app.add(
     Router(
         decide=decide,
         destinations=[chat, procedure.control],
@@ -140,6 +140,7 @@ app.add(
         output=voice,
     )
 )
+app.on_turn(routing.handle)  # every turn goes to the router first
 
 if __name__ == "__main__":
     app.run()

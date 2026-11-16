@@ -116,7 +116,7 @@ view = OneShotDestination(
     look,
 )
 
-app.add(
+routing = app.add(
     Router(
         decide=decide,
         destinations=[tea.control, view, chat],
@@ -126,6 +126,7 @@ app.add(
         output=voice,
     )
 )
+app.on_turn(routing.handle)  # every turn goes to the router first
 
 
 def main() -> None:

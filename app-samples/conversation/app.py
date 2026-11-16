@@ -112,7 +112,7 @@ note_taking = app.add(NoteTaking(router, voice, notes))
 ack = None
 if SETTINGS.ack_delay_s is not None:
     ack = Ack(role=llm, delay_s=SETTINGS.ack_delay_s)
-app.add(
+routing = app.add(
     Router(
         decide=router,
         destinations=[
@@ -128,6 +128,7 @@ app.add(
         ack=ack,
     )
 )
+app.on_turn(routing.handle)  # every turn goes to the router first
 
 
 def main() -> None:

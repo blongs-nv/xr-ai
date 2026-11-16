@@ -343,6 +343,11 @@ class Router(Component):
     ``default`` answers when nothing fits, when every attempt passed or declined, or after ``max_attempts``.
     ``history`` is the context the decision reads. ``ack`` (with ``output``) speaks a short acknowledgment when
     nothing was said ``ack.delay_s`` after the turn. ``destinations`` are the only things it chooses between.
+
+    Add it, then make it the app's turn handler; it does not register itself::
+
+        routing = app.add(Router(decide=decide, destinations=[chat, ...], default=chat))
+        app.on_turn(routing.handle)
     """
 
     def __init__(
@@ -373,16 +378,10 @@ class Router(Component):
         self._output = output
         self._ack = ack
         self._max_attempts = max_attempts
-        self._registered = False
 
     @property
     def destinations(self) -> list[RouterDestination]:
         return list(self._destinations)
-
-    async def on_start(self) -> None:
-        if not self._registered:
-            self._registered = True
-            self.app.on_turn(self.handle)
 
     async def handle(self, turn: Turn, p: Participant) -> None:
         """Route one turn (what ``app.on_turn`` runs); usable directly too."""

@@ -72,8 +72,10 @@ repository root for the full graph.
   `p.session.state` (the connection), `turn.state` (one turn).
 - **Background work is named.** `p.spawn(coro, key=...)` outlives the turn;
   `p.cancel(key)` stops it; it is cleaned up when the participant leaves.
-- **Routing is optional.** One handler: `app.on_turn(fn)`. Several:
-  `Router(...)`, or `decide.decide(...)` in your own handler (05).
+- **Routing is optional, and always visible.** One handler:
+  `app.on_turn(fn)`. Several: `app.on_turn(routing.handle)` for a
+  `routing = app.add(Router(...))`, or `decide.decide(...)` in your own
+  handler (05). Every app says in one line where its turns go.
 - **Long work goes behind the front end.** `Delegate` runs it as a job and
   turns its updates into context and speech; the back end never speaks.
 - **Everything is traced** with ids that tie each event to its cause.

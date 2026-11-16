@@ -93,7 +93,7 @@ chat = OneShotDestination(
     conversation.answer,
 )
 
-app.add(
+routing = app.add(
     Router(
         decide=decide,
         destinations=[chat, note_mode],
@@ -103,6 +103,7 @@ app.add(
         ack=Ack(role=lightweight, delay_s=1.5),
     )
 )
+app.on_turn(routing.handle)  # every turn goes to the router first
 
 if __name__ == "__main__":
     app.run()

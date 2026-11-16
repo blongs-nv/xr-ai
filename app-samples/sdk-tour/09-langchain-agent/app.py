@@ -124,7 +124,7 @@ conversation = app.add(
 chat = OneShotDestination(
     "conversation", "Chat and general questions.", conversation.answer
 )
-app.add(
+routing = app.add(
     Router(
         decide=app.role("decide"),
         destinations=[chat, math.solve],
@@ -133,6 +133,7 @@ app.add(
         output=voice,
     )
 )
+app.on_turn(routing.handle)  # every turn goes to the router first
 
 if __name__ == "__main__":
     app.run()
