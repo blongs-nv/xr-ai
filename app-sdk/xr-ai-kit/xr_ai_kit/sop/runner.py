@@ -381,12 +381,15 @@ class SopRunner(Component):
         """What ``text`` is to the run: a control (``start``, ``stop``, ``skip``, ``restart``), ``answer`` (a reply to
         the question the run is asking, only while one is pending) or ``none``; performs nothing.
 
-        The one decision :attr:`control` makes before it acts, on the run's current summary, for tests and
-        evaluations.
+        The one decision :attr:`control` makes before it acts, for tests and evaluations. It sees only the
+        utterance, whether the guide is running and the pending question, not the run's summary.
         """
         run = self.run(p)
         choices = dict(self._controls)
-        state = {"request": text, "procedure": self.summary(p)}
+        # Only what the choice depends on: whether the guide is running, and the question it is waiting on. The run's
+        # plan, steps and observations are for the conversation; next to a short utterance they are noise.
+        status = "not started" if run is None else run.status
+        state = {"request": text, "guide": f"{self.title}: {status}"}
         if run is not None and run.asking:
             state["pending_question"] = run.asking
             choices["answer"] = (

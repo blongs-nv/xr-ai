@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 
 import pytest
@@ -496,7 +497,8 @@ async def test_classify_names_the_control_without_performing_it() -> None:
         await runner.start(p)
         assert await runner.classify("stop it", p) == "stop"
         assert runner.running(p)  # classified, not performed
-        assert "Tea guidance (run 1): running" in models.calls("decide")[0].context
+        context = json.loads(models.calls("decide")[0].context)
+        assert context == {"request": "stop it", "guide": "Tea guidance: running"}  # nothing else
         await runner.stop(p)
 
 
