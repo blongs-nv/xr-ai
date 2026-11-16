@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# yaml/ holds the tea sample's hub, gate and capture files (upstream's) and
+# its model profile (omni for llm and vlm, Clef for decision, Pocket TTS).
+profile: yaml/models.json
+# Each run's record: artifacts/<participant>/sop-tea.jsonl.
+artifacts_dir: artifacts
+voice:
+  voice_gate_yaml: yaml/voice_gate.yaml
+  # Voice activity detection, as the upstream tea worker sets it.
+  vad: {silence_duration: 1.2, min_speech: 0.15, silero_threshold: 0.3}
+
+settings:
+  # Frame freshness for "what do you see?": an older frame is stale; then the
+  # app asks for a picture or waits this long for the next frame.
+  frame_max_age_s: 3.0
+  frame_timeout_s: 5.0
+  dialogue_budget_bytes: 6000
+  # Dialogue the router sends with each routing decision.
+  routing_history_budget_bytes: 6000
+  tea:
+    # Used when identification is skipped or recommends nothing.
+    default_temperature_c: 85
+    default_duration_s: 180
+    # The kettle display's unit when it prints none (celsius / fahrenheit);
+    # without it, a reading with no printed unit is not judged.
+    # display_unit: fahrenheit
+    # A check completes on `required` positives among the last `window`
+    # decidable frames, looking every `interval_s` seconds.
+    required: 2
+    window: 4
+    interval_s: 2.0
+    # Bound on one model call while watching.
+    timeout_s: 30.0

@@ -18,7 +18,8 @@ act as the user; the app runs unchanged.
 - **Scripted (default, no GPU):** a YAML of replies per role: `<scenario>.fakes.yaml` beside the scenario is used
   automatically (or `fakes.yaml` there, or `--fakes FILE`). A reply is text, a mapping (a structured answer) or
   `{tool_call: {name: ..., args: {...}}}`; a role called by two components at once answers by prompt
-  (`role: {by_prompt: [[text in prompt, reply], ...], otherwise: reply}`). With no script every model call fails
+  (`role: {by_prompt: [[text in prompt, reply], ...], otherwise: reply}`; a decision role's context, the
+  request it judges, is matched too). With no script every model call fails
   loudly, which shows which roles a scenario needs.
 - **Real:** `--real-models` uses the app's `models.json` endpoints. Only use it when the user asked for a real
   run and the model servers are theirs and already running; never start model servers yourself, and never point

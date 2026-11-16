@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Scripted replies for guide.yaml; drop them with --real-models. The router,
+# the guide's controls and every visual check share the decision role, so it
+# answers by what it is asked (a decision's context, the request, is matched
+# too); the first matching entry wins.
+decision:
+  by_prompt:
+    - ["Which control of the procedure", start]
+    - ["Is there water inside", positive]
+    - ["Has the water reached", positive]
+    - ["Does this observation establish tea", positive]
+    - ["What step am I on", conversation]
+    - ["make tea", tea]
+  otherwise: conversation
+vlm:
+  by_prompt:
+    - ["Read only clearly legible text", {tea_name: Bicelon, tea_type: green tea}]
+    - ["water is visibly inside", "The kettle holds water; its level shows in the window."]
+    - ["Transcribe the number", {value: 176, unit_text: "°F", role: unknown}]
+    - ["tea-water contact", "A tea bag hangs in the mug and touches the hot water."]
+llm:
+  by_prompt:
+    - ["Recommend conventional brewing settings", {temperature_c: 80, duration_s: 120}]
+  otherwise: You're on filling the kettle with water.

@@ -19,6 +19,7 @@ public name of the core classes.
 | [`simple-vlm/`](simple-vlm/README.md) | upstream's simple-vlm-example on the core only | upstream simple-vlm-example's: Cosmos, Pocket TTS, speaker ASR | `uv run simple_vlm` |
 | [`conversation/`](conversation/README.md) | upstream's conversation-example on the core and the kit | upstream conversation-example's | `uv run conversation` |
 | [`lab-instruments/`](lab-instruments/README.md) | upstream's lab-instrument-monitoring on the core and the kit | upstream lab-instrument-monitoring's | `uv run lab_instruments` |
+| [`tea-making/`](tea-making/README.md) | tea-making guidance: a procedure that watches the camera (`xr_ai_kit.sop`) next to a conversation | Nemotron-3 Nano Omni, Clef, Pocket TTS, speaker ASR (upstream conversation-example's servers, without Cosmos) | `uv run tea_making` |
 
 Each folder's README has its run commands: first its model servers
 (`uv run --project model-servers <...>_model_servers`, which reuses servers
@@ -34,12 +35,14 @@ Compass compares traces against it).
 | simple-vlm | `xr-ai-app` only (no kit), `xr-ai-launcher` and `xr-ai-logging` for its launcher | none (`pytest`, `pytest-asyncio` as dev tools). Its `model-servers/` is upstream's launcher, a separate uv project |
 | conversation | `xr-ai-app`, `xr-ai-kit`, `xr-ai-launcher` and `xr-ai-logging` for its launcher | `pydantic` (`pytest`, `pytest-asyncio` as dev tools). Its `model-servers/` is upstream's launcher, a separate uv project |
 | lab-instruments | `xr-ai-app`, `xr-ai-kit`, `xr-ai-tools[marker-tracking]` (the QR/ArUco detector: OpenCV, zxing-cpp), `xr-ai-launcher` and `xr-ai-logging` for its launcher | `pydantic`, `pyyaml`, `Pillow` (`pytest`, `pytest-asyncio` as dev tools). Its `model-servers/` is upstream's launcher, a separate uv project |
+| tea-making | `xr-ai-app`, `xr-ai-kit`, `xr-ai-launcher` and `xr-ai-logging` for its launcher | `pydantic`, `pyyaml` (`pytest`, `pytest-asyncio` as dev tools). Its `model-servers/` runs upstream conversation-example's servers, a separate uv project |
 
 | Sample | Scenarios | Evaluates | Record for a real run |
 |---|---|---|---|
 | simple-vlm | `typed.yaml`, `spoken.yaml`, `on_demand.yaml` | a question about a streamed frame, typed and spoken; with no stream, the app asks for one picture | nothing (synthetic pictures, `scenarios/make_images.py`) |
 | conversation | `general.yaml`, `view.yaml`, `view_on_demand.yaml`, `notes.yaml`, `alert.yaml` | each destination: a general question; a question about the view (streamed, and one picture on demand); a note taken, recalled by the conversation, note mode left; an alert that fires when the picture changes | nothing (synthetic pictures, `scenarios/make_images.py`) |
 | lab-instruments | `read_one.yaml`, `read_two.yaml`, `view.yaml`, `unknown_marker.yaml`, `no_marker.yaml`, `unreadable.yaml`, `monitor_change.yaml`, `monitor_lost.yaml`, `watch.yaml` | marker detection then one vision call: one and two instruments (two from one picture on demand), the view, an unknown marker, no marker, an unreadable display; the instrument monitor's change (said once) and lost instrument; the silent visual watch, asked about later | nothing (synthetic pictures with upstream's printable markers, `scenarios/make_images.py`); for your own, photograph instruments wearing `sample-markers/` and edit the expected readings |
+| tea-making | `guide.yaml` | the whole guide: label read and settings recommended, water seen, the display at the target, tea in the water, the countdown, a question answered from the run's state | nothing (synthetic pictures, `scenarios/make_images.py`, sent on demand) |
 
 `xr-ai-app` in turn brings the foundation packages it uses (`agent-sdk/`;
 the earlier `xr-ai` layer was folded into it); see `DEPENDENCIES.md` at the
@@ -50,6 +53,7 @@ repository root for the full graph.
 | simple-vlm | the core only | upstream's simple-vlm-example on `xr_ai_app` alone: `app.on_turn`, `p.frames.current()` (a streamed frame, or one picture asked for), `role.stream`, `Voice(tts=...)`; upstream's `yaml/` and `model-servers/`, a launcher (`uv run simple_vlm`) for DeviceIOHub and the app |
 | conversation | the kit's showcase | upstream's conversation-example on the core and the kit: `Router` (Clef) over `Conversation` (dialogue and notes as context), the current view (`p.frames.current()`, `role.stream`), a note-taking destination that holds focus (`RouterDestination` with `admit=` and `focused=`, `ContextLog`), a one-shot visual alert (`p.spawn`, `role.decide(frames=...)`, `p.say(urgent=)`), optional `Ack`; upstream's `yaml/`, prompts and `model-servers/`, a launcher (`uv run conversation`) |
 | lab-instruments | a deterministic detector, then a model; the kit's tool loop | upstream's lab-instrument-monitoring on the core and the kit: `Conversation` with nine `@tool`s, QR/ArUco markers found with `xr_ai_tools.marker_tracking` on `p.frames.current()`, one `vlm.ask` on the marked frame, two monitors as `p.spawn` tasks (`p.say`), a `ContextLog` the conversation reads, JSONL records with `p.artifacts`; upstream's `yaml/`, prompts and `model-servers/`, a launcher (`uv run lab_instruments`) |
+| tea-making | a procedure next to a conversation | `SopRunner` (`xr_ai_kit.sop`) running `procedure.py`: `identify` (label to settings), three `verify` checks (`judge`: the omni model observes, Clef decides; one on a `Thermometer` schema with a check in code), `timer`; the runner's controls as a router destination, its state as the `Conversation`'s context, its record in `p.artifacts`; a launcher (`uv run tea_making`) |
 
 ## The rules every sample follows
 

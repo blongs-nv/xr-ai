@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# The whole guide, start to finish: the label is read and settings are
+# recommended, water is seen, the display reaches the target, the tea bag is
+# in the water, and the countdown runs (--clock virtual skips it). A question
+# asked during the guide goes to the conversation, which reads its state.
+# The pictures are held and sent when the app asks for one (the web client's
+# on-demand camera mode), so each check gets a fresh frame on every look.
+name: tea guide, start to finish
+participant: p1
+steps:
+  - join: p1
+  - image: {path: media/tea_label.png, stream: false}
+  - at: 0.5
+    say: Help me make tea.
+  - expect: {said: Starting Tea guidance, within_s: 30}
+  - wait_for: {said: I read Bicelon green tea, within_s: 60}
+  - say: What step am I on?
+  - expect: {said: filling the kettle, within_s: 30}
+  - wait_for: {said: Water is visible, within_s: 60}
+  - image: {path: media/kettle_display.png, stream: false}
+  - wait_for: {said: the water is hot enough, within_s: 60}
+  - image: {path: media/mug.png, stream: false}
+  - wait_for: {said: finished steeping, within_s: 600}
+  - expect: {said: Tea guidance is complete, within_s: 30}
+  - leave: p1

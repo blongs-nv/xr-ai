@@ -225,3 +225,18 @@ def test_fakes_can_answer_by_prompt(tmp_path: Path) -> None:
         return [await role.ask(None, q) for q in ("what time is it", "the weather?", "who are you")]
 
     assert run_virtual(ask()) == ["Noon.", "Sunny.", "I don't know."]
+
+
+def test_by_prompt_also_matches_a_decisions_context(tmp_path: Path) -> None:
+    """A router asks the same question every turn; the request it judges is in the context."""
+    fakes = tmp_path / "f.yaml"
+    fakes.write_text("d:\n  by_prompt:\n    - [make tea, tea]\n  otherwise: conversation\n")
+
+    async def decide() -> list[str]:
+        role = fakes_from_file(fakes).role("d")
+        return [
+            str(await role.decide("Which option fits?", choices=["tea", "conversation"], context=text))
+            for text in ("Help me make tea.", "What step am I on?")
+        ]
+
+    assert run_virtual(decide()) == ["tea", "conversation"]

@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# One uv project for the launcher (main.py: DeviceIOHub + the app) and the
+# app (app.py and its modules). Run from this directory; see README.md.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xr-ai-app-sample-tea-making"
+version = "0.1.0"
+description = "Tea-making guidance: a procedure that watches the camera, next to a conversation, on the xr-ai-app core and kit."
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    "pydantic>=2",
+    "pyyaml>=6",
+    "xr-ai-kit",
+    "xr-ai-launcher",
+    "xr-ai-logging",
+    "xr-ai-app",
+]
+
+[dependency-groups]
+# `uv run pytest`
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+
+[tool.uv.sources]
+xr-ai-kit      = { path = "../../app-sdk/xr-ai-kit", editable = true }
+xr-ai-launcher = { path = "../../utils/xr-ai-launcher", editable = true }
+xr-ai-logging  = { path = "../../utils/xr-ai-logging", editable = true }
+xr-ai-app      = { path = "../../app-sdk/xr-ai-app", editable = true }
+
+[project.scripts]
+tea_making = "main:run"
+tea_making_app = "app:main"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["main.py", "app.py", "procedure.py", "tea.py"]

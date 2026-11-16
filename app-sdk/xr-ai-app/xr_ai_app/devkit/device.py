@@ -101,6 +101,7 @@ def fakes_from_file(path: str | Path) -> FakeModels:
 
         role:
           by_prompt:                       # the first entry whose text is in the call's prompt
+            # (with its system text, and a decision's context: the request it judges)
             - ["List up to three", "Which cafes are near?"]
           otherwise: {tool_call: {name: start_research, args: {request: x}}}
     """
@@ -126,7 +127,7 @@ def _by_prompt(spec: dict[str, Any]) -> Any:
     otherwise = _reply(spec["otherwise"]) if "otherwise" in spec else None
 
     def answer(call: Any) -> Any:
-        text = f"{call.system or ''}\n{call.prompt or ''}"
+        text = f"{call.system or ''}\n{call.prompt or ''}\n{getattr(call, 'context', '') or ''}"
         for needle, reply in rules:
             if needle in text:
                 return reply
