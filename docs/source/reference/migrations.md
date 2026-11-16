@@ -78,6 +78,17 @@ tracked separately), and so do `xr_ai_hub.DataMessage`, `FrameSignal` and
 `xr_ai_voice.VadConfig`, which public signatures (`ProcessorEndpoint` callbacks,
 `VoiceAgent(vad=...)`) still mention; they warn once those signatures move. `xr_ai_vad` now has an empty `__all__`.
 
+### LLM request defaults
+
+`OpenAICompatLLM` now applies `adapter.default_extras` only when a call omits
+an optional value. Explicit `max_tokens`, `temperature`, tools and output
+constraints override the corresponding defaults. The selected model, caller
+messages and method's streaming mode cannot be replaced by extras. If a
+profile previously relied on extras overriding those values, move that choice
+into the call instead. Constraints supplied through extras are validated
+against endpoint capabilities before transport. `OpenAICompatVLM` wraps the
+same client, so VLM profile extras follow the same rules.
+
 ### Simple VLM example deprecation
 
 The {doc}`simple-vlm-example` sample is deprecated. Existing demo and launch
