@@ -18,9 +18,53 @@ and test kit); anything composed from those lives here, however common.
 | `xr_ai_kit.conversation` | `Conversation`: multi-turn answers from one role over the context channels it lists, spoken on an output, with a streaming tool loop over `@tool` functions (`xr_ai_app.tools` calls each tool); a `return_direct` tool's result (text, or a stream of text) is spoken as the answer and ends the loop; the loop speaks the answer, the tool returns it |
 | `xr_ai_kit.routing` | the routing names, and `choose` (one pick for a turn: `role.decide` plus focus, retries and the dialogue); the devkit's `destination:<name>` exercise target (`resolve_destination`, `destinations`) |
 | `xr_ai_kit.delegate` | `Delegate`, `Job`, `JobUpdate` and the job back ends: `FunctionBackend`, `A2ABackend` (remote agents over A2A; extra `xr-ai-kit[a2a]`) |
-| `xr_ai_kit/procedures/` | a placeholder: the procedures kit is still the separate package `xr-ai-procedures` |
+| `xr_ai_kit.sop` | standard operating procedures: `judge` (one frame against a step's criteria), the steps `verify`, `timer`, `identify`, and `SopRunner`, which runs a procedure written as plain Python, one run per participant, with controls and a summary for the conversation (see below) |
 
 Routing by hand, without a `Router`, is the core's `role.decide`.
+
+## Procedures (`xr_ai_kit.sop`)
+
+A procedure is an ordinary `async def` that calls its steps in order; each
+step is a plain coroutine wrapped in `await run.step(...)`:
+
+```python
+from xr_ai_kit.sop import Criteria, Run, SopRunner, timer, verify
+
+WATER = Criteria(
+    "Is there water in the kettle?",
+    positive="Water is visible inside the kettle.",
+    negative="The kettle is visibly empty.",
+    unknown="No kettle is in view, or its inside cannot be seen.",
+)
+
+async def make_tea(run: Run) -> None:
+    await run.step(
+        "fill_water",
+        lambda: verify(run.p.frames, observe=observe, decide=decide, question="Is there water in the kettle?",
+                       criteria=WATER, on_state=run.report()),
+        say="Fill the kettle with water.",
+    )
+    await run.step("steep", lambda: timer(180, on_state=run.report()), say="Steeping for three minutes.")
+
+tea = SopRunner("tea", make_tea, title="Tea guidance", decide=decide)
+app.add(tea)
+# tea.control is a router destination (start, stop, skip, restart; anything else passes on);
+# tea.context is the run's summary, for a Conversation's context=.
+```
+
+- `judge(frame, ...)` is one frame's verdict: an observing role describes
+  the frame (free text, or a schema with an optional check in code), and a
+  deciding role (Clef or an LLM) picks positive, negative or unknown against
+  the criteria. `verify` loops it over fresh frames until N of the last M
+  decidable frames are positive; unknowns take no slot. An evaluation calls
+  `judge` on recorded frames, so it measures exactly what runs live.
+- `timer` counts down on the core clock (virtual time in tests), `identify`
+  reads into a schema and then derives a result, optionally from retrieved
+  text.
+- `SopRunner` owns the run: each step is its own task, so skip cancels only
+  the step and stop cancels the run; a new turn never cancels either. Every
+  change is traced, written to the participant's artifacts (`sop-<name>.jsonl`)
+  when the app has an artifacts folder, and summarized in `runner.context`.
 
 ## Routing helpers
 

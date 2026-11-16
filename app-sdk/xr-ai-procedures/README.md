@@ -10,7 +10,8 @@ A kit for procedure (SOP) apps, on top of the `xr-ai-app` SDK (import name
 watches the camera over time (`xr_ai_procedures.perception`); the SDK gives the
 camera stream (`p.frames`) and the perception role. It uses only the SDK's
 public names, and the kit's (`xr-ai-kit`): a guided procedure's `control` is a
-router destination. It will fold into the kit as `xr_ai_kit.procedures`.
+router destination. It is being replaced by the kit's `xr_ai_kit.sop`; new apps
+should use that.
 
 | Part | Main names | What it does |
 |---|---|---|

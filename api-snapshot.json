@@ -222,6 +222,27 @@
         "to_langchain_messages"
       ]
     },
+    "xr_ai_kit.sop": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/__init__.py",
+      "all": [
+        "CONTROLS",
+        "Criteria",
+        "Identification",
+        "Judgment",
+        "LABELS",
+        "Label",
+        "MESSAGES",
+        "Run",
+        "SopRunner",
+        "StepRecord",
+        "TimerState",
+        "Verification",
+        "identify",
+        "judge",
+        "timer",
+        "verify"
+      ]
+    },
     "xr_ai_launcher": {
       "path": "utils/xr-ai-launcher/xr_ai_launcher/__init__.py",
       "all": [

@@ -6,8 +6,9 @@
 The core (``xr_ai_app``) holds the primitives that need the runtime, the hub or the model binding; everything here is
 composed from them, however common. Modules: ``xr_ai_kit.conversation`` (answers with a tool loop),
 ``.routing`` (also ``choose``, the pick the Router is built on, and the devkit's ``destination:`` exercise target),
-``.delegate`` (also the job back ends ``FunctionBackend`` and ``A2ABackend``, extra ``xr-ai-kit[a2a]``). The
-procedures kit (``xr-ai-procedures``) is a separate package for now (``xr_ai_kit/procedures/README.md``).
+``.delegate`` (also the job back ends ``FunctionBackend`` and ``A2ABackend``, extra ``xr-ai-kit[a2a]``), ``.sop``
+(standard operating procedures: steps as plain async functions and ``SopRunner``) and ``.langchain`` (adapters, extra
+``xr-ai-kit[langchain]``).
 
 ======================  =================================================================
 Answers                 Conversation (multi-turn answers over listed context, with a tool
