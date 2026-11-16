@@ -35,7 +35,7 @@ Compass compares traces against it).
 | simple-vlm | `xr-ai-app` only (no kit), `xr-ai-launcher` and `xr-ai-logging` for its launcher | none (`pytest`, `pytest-asyncio` as dev tools). Its `model-servers/` is upstream's launcher, a separate uv project |
 | conversation | `xr-ai-app`, `xr-ai-kit`, `xr-ai-launcher` and `xr-ai-logging` for its launcher | `pydantic` (`pytest`, `pytest-asyncio` as dev tools). Its `model-servers/` is upstream's launcher, a separate uv project |
 | lab-instruments | `xr-ai-app`, `xr-ai-kit`, `xr-ai-tools[marker-tracking]` (the QR/ArUco detector: OpenCV, zxing-cpp), `xr-ai-launcher` and `xr-ai-logging` for its launcher | `pydantic`, `pyyaml`, `Pillow` (`pytest`, `pytest-asyncio` as dev tools). Its `model-servers/` is upstream's launcher, a separate uv project |
-| tea-making | `xr-ai-app`, `xr-ai-kit`, `xr-ai-launcher` and `xr-ai-logging` for its launcher | `pydantic`, `pyyaml` (`pytest`, `pytest-asyncio` as dev tools). Its `model-servers/` runs upstream conversation-example's servers, a separate uv project |
+| tea-making | `xr-ai-app`, `xr-ai-kit`, `xr-ai-launcher` and `xr-ai-logging` for its launcher | `Pillow` (the step evaluation), `pydantic`, `pyyaml` (`pytest`, `pytest-asyncio` as dev tools). Its `model-servers/` runs upstream conversation-example's servers, a separate uv project |
 
 | Sample | Scenarios | Evaluates | Record for a real run |
 |---|---|---|---|

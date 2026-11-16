@@ -82,3 +82,14 @@ uv --config-file ../../uv.toml run pytest
 
 With `--real-models` and your own pictures (`--media-dir`, same file
 names) the same scenario runs on the real models.
+
+## Step accuracy on a recording
+
+`eval/step_eval.py` scores each check on frames of a labeled recording of
+someone making tea, judging every frame exactly as the running procedure
+does (the same wording, roles and `judge`). For each step it reports, by
+frame, how often done frames are judged positive and not-done frames are
+not, how often the model cannot tell, and whether frames that only look
+done (a trap) are judged positive; then it replays the live rule (2 of the
+last 4) over the frames in time order: does the check complete in time,
+too early, or never? See `eval/README.md`.

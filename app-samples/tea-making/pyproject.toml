@@ -13,6 +13,7 @@ version = "0.1.0"
 description = "Tea-making guidance: a procedure that watches the camera, next to a conversation, on the xr-ai-app core and kit."
 requires-python = ">=3.11,<3.15"
 dependencies = [
+    "Pillow>=13.0.0",
     "pydantic>=2",
     "pyyaml>=6",
     "xr-ai-kit",
