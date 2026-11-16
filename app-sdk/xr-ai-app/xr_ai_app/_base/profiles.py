@@ -323,7 +323,9 @@ class Role:
         a text model. ``system`` is sent as a separate system message, not joined to ``prompt``.
         ``thinking`` requests or suppresses reasoning for this call and is ignored when the preset
         has no switch for it. ``max_tokens`` and ``temperature`` override the profile entry for this
-        call. A call that takes longer than ``timeout_s`` raises ``TimeoutError``. A reply that does
+        call. A call that takes longer than ``timeout_s`` raises ``TimeoutError``. ``response_format``'s schema is
+        always in the prompt; when the role's model entry declares ``capabilities: {json_schema: true}`` it is also
+        sent for the server to constrain the reply to (declare it only for a deployment that passes). A reply that does
         not validate against ``response_format`` is retried once: the same prompt is sent again with a
         reminder to answer with the JSON object only (the bad reply and the schema error are not fed
         back), so ``timeout_s`` applies to each attempt and the worst case is twice ``timeout_s``. A

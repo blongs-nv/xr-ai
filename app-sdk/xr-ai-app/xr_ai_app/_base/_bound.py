@@ -233,13 +233,20 @@ class BoundRole(Role):
         max_tokens: int | None,
         temperature: float | None,
         stream: bool,
+        schema: Mapping[str, Any] | None = None,
     ) -> Callable[[], Any]:
-        """Build the client call for this role's category; validates the frames first."""
+        """Build the client call for this role's category; validates the frames first.
+
+        ``schema`` (a JSON Schema) is sent for the server to constrain the reply to; only pass it when
+        :meth:`_constrains` says the endpoint declares that.
+        """
         frames = _frames(frame)
         if self._category == "vlm":
             if not frames:
                 raise ValueError(f"role {self._name!r} is a vision model and needs a frame")
-            options = _kwargs(system_prompt=system, max_tokens=max_tokens, temperature=temperature)
+            options = _kwargs(
+                system_prompt=system, max_tokens=max_tokens, temperature=temperature, response_schema=schema
+            )
             images = [f.image for f in frames]
             if len(images) == 1:
                 method = self._client.stream if stream else self._client.ask_image
@@ -251,9 +258,16 @@ class BoundRole(Role):
         messages = [ChatMessage("user", prompt)]
         if system:
             messages.insert(0, ChatMessage("system", system))
-        options = _kwargs(enable_thinking=thinking, max_tokens=max_tokens, temperature=temperature)
+        options = _kwargs(
+            enable_thinking=thinking, max_tokens=max_tokens, temperature=temperature, response_schema=schema
+        )
         method = self._client.stream if stream else self._client.chat
         return lambda: method(messages, **options)
+
+    def _constrains(self) -> bool:
+        """Whether the endpoint declares JSON Schema output (``capabilities: {json_schema: true}`` in models.json)."""
+        capabilities = getattr(self._client, "capabilities", None)
+        return bool(getattr(capabilities, "json_schema", False))
 
     @_tracing.traced_call("ask")
     @_virtual.held_call
@@ -271,8 +285,16 @@ class BoundRole(Role):
     ) -> Any:
         self._require_text_model("ask")
         text = _schema_prompt(prompt, response_format) if response_format is not None else prompt
+        schema = response_format.model_json_schema() if response_format is not None and self._constrains() else None
         call = self._call(
-            frame, text, system=system, thinking=thinking, max_tokens=max_tokens, temperature=temperature, stream=False
+            frame,
+            text,
+            system=system,
+            thinking=thinking,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=False,
+            schema=schema,
         )
 
         async def run() -> str:
@@ -287,8 +309,8 @@ class BoundRole(Role):
         try:
             return _parse(reply, response_format)
         except StructuredOutputError:
-            # One retry: models that ignore the prompt-only schema often comply when told what went wrong
-            # (guided JSON on the server is a separate seam).
+            # One retry: models that ignore a prompt-only schema often comply when told what went wrong (an
+            # endpoint that declares json_schema constrains the reply itself; its retry covers truncation).
             text = f"{text}\n\nYour previous reply was not valid JSON for this schema. Reply with the JSON object only."
             call = self._call(
                 frame,
@@ -298,6 +320,7 @@ class BoundRole(Role):
                 max_tokens=max_tokens,
                 temperature=temperature,
                 stream=False,
+                schema=schema,
             )
             reply = await run() if timeout_s is None else await asyncio.wait_for(run(), timeout_s)
             return _parse(reply, response_format)

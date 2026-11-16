@@ -8,7 +8,8 @@
         "reasoning_field": "reasoning_content",
         "capabilities": {
           "streaming": true,
-          "vision": true
+          "vision": true,
+          "json_schema": true
         },
         "default_extras": {
           "max_tokens": 512,
