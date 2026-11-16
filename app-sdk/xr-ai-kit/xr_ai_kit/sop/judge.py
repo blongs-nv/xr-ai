@@ -86,9 +86,11 @@ class Check:
     ``question`` is asked of each frame and ``criteria`` define done. ``observation_model`` makes the observation a
     schema instance, and ``can_assess(observation, known)`` is a check in code over it and the typed facts known so
     far (``known`` is ``None`` when the check has no ``needs``): when it is false the frame is ``unknown`` without a
-    decision. ``needs`` is a schema of facts the check may need but the camera may not establish (a display's unit,
-    a vessel's contents); facts the person states win over what the model claims to read. ``escalation`` is
-    free-form guidance on when to ask the person and about what; without it the check never asks.
+    decision. ``reconcile(observation, known)`` returns the observation corrected with the known facts before anything
+    judges it (a unit the person stated replacing one the model claims to read): known facts win in code, not by
+    asking the deciding model to prefer them. ``needs`` is a schema of facts the check may need but the camera may
+    not establish (a display's unit, a vessel's contents). ``escalation`` is free-form guidance on when to ask the
+    person and about what; without it the check never asks.
     """
 
     question: str
@@ -97,6 +99,7 @@ class Check:
     needs: type[BaseModel] | None = None
     observation_model: type[BaseModel] | None = None
     can_assess: Callable[[Any, Any], bool] | None = None
+    reconcile: Callable[[Any, Any], Any] | None = None
 
     def format(self, **values: object) -> Check:
         """A copy with ``{name}`` placeholders filled in the criteria (targets known only at run time)."""
@@ -155,6 +158,8 @@ async def judge(
             )
         except StructuredOutputError:
             return Judgment("unknown", "", frame.timestamp_us, frame.sequence, reason="unreadable")
+        if check.reconcile is not None:
+            parsed = check.reconcile(parsed, facts.known)
         description = parsed.model_dump_json(exclude_none=True)
         if check.can_assess is not None and not check.can_assess(parsed, facts.known):
             return Judgment("unknown", description, frame.timestamp_us, frame.sequence, parsed, reason="not assessable")

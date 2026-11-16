@@ -16,9 +16,11 @@ Starting the guide starts a run that outlives the turn: a question, or an
 interruption, never cancels it. Each step watches the camera on its own
 clock (identify, verify, timer); the runner speaks each instruction and
 result, and the conversation answers from the same state. Roles are the
-jobs, as in the teaching samples: perceive and answer_with_reasoning (one
-omni model, with and without images), decide (Clef) and speech_out (Pocket
-TTS); yaml/models.json binds them.
+jobs, as in the teaching samples: perceive (the omni model on images, no
+reasoning: the per-frame loop), answer_with_reasoning (the same model,
+reasoning: answers, recommendations, escalation), answer_lightweight (no
+reasoning: quick acknowledgements), decide (Clef: routing, controls and
+every frame's verdict) and speech_out (Pocket TTS).
 """
 
 from pathlib import Path
@@ -26,7 +28,7 @@ from pathlib import Path
 from procedure import Steps, TeaSettings, make_tea
 from pydantic import BaseModel, Field
 from xr_ai_app import App, Hub, Participant, PerConnection, Turn, Voice
-from xr_ai_kit import Conversation, OneShotDestination, Router
+from xr_ai_kit import Ack, Conversation, OneShotDestination, Router
 from xr_ai_kit.sop import SopRunner
 
 HERE = Path(__file__).resolve().parent
@@ -132,6 +134,9 @@ routing = app.add(
         history=voice.dialogue,
         history_budget_bytes=SETTINGS.routing_history_budget_bytes,
         output=voice,
+        # The conversation reasons before it answers; a quick line covers
+        # the wait when nothing was said for a moment.
+        ack=Ack(role=app.role("answer_lightweight"), delay_s=1.5),
     )
 )
 app.on_turn(routing.handle)  # every turn goes to the router first

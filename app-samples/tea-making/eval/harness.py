@@ -41,7 +41,7 @@ import sys
 import time
 import uuid
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +65,7 @@ from xr_ai_app import (  # noqa: E402
 from xr_ai_kit import Conversation  # noqa: E402
 from xr_ai_kit.sop import (  # noqa: E402
     Check,
+    Escalation,
     Facts,
     Judgment,
     Run,
@@ -219,23 +220,37 @@ async def would_ask(
     models: Models,
     recording: dict[str, Any],
     facts: Facts | None,
-    after_unknowns: int,
 ) -> tuple[float | None, str | None]:
-    """When the check gets stuck in this group (after_unknowns unknowns in a
-    row), the question the live check would ask then; (None, None) if never."""
-    streak = 0
+    """The first question the live check would ask over this group, and when.
+
+    Replays verify's pacing: the escalation model is consulted at most every
+    review_every_s seconds of the recording, and only while some of the
+    recent evidence is undecidable; it decides whether the check is stuck on
+    something the person could resolve. (None, None) when it never asks.
+    """
+    pace = {f.name: f.default for f in fields(Escalation)}["review_every_s"]
+    window = models.settings.window
+    if not judgments:
+        return None, None
+    started = judgments[0].frame_us / 1_000_000
+    last_review = started
     for i, j in enumerate(judgments):
-        streak = streak + 1 if j.label == "unknown" else 0
-        if streak >= after_unknowns:
-            recent = judgments[max(0, i - 7) : i + 1]
-            question = await escalation_question(
-                step_check(step, models, recording),
-                models.answer,
-                recent,
-                facts or Facts(),
-                timeout_s=models.settings.timeout_s,
-            )
-            return j.frame_us / 1_000_000, question
+        now = j.frame_us / 1_000_000
+        recent = judgments[max(0, i - 7) : i + 1]
+        unsure = any(r.label == "unknown" for r in recent[-window:])
+        if now - last_review < pace or not unsure:
+            continue
+        last_review = now
+        question = await escalation_question(
+            step_check(step, models, recording),
+            models.answer,
+            recent,
+            facts or Facts(),
+            elapsed_s=now - started,
+            timeout_s=models.settings.timeout_s,
+        )
+        if question is not None:
+            return now, question
     return None, None
 
 
@@ -317,7 +332,7 @@ async def run_frames(
         if "asks" in group or "asks_about" in group:
             judged = [j for j, _ in done if j is not None]
             asked_at, question = await would_ask(
-                packet.step, judged, models, recording, facts, after_unknowns=3
+                packet.step, judged, models, recording, facts
             )
         problems = ask_verdict(group, question)
         groups.append(

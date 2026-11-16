@@ -46,9 +46,8 @@ fill_water:
       No kettle or pot is shown, its contents are obscured or unclear, or the
       only vessel is packaging artwork or a decorative illustration.
   escalation: >-
-    Many kettles are opaque. If the vessel stays in view but its inside cannot
-    be seen, ask whether it has water in it now. Do not ask the person to show
-    it again or to fill it.
+    Many kettles are opaque, so the camera may not show whether there is
+    water inside; the person knows.
 
 heat_water:
   question: |-
@@ -62,20 +61,18 @@ heat_water:
   criteria:
     instructions: >-
       Has the water reached the target? The observation is a display reading:
-      value is the number; unit_text the unit as printed. When no unit was
-      printed, use the display's unit from the known facts. The target minimum
-      is {minimum}. An already-high reading qualifies; no rising trend is
-      needed.
+      value is the number and unit_text its unit (as printed, or as the person
+      stated it). The target minimum is {minimum}. An already-high reading
+      qualifies; no rising trend is needed.
     positive: The reading is equal to or greater than {minimum}.
     negative: The reading is less than {minimum}.
     unknown: >-
       No numeric reading or unit is available, a setpoint or a
       non-temperature unit is shown, or the units conflict.
   escalation: >-
-    Ask the person about what the display cannot show by itself: which unit it
-    uses (Celsius or Fahrenheit) when no unit can be read, or whether a number
-    is the water's temperature or a target setting when that is unclear. Never
-    ask for the temperature itself: the display shows it.
+    Some displays print no unit, and some show a target setting as well as the
+    water's temperature. The person knows which unit their kettle uses and
+    what its display is showing.
 
 start_steeping:
   question: |-
@@ -99,8 +96,8 @@ start_steeping:
       The relationship is in a depiction, or the water or the contact is
       unclear, unconfirmed, occluded or missing.
   escalation: >-
-    If the mug or cup stays out of view or its inside cannot be seen, ask
-    whether the tea is in the water now.
+    The inside of a mug may be out of view or hard to see; the person knows
+    whether the tea is in the water.
 
 say:
   identify: Show the tea's label clearly so I can read its name and type.

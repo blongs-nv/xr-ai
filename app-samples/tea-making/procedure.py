@@ -34,6 +34,7 @@ from tea import (
     Thermometer,
     assessable,
     fahrenheit,
+    reconcile,
 )
 from xr_ai_app import Role
 from xr_ai_kit.sop import (
@@ -134,6 +135,7 @@ def checks(
             {"minimum": target(temperature_c, unit)},
             needs=DisplayFacts,
             observation_model=Thermometer,
+            reconcile=reconcile,
             can_assess=assessable,
         ),
         "start_steeping": steps.start_steeping.to_check(),

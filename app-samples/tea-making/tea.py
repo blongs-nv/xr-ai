@@ -102,6 +102,20 @@ class DisplayFacts(BaseModel):
     )
 
 
+_UNIT_TEXT = {"celsius": "°C", "fahrenheit": "°F"}
+
+
+def reconcile(reading: Thermometer, known: DisplayFacts | None) -> Thermometer:
+    """The reading with the known unit in place of the unit the model read.
+
+    A unit the person stated (or app.yaml set) wins: on a display that prints
+    none, a read unit is invented, and the decision must not see it.
+    """
+    if known is None or known.unit is None:
+        return reading
+    return reading.model_copy(update={"unit_text": _UNIT_TEXT[known.unit]})
+
+
 def assessable(reading: Thermometer, known: DisplayFacts | None) -> bool:
     """Whether a reading can be compared with the target at all.
 

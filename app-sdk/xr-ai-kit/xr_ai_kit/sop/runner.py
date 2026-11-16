@@ -390,10 +390,13 @@ class SopRunner(Component):
         if run is not None and run.asking:
             state["pending_question"] = run.asking
             choices["answer"] = (
-                f"A reply to the assistant's pending question ({run.asking!r}): the information asked for, a guess, "
-                "or that the person does not know."
+                f"The reply gives the information the assistant's pending question asked for ({run.asking!r}), as a "
+                "fact or a guess, or says the person does not know it."
             )
-            choices["none"] += " Also anything that is not a reply to the pending question, such as another question."
+            choices["none"] += (
+                " Also anything that does not give the information the pending question asked for: another "
+                "question, a remark, or a request."
+            )
         return str(await self._decide.decide(self._question, choices=choices, context=json.dumps(state)))
 
     def _waiting(self, p: Participant) -> bool:

@@ -15,5 +15,5 @@ perceive:
   otherwise: A kettle and a mug on a desk.
 answer_with_reasoning:
   by_prompt:
-    - ["A visual check is stuck", {ask: true, question: "Does the display show Celsius or Fahrenheit?", reason: no unit}]
+    - ["Guidance on asking the person", {ask: true, question: "Does the display show Celsius or Fahrenheit?", reason: no unit}]
   otherwise: You're on reading the label; next, fill the kettle with water.

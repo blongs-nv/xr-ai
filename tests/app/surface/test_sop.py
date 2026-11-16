@@ -189,7 +189,7 @@ async def test_a_stuck_check_asks_once_and_the_typed_answer_unblocks_it() -> Non
                 _escalating_check(),
                 observe=app.role("observe"),
                 decide=app.role("decide"),
-                escalation=Escalation(models.role("helper"), ask, after_unknowns=3, min_gap_s=0),
+                escalation=Escalation(models.role("helper"), ask, review_every_s=0, min_gap_s=60),
                 interval_s=0.01,
             )
         )
@@ -198,6 +198,7 @@ async def test_a_stuck_check_asks_once_and_the_typed_answer_unblocks_it() -> Non
     assert asked == ["Is the display in Celsius or Fahrenheit?"]
     assert result.status == "completed" and result.asked == tuple(asked)
     assert result.facts.known == Display(unit="fahrenheit")
+    assert all(call.thinking for call in models.calls("helper"))  # outside the fast loop: reasoning
     assert "They answered" in result.facts.text()
 
 
@@ -227,7 +228,7 @@ async def test_a_check_never_asks_while_it_decides_negatives_or_without_guidance
                     check,
                     observe=app.role("observe"),
                     decide=app.role("decide"),
-                    escalation=Escalation(models.role("helper"), ask, after_unknowns=2, min_gap_s=0),
+                    escalation=Escalation(models.role("helper"), ask, review_every_s=0, min_gap_s=0),
                     interval_s=0.01,
                 )
             )
