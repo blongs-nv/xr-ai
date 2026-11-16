@@ -327,6 +327,7 @@
         "TextPart",
         "ThinkingSpec",
         "ToolCall",
+        "ToolChoice",
         "ToolDef",
         "VLMService",
         "VLMSpec",
