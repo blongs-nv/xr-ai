@@ -274,6 +274,29 @@ async def test_a_failing_step_fails_the_run_and_says_so() -> None:
     assert run.steps[0].status == "failed"
 
 
+async def test_with_a_plan_the_summary_says_what_comes_next() -> None:
+    models = FakeModels()
+    app = _app()
+    plan = [("heat", "Heat the water."), ("steep", "Steep the tea.")]
+
+    async def procedure(run: Run) -> None:
+        await run.step("heat", lambda: asyncio.Event().wait())
+
+    runner = SopRunner("tea", procedure, title="Tea guidance", decide=models.role("decide"), plan=plan)
+    app.add(runner)
+    async with app.test_session(models=models) as s:
+        await s.join()
+        p = s.participant()
+        before = runner.summary(p)
+        await runner.start(p)
+        await _until(s, lambda: runner.run(p).current is not None)
+        during = runner.summary(p)
+        await runner.stop(p)
+    assert "Its steps, in order, once started:" in before and "- steep: Steep the tea." in before
+    assert "- heat (Heat the water.): running." in during
+    assert "- steep (Steep the tea.): ahead." in during
+
+
 async def test_classify_names_the_control_without_performing_it() -> None:
     models = FakeModels({"decide": ["stop"]})
     app = _app()

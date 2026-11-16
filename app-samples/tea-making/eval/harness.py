@@ -399,7 +399,9 @@ def report(results: list[dict[str, Any]], models_label: str) -> str:
     groups = [g for r in results for g in r["frames"]]
     utt = [u for r in results for u in r["utterances"]]
     false_completions = [
-        g for g in groups if g["expect"] != "done" and g["fired_at"] is not None
+        g
+        for g in groups
+        if g["expect"] == "not_done" and g["fired_at"] is not None
     ]
     lines += [
         "| | Total | Passed | Failed |",

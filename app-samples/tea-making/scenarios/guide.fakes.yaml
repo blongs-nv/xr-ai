@@ -7,7 +7,7 @@
 # too); the first matching entry wins.
 decide:
   by_prompt:
-    - ["Which control of the procedure", start]
+    - ["change the procedure now", start]
     - ["Is there water inside", positive]
     - ["Has the water reached", positive]
     - ["Does this observation establish tea", positive]

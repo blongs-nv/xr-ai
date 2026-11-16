@@ -72,6 +72,13 @@ tea = app.add(
         title="Tea guidance",
         decide=decide,
         output=voice,
+        plan=[
+            ("identify", "show the tea's label so its settings can be read"),
+            ("fill_water", "fill the kettle with fresh water"),
+            ("heat_water", "heat the water to the recommended temperature"),
+            ("start_steeping", "put the tea in the hot water"),
+            ("steep", "wait while the timer runs"),
+        ],
         description=(
             "Only explicit controls of the tea-making guide: start, stop, "
             "skip the current step, restart. Not questions about tea, the "
@@ -111,8 +118,9 @@ async def look(turn: Turn, p: Participant) -> None:
 
 view = OneShotDestination(
     "observation",
-    "Describe or read what the camera shows right now: objects, labels, "
-    "displays, the cup or kettle in view.",
+    "Questions that need the camera right now: describe or read what it "
+    "shows (objects, labels, displays, the cup or kettle in view). Not "
+    "remarks, opinions or statements about things in view.",
     look,
 )
 

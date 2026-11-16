@@ -94,15 +94,16 @@ class Thermometer(BaseModel):
 def assessable(reading: Thermometer, unit: str | None) -> bool:
     """Whether a reading can be compared with the target at all.
 
-    ``unit`` is the display's unit when the app knows it (a setting), used
-    when none is printed. A setpoint, a conflicting unit or no unit at all is
-    not a measurement to judge; the frame then counts as unknown.
+    ``unit`` is the display's unit when the app knows it (a setting); it
+    wins over the unit the model says it reads. A setpoint, or no unit at all
+    (neither known nor read), is not a measurement to judge; the frame then
+    counts as unknown.
     """
     if reading.value is None or reading.role == "setpoint":
         return False
-    if reading.unit is not None and unit is not None and reading.unit != unit:
-        return False
-    return (reading.unit or unit) is not None
+    # The display's known unit is the authority: a unit the model claims to
+    # read on a display that prints none (this kettle) is not a conflict.
+    return (unit or reading.unit) is not None
 
 
 def fahrenheit(celsius: float) -> float:

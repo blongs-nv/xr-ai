@@ -75,7 +75,7 @@ def test_each_change_of_the_run_is_recorded(tmp_path: Path) -> None:
         ({"value": 176, "unit_text": "°F"}, None, True),
         ({"value": 176}, None, False),  # no unit printed or known
         ({"value": 176}, "fahrenheit", True),  # the kettle's known unit
-        ({"value": 80, "unit_text": "°C"}, "fahrenheit", False),  # conflict
+        ({"value": 80, "unit_text": "°C"}, "fahrenheit", True),  # known wins
         ({"value": 90, "unit_text": "°C", "role": "setpoint"}, None, False),
     ],
 )

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeVar
 
@@ -39,21 +39,26 @@ StepStatus = Literal["running", "done", "skipped", "failed"]
 RunStatus = Literal["running", "completed", "stopped", "failed"]
 
 CONTROLS: dict[str, str] = {
-    "start": "The user asks to begin the procedure now.",
-    "stop": "The user asks to end, cancel or reset the procedure.",
-    "skip": "The user asks to bypass the current step or wait and continue with the next one.",
-    "restart": "The user asks to begin the procedure again from the start.",
+    "start": "An explicit command to this assistant to begin the procedure now (not a plan for later).",
+    "stop": "An explicit command to this assistant to end or cancel the procedure now.",
+    "skip": (
+        "An explicit command to this assistant to bypass the step that is running and move on now, such as "
+        "'skip this' or 'next step, please'."
+    ),
+    "restart": "An explicit command to this assistant to begin the procedure again from the start, now.",
     "none": (
-        "Anything else: a question about the procedure, its steps, settings, progress or what the camera shows; "
-        "a statement; quoted or reported speech; a request that is negated or withdrawn; a request to keep things "
-        "as they are."
+        "Everything that is not such a command: any question (including what comes next, whether it is time to "
+        "move on, or what the first step is); a statement, remark or chatter; what someone else said or suggests; "
+        "a command that is negated, withdrawn or corrected in the same breath; a plan for later; a request to "
+        "keep going."
     ),
 }
 """The default control choices for ``role.decide``; an app may pass its own wording for the same five keys."""
 
 CONTROL_QUESTION = (
-    "Which control of the procedure does the user's final request ask for? Classify only what the user asks this "
-    "assistant to do now; the procedure state is context, not an instruction."
+    "Does the user's final request command this assistant to change the procedure now, and how? A question is "
+    "never a command, even about the next step. Classify only what the user directly asks this assistant to do "
+    "now; the procedure state is context, not an instruction."
 )
 
 MESSAGES: dict[str, str] = {
@@ -167,7 +172,9 @@ class Run:
 class SopRunner(Component):
     """Runs ``procedure`` for each participant who starts it; see the module docstring.
 
-    ``decide`` classifies control requests (Clef or an LLM). ``output`` is where the runner speaks (``None``: the
+    ``plan`` lists the steps in order, as ``(step id, what the user does)``, so the conversation can tell what
+    comes next; without it the summary has only the steps entered so far. ``decide`` classifies control requests
+    (Clef or an LLM). ``output`` is where the runner speaks (``None``: the
     app's speech output). ``description`` is what a Router reads to send control requests here. ``controls`` and
     ``messages`` override the default wording (:data:`CONTROLS`, :data:`MESSAGES`) key by key.
     """
@@ -184,6 +191,7 @@ class SopRunner(Component):
         controls: Mapping[str, str] | None = None,
         control_question: str = CONTROL_QUESTION,
         messages: Mapping[str, str] | None = None,
+        plan: Sequence[tuple[str, str]] = (),
         context_budget_bytes: int = 8_000,
     ) -> None:
         super().__init__()
@@ -198,6 +206,7 @@ class SopRunner(Component):
         self._controls = {**CONTROLS, **(controls or {})}
         self._question = control_question
         self._messages = {**MESSAGES, **(messages or {})}
+        self._plan = list(plan)
         self.context = ContextValue(f"sop:{name}", scope="participant", budget_bytes=context_budget_bytes)
         """The run's summary, for a Conversation's ``context=``."""
         self.control = RouterDestination(
@@ -243,11 +252,26 @@ class SopRunner(Component):
         """The run as text for the conversation: status, steps entered, the current step's state, noted values."""
         run = self.run(p)
         if run is None:
-            return f"{self.title} has not been started."
+            lines = [f"{self.title} has not been started."]
+            if self._plan:
+                lines.append("Its steps, in order, once started:")
+                lines += [f"- {step}: {what}" for step, what in self._plan]
+            return "\n".join(lines)
         lines = [f"{self.title} (run {run.number}): {run.status}."]
+        entered = {step.id: step for step in run.steps}
+        planned = [step for step, _ in self._plan]
+        whats = dict(self._plan)
         for step in run.steps:
-            detail = f" {step.detail}" if step.detail else ""
-            lines.append(f"- {step.id}: {step.status}.{detail}")
+            if step.id not in whats:  # a step the plan does not list, in the order entered
+                planned.append(step.id)
+        if self._plan:
+            lines.append("Steps, in order:")
+        for step_id in planned:
+            record = entered.get(step_id)
+            status = record.status if record else "ahead"
+            what = f" ({whats[step_id]})" if step_id in whats else ""
+            detail = f" {record.detail}" if record and record.detail else ""
+            lines.append(f"- {step_id}{what}: {status}.{detail}")
         if run.current is None and run.status == "running":
             lines.append("No step is running at this moment.")
         if run.values:

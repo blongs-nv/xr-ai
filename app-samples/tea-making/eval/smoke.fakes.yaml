@@ -5,7 +5,7 @@
 # gets the same kind of answer, so the numbers mean nothing.
 decide:
   by_prompt:
-    - ["Which control of the procedure", none]
+    - ["change the procedure now", none]
     - ["Which option fits", conversation]
   otherwise: negative
 perceive:
