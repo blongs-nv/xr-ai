@@ -7,15 +7,16 @@ SHAPE: a PROCEDURE (xr_ai_kit.sop). The procedure is a plain async function
 that runs its steps in order; a SopRunner runs it for each participant who
 starts it, and the user can say start, stop, skip or restart, or ask about
 it. Each camera step judges a frame a second (observe, then decide) until two
-of the last three agree; when the camera cannot tell for a while, the step's
-own escalator (wired per step) tells the user what to show, or asks them.
+of the last three agree; beside it, an escalator of its own (Escalated)
+watches what the step sees and, when the camera cannot tell for a while,
+tells the user what to show, or asks them. Each step says its own lines.
 
   xr_ai_kit.sop                  this file
   ---------------------------    -------------------------------------------
   SopRunner (component)          preflight(run): the steps and their order
   WatchStep, WaitStep (steps)    sop.yaml: the steps' words (StepDefinitions)
-  Escalator (per camera step)    what each escalator reads (HELP)
-  controls: start | stop |       the roles each camera step uses
+  Escalated, Escalator           what each escalator reads (HELP)
+  controls: start | stop |       the models each step uses
     skip | restart
 
 The runner publishes a summary of where the run is to `preflight.context`;
@@ -27,12 +28,15 @@ from pathlib import Path
 from xr_ai_app import App, Hub, PerConnection, Voice
 from xr_ai_kit import Conversation, OneShotDestination, Router
 from xr_ai_kit.sop import (
+    Escalated,
     EscalationSettings,
-    Roles,
+    Escalator,
     Run,
     SopRunner,
     StepDefinitions,
+    WaitStep,
     WatchSettings,
+    WatchStep,
 )
 
 HERE = Path(__file__).resolve().parent
@@ -46,10 +50,8 @@ voice = app.add(Voice(summarize=app.role("answer_lightweight")))
 
 WARM_UP_S = 90
 
-# ---- the steps: words from sop.yaml, types and settings here ----
+# ---- the steps: words from sop.yaml, types and models here ----
 DEFINITIONS = StepDefinitions.load(HERE / "sop.yaml")
-# observe describes a frame, decide labels it, reason derives in text.
-ROLES = Roles(observe=perceive, decide=decide, reason=reasoning)
 # A look a second; done when two of the last three decided looks are yes.
 WATCH = WatchSettings(required=2, window=3, interval_s=1.0)
 
@@ -58,23 +60,28 @@ WATCH = WatchSettings(required=2, window=3, interval_s=1.0)
 # here the checklist's state ("run") and the recent dialogue.
 HELP = EscalationSettings(context=["run", "dialogue"])
 
-bed_clear = DEFINITIONS.watch("bed_clear", ROLES, WATCH).escalating(
-    DEFINITIONS.escalator("bed_clear", reasoning, HELP)
-)
-door_closed = DEFINITIONS.watch("door_closed", ROLES, WATCH).escalating(
-    DEFINITIONS.escalator("door_closed", reasoning, HELP)
-)
-warm_up = DEFINITIONS.wait("warm_up", WARM_UP_S)
+
+def camera_step(step_id: str) -> Escalated:
+    """A watch step (perceive describes a frame, decide labels it) with its
+    escalator beside it (reasoning)."""
+    definition = DEFINITIONS[step_id]
+    step = WatchStep.define(
+        definition, observe=perceive, decide=decide, settings=WATCH
+    )
+    return Escalated(step, Escalator.define(definition, reasoning, HELP))
+
+
+bed_clear = camera_step("bed_clear")
+door_closed = camera_step("door_closed")
+warm_up = WaitStep.define(DEFINITIONS["warm_up"], WARM_UP_S)
+DEFINITIONS.check_read()  # every section of sop.yaml is used
 
 
 async def preflight(run: Run) -> None:
-    """The procedure: ordinary code. A skipped step returns None."""
-    if await run.step(bed_clear):
-        await run.say(DEFINITIONS.line("bed_clear"))
-    if await run.step(door_closed):
-        await run.say(DEFINITIONS.line("door_closed"))
-    if await run.step(warm_up):
-        await run.say(DEFINITIONS.line("warmed_up"))
+    """The procedure: ordinary code. Each step says its own lines."""
+    await run.step(bed_clear)
+    await run.step(door_closed)
+    await run.step(warm_up)
 
 
 procedure = app.add(
@@ -85,7 +92,7 @@ procedure = app.add(
         decide=decide,
         output=voice,
         plan=DEFINITIONS.plan(),  # the steps ahead, for the conversation
-        step_context=[voice.dialogue],  # what escalators may read, by name
+        escalation_context=[voice.dialogue],  # what escalators may read
     )
 )
 # Spoken answers; the checklist's state (in the context) is the only source

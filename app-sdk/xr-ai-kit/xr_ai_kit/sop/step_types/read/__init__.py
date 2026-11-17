@@ -10,10 +10,11 @@
 from __future__ import annotations
 
 from .identify import Identification, identify
-from .read_step import ReadStep
+from .read_step import ReadStep, ReadWords
 
 __all__ = [
     "Identification",
     "ReadStep",
+    "ReadWords",
     "identify",
 ]

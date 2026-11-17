@@ -25,11 +25,11 @@ every frame's verdict) and speech_out (Pocket TTS).
 
 from pathlib import Path
 
-from procedure import DEFINITIONS, TeaSettings, make_tea
+from procedure import DEFINITIONS, TeaModels, TeaSettings, make_tea
 from pydantic import BaseModel, Field
 from xr_ai_app import App, Hub, Participant, PerConnection, Turn, Voice
 from xr_ai_kit import Ack, Conversation, OneShotDestination, Router
-from xr_ai_kit.sop import Roles, SopRunner
+from xr_ai_kit.sop import SopRunner
 
 HERE = Path(__file__).resolve().parent
 PROMPTS = HERE / "prompts"
@@ -53,7 +53,7 @@ app.add(Hub())  # the device connection: who is here, and their camera
 perceive = app.role("perceive")
 answer = app.role("answer_with_reasoning")
 decide = app.role("decide")
-ROLES = Roles(observe=perceive, decide=decide, reason=answer)
+MODELS = TeaModels(observe=perceive, decide=decide, reason=answer)
 voice = app.add(
     Voice(
         tts=app.role("speech_out"),
@@ -65,14 +65,14 @@ voice = app.add(
 tea = app.add(
     SopRunner(
         "tea",
-        make_tea(ROLES, SETTINGS.tea),
+        make_tea(MODELS, SETTINGS.tea),
         title="Tea guidance",
         decide=decide,
         output=voice,
         plan=DEFINITIONS.plan(),
-        # Channels a step's escalator may read, by name ("dialogue"); each
+        # Channels an escalator may read, by name ("dialogue"); each
         # escalator picks its own (settings.tea.escalation.context).
-        step_context=[voice.dialogue],
+        escalation_context=[voice.dialogue],
         description=(
             "Only explicit controls of the tea-making guide: start, stop, "
             "skip the current step, restart. Not questions about tea, the "

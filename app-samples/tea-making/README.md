@@ -35,22 +35,26 @@ Voice -> Router (Clef)
 | start_steeping | `WatchStep` | a real tea bag touches real water (not packaging art) |
 | steep | `WaitStep` | the recommended time has passed; it starts after the tea goes in, or when that check is skipped |
 
-A watch step has two parts. The **fast check** judges a frame every 2 s:
-the omni model describes it (or reads it into a schema) and Clef labels
-that description against the step's criteria (positive, negative or
-unknown); unknowns take no slot, so an obscured view neither confirms nor
-resets it. Beside it, the step's **escalator**, a separate agent wired to
-each camera step on its own: when the check's latest reports are mostly
-unknown, a reasoning model reads them and either asks the person for what
-is missing (the kettle's unit; the answer goes into the step's context,
-which the check reads) or tells them what to bring into view. It never
-completes a step. Each escalator has its own settings, including what it
-reads besides its step (`context`: the procedure's summary `run`, the
-recent `dialogue`, or neither); app.yaml's `settings.tea.escalation` sets
-them for all, `escalation_per_step` per step. The words of every step
-(instruction, question, criteria, escalation guidance) are in `steps.yaml`;
-which type each step is, its schemas and its escalator are in
-`procedure.build_steps`.
+A watch step's **check** judges a frame every 2 s: the omni model
+describes it (or reads it into a schema) and Clef labels that description
+against the step's criteria (positive, negative or unknown); unknowns take
+no slot, so an obscured view neither confirms nor resets it. Beside each
+camera step runs its **escalator** (`Escalated`), an agent of its own that
+shares only a link with the step: it reads the step's outbound context (its
+task, its latest reports, what it knows) and, when the reports are mostly
+unknown, asks the person for what is missing (the kettle's unit; the answer
+goes back to the step as inbound context, which the check reads) or tells
+them what to bring into view. It never completes a step. Each escalator has
+its own settings, including what it reads besides its step (`context`: the
+procedure's summary `run`, the recent `dialogue`, or neither); app.yaml's
+`settings.tea.escalation` sets them for all, `escalation_per_step` per step.
+
+Every step's words are in `steps.yaml`: what it says as it starts (`say`)
+and when it finishes (`done`, filled from its result: heat_water says the
+reading that completed it), and one section per owner (`read` or `watch`
+for the step, `escalation` for its escalator). Which type each step is, its
+models, schemas and escalator are in `procedure.build_steps`; the procedure
+itself is the order of the steps and what passes between them.
 
 Starting the guide starts a run that outlives the turn: a question or an
 interruption never cancels it. "Skip this step" cancels only the current

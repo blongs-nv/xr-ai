@@ -63,15 +63,18 @@ settings name (app.yaml's `settings.tea.escalation.context`), so a case
 tests the prompt that step ships with; a source the case leaves out is
 empty.
 
-**Expectations** belong to the step's type (its scoring module, next to
-the step: `xr_ai_kit.sop.watch.watch_scoring` and so on), so each
-type is scored by its own rules:
+**Expectations** belong to whoever is scored: the step's type (its
+scoring module, next to the step: `xr_ai_kit.sop.step_types.watch.watch_scoring`
+and so on) and, for a step with an escalator beside it, the escalator
+(`xr_ai_kit.sop.escalation.escalation_scoring`). Each key goes to its owner;
+a key no one owns is an error:
 
-| Step type | `expect` keys |
+| Scored | `expect` keys |
 |---|---|
-| watch (`fill_water`, `heat_water`, `start_steeping`) | `completes`: true / false / `{after, before}` in scene time; `asks`: words its question must include (`[]`: any); `says`: the same for an instruction; `quiet`: says nothing |
-| read (`identify`) | `completes`; `reads` / `derives`: per field, words its value must include (`[]`: not empty) |
-| wait (`steep`) | `completes` |
+| watch step (`fill_water`, `heat_water`, `start_steeping`) | `completes`: true / false / `{after, before}` in scene time |
+| its escalator | `asks`: words its question must include (`[]`: any); `says`: the same for an instruction; `quiet`: says nothing |
+| read step (`identify`) | `completes`; `reads` / `derives`: per field, words its value must include (`[]`: not empty) |
+| wait step (`steep`) | `completes` |
 
 A case without `expect` is run and reported only (ambiguous footage); give
 it a `why`.
@@ -115,7 +118,7 @@ answered (not acted on) with words of `heat_water`.
   the recording lacks is spliced from its parts.
 - Something the user may say during one step: one entry in that packet's
   `utterances`; during every step: one entry in `dialogue/common.yaml`.
-- A new step: its words in `steps.yaml`, one line in
+- A new step: its entry in `steps.yaml`, one line in
   `procedure.build_steps`, one case file, one packet.
 
 ## Run

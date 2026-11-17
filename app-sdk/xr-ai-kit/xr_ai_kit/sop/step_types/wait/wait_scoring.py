@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
-from ..evaluation.step_trace import StepTrace
+from ...evaluation.step_trace import StepTrace
 
 
 class WaitExpect(BaseModel):

@@ -16,7 +16,8 @@ class Line:
     t_s: float
     """When, on the evaluation's scene clock (the recording's own time for a scene that is one part of it)."""
 
-    kind: Literal["ask", "say"]
+    kind: Literal["ask", "say", "done"]
+    """``ask`` and ``say`` during the step; ``done``: its closing line."""
     text: str
     answer: str | None = None
     """For ``ask``: the person's answer (``None``: none came)."""

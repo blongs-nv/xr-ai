@@ -23,9 +23,10 @@ with, so the step evaluated is the step that ships. Each case runs on the devkit
 skipped and model calls take their real time, so a five-minute scene costs what its model calls cost, and their
 latency counts as it would live. A case ends when the step finishes or the scene does.
 
-Each step type's scoring is a module next to it (``watch_scoring``, ``read_scoring``, ``wait_scoring``) with
-``Expect`` (what a case may expect) and ``score(trace, expect)``. :func:`scoring_for` finds it by the step's type; an
-app with step types of its own passes their scoring (``scorings={MyStep: my_scoring}``).
+Each step type's scoring is a module next to it (``watch_scoring``, ...) with ``Expect`` (what a case may expect) and
+``score(trace, expect)``; the type names it in its ``scoring`` attribute, an app's own step types too, and
+:func:`scoring_for` imports it. A step with an escalator beside it names both (the escalator's expects ``asks``,
+``says``, ``quiet``), and a case's keys go to the one that owns them. ``scorings={StepType: module}`` overrides that.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import importlib
 import json
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -42,16 +44,17 @@ from types import ModuleType
 from typing import Any, Protocol
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, create_model
 
-from ..steps.step_api import Step
+from ..steps.step_api import Step, closing_line
 from .scene import Recording, SceneFrames
 from .scripted_io import Person, ScriptedIO
-from .step_trace import StepTrace
+from .step_trace import Line, StepTrace
 
 
 class Scoring(Protocol):
-    """How a case of one step type is scored (a step type's scoring module is one)."""
+    """How a case is scored (a step type's scoring module is one): ``Expect``, the keys a case may expect, and
+    ``score``."""
 
     Expect: type[BaseModel]
 
@@ -61,20 +64,45 @@ class Scoring(Protocol):
 Scorings = Mapping[type, Scoring | ModuleType]
 
 
+@dataclass(frozen=True, slots=True)
+class Combined:
+    """Several scorings of one step (a step and the escalator beside it): a case's ``expect`` keys go to the scoring
+    that owns them, and a key none owns is an error."""
+
+    parts: tuple[Scoring, ...]
+
+    @property
+    def Expect(self) -> type[BaseModel]:  # noqa: N802 - the name every scoring has
+        fields: dict[str, Any] = {}
+        for part in self.parts:
+            for name, info in part.Expect.model_fields.items():
+                if name in fields:
+                    raise TypeError(f"two scorings expect {name!r}")
+                fields[name] = (info.annotation, info)
+        return create_model("CombinedExpect", __config__=ConfigDict(extra="forbid"), **fields)
+
+    def score(self, trace: StepTrace, expect: BaseModel) -> list[str]:
+        given = expect.model_dump(exclude_unset=True)
+        problems: list[str] = []
+        for part in self.parts:
+            own = {k: v for k, v in given.items() if k in part.Expect.model_fields}
+            problems += part.score(trace, part.Expect.model_validate(own))
+        return problems
+
+
 def scoring_for(step: Step[Any], scorings: Scorings | None = None) -> Scoring:
-    """The scoring of ``step``'s type: from ``scorings`` (an app's own step types), else the kit's."""
+    """How a case of ``step`` is scored: ``scorings[type(step)]`` when given, else the module or modules the step
+    names in its ``scoring`` attribute (imported here, so running code never loads them; several are combined)."""
     kind = type(step)
     if scorings and kind in scorings:
         return scorings[kind]  # type: ignore[return-value]
-    # The kit's scoring modules import this package; they are loaded here, when first needed.
-    from ..read import ReadStep, read_scoring  # noqa: PLC0415
-    from ..wait import WaitStep, wait_scoring  # noqa: PLC0415
-    from ..watch import WatchStep, watch_scoring  # noqa: PLC0415
-
-    kit: dict[type, ModuleType] = {WatchStep: watch_scoring, ReadStep: read_scoring, WaitStep: wait_scoring}
-    if kind not in kit:
-        raise TypeError(f"no scoring for {kind.__name__}; pass it in scorings={{{kind.__name__}: ...}}")
-    return kit[kind]  # type: ignore[return-value]
+    names = getattr(step, "scoring", None)
+    if isinstance(names, str):
+        names = (names,)
+    if not names or not all(isinstance(n, str) for n in names):
+        raise TypeError(f"{kind.__name__} names no scoring module; give it a `scoring` attribute")
+    parts = tuple(importlib.import_module(n) for n in names)
+    return parts[0] if len(parts) == 1 else Combined(parts)  # type: ignore[return-value]
 
 
 Build = Callable[[Mapping[str, Any], Any], Mapping[str, Step[Any]]]
@@ -160,6 +188,8 @@ async def run_case(
             trace.error = repr(exc)
         else:
             trace.completed, trace.completed_at_s, trace.result = True, scene.now(), task.result()
+            if closing := closing_line(step, trace.result):  # what the runner would say as it finishes
+                trace.lines.append(Line(scene.now(), "done", closing))
     else:
         task.cancel()
         with contextlib.suppress(BaseException):

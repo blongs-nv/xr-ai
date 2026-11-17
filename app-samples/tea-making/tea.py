@@ -103,6 +103,13 @@ class Thermometer(BaseModel):
             "fahrenheit": "fahrenheit",
         }.get(text)
 
+    @property
+    def reading(self) -> str:
+        """The reading as spoken ("176 °F"; "the target" without a value)."""
+        if not self.value:
+            return "the target"
+        return f"{self.value:g} {self.unit_text or ''}".strip()
+
 
 class DisplayFacts(BaseModel):
     """What the heating check may need to know that a display may not show:
@@ -158,12 +165,3 @@ def target(temperature_c: float, unit: str | None) -> str:
         f"{fahrenheit(temperature_c):g} degrees Fahrenheit, matching the"
         " reading's unit"
     )
-
-
-def reading_of(verification: Any) -> str:
-    """The last positive reading of a completed heating check, as spoken."""
-    for j in reversed(verification.judgments):
-        r = j.parsed
-        if j.label == "positive" and isinstance(r, Thermometer) and r.value:
-            return f"{r.value:g} {r.unit_text or ''}".strip()
-    return "the target"

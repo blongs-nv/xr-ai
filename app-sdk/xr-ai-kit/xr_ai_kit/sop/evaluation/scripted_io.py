@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""A scripted :class:`~..steps.step_api.StepIO`: a scene for the camera, a scripted person, a record of it."""
+"""A scripted :class:`~..steps.step_api.StepIO` and :class:`~..escalation.link.EscalationIO`: a scene for the camera,
+a scripted person, a record of it."""
 
 from __future__ import annotations
 

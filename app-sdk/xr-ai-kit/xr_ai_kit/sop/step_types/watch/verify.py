@@ -4,7 +4,7 @@
 """Watch the camera until enough distinct frames confirm a check: :func:`judge` in a loop with an evidence window.
 
 A fast loop and nothing else: no reasoning, no questions. What the camera cannot establish comes in through the
-step's :class:`~.judge.StepContext`, which the loop reads on every frame and never writes (see :mod:`.escalator` for a
+step's :class:`~.judge.StepContext`, which the loop reads on every frame and never writes (see ``...escalation`` for a
 side task that fills it by asking the person).
 """
 

@@ -44,10 +44,10 @@ class SopRunner(Component):
     comes next; without it the summary has only the steps entered so far. ``decide`` classifies control requests
     (Clef or an LLM). ``output`` is where the runner speaks (``None``: the
     app's speech output). ``description`` is what a Router reads to send control requests here. ``controls`` and
-    ``messages`` override the default wording (:data:`CONTROLS`, :data:`MESSAGES`) key by key. ``step_context``
-    lists the context channels a step's escalator may read, by name (``voice.dialogue`` as ``dialogue``: the person
-    may already have said what a step would ask); each escalator picks what it reads (its ``context`` setting), the
-    run's summary as ``run``.
+    ``messages`` override the default wording (:data:`CONTROLS`, :data:`MESSAGES`) key by key.
+    ``escalation_context`` lists the context channels an escalator beside a step may read, by name (``voice.dialogue``
+    as ``dialogue``: the person may already have said what it would ask); each escalator picks what it reads (its
+    ``context`` setting), the run's summary as ``run``.
     """
 
     def __init__(
@@ -64,7 +64,7 @@ class SopRunner(Component):
         messages: Mapping[str, str] | None = None,
         plan: Sequence[tuple[str, str]] = (),
         context_budget_bytes: int = 8_000,
-        step_context: Sequence[ContextChannel] = (),
+        escalation_context: Sequence[ContextChannel] = (),
     ) -> None:
         super().__init__()
         unknown = set(controls or {}) - set(CONTROLS)
@@ -79,7 +79,7 @@ class SopRunner(Component):
         self._question = control_question
         self._messages = {**MESSAGES, **(messages or {})}
         self._plan = list(plan)
-        self._step_context = list(step_context)
+        self._escalation_context = list(escalation_context)
         self._budget = context_budget_bytes
         self.context = ContextValue(f"sop:{name}", scope="participant", budget_bytes=context_budget_bytes)
         """The run's summary, for a Conversation's ``context=``."""
@@ -165,16 +165,28 @@ class SopRunner(Component):
         return run
 
     async def _situation(self, p: Participant, sources: Sequence[str]) -> str:
-        channels = {channel.name: channel for channel in self._step_context}
+        known = self._sources()
         parts = []
-        for source in sources:
-            if source == "run":
-                parts.append(self.summary(p))
-            elif source in channels:
-                parts.append(await render(p, [channels[source]], budget_bytes=self._budget))
-            else:
-                raise ValueError(f"no context {source!r} for a step; there is 'run' and {sorted(channels)}")
+        for name in sources:
+            if name not in known:
+                raise ValueError(f"no context {name!r} for a step; there is {sorted(known)}")
+            parts.append(await known[name](p))
         return "\n\n".join(part for part in parts if part)
+
+    def _sources(self) -> dict[str, Callable[[Participant], Awaitable[str]]]:
+        """What an escalator may read, by name: ``run`` (this runner's summary) and each ``escalation_context``
+        channel (a channel named ``run`` replaces the summary)."""
+
+        async def summary(p: Participant) -> str:
+            return self.summary(p)
+
+        def channel(c: ContextChannel) -> Callable[[Participant], Awaitable[str]]:
+            async def text(p: Participant) -> str:
+                return await render(p, [c], budget_bytes=self._budget)
+
+            return text
+
+        return {"run": summary, **{c.name: channel(c) for c in self._escalation_context}}
 
     @property
     def _key(self) -> str:

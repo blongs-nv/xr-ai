@@ -18,53 +18,74 @@ and test kit); anything composed from those lives here, however common.
 | `xr_ai_kit.conversation` | `Conversation`: multi-turn answers from one role over the context channels it lists, spoken on an output, with a streaming tool loop over `@tool` functions (`xr_ai_app.tools` calls each tool); a `return_direct` tool's result (text, or a stream of text) is spoken as the answer and ends the loop; the loop speaks the answer, the tool returns it |
 | `xr_ai_kit.routing` | the routing names, and `choose` (one pick for a turn: `role.decide` plus focus, retries and the dialogue); the devkit's `destination:<name>` exercise target (`resolve_destination`, `destinations`) |
 | `xr_ai_kit.delegate` | `Delegate`, `Job`, `JobUpdate` and the job back ends: `FunctionBackend`, `A2ABackend` (remote agents over A2A; extra `xr-ai-kit[a2a]`) |
-| `xr_ai_kit.sop` | standard operating procedures: `judge` (one frame against a step's criteria), the steps `verify`, `timer`, `identify`, and `SopRunner`, which runs a procedure written as plain Python, one run per participant, with controls and a summary for the conversation (see below) |
+| `xr_ai_kit.sop` | standard operating procedures: steps (`steps`: what every step shares; `step_types`: `WatchStep`, `ReadStep`, `WaitStep`), an optional escalator beside a step (`escalation`), and `SopRunner`, which runs a procedure written as plain Python, one run per participant, with controls and a summary for the conversation (see below) |
 
 Routing by hand, without a `Router`, is the core's `role.decide`.
 
 ## Procedures (`xr_ai_kit.sop`)
 
-A procedure is an ordinary `async def` that calls its steps in order; each
-step is a plain coroutine wrapped in `await run.step(...)`:
+A procedure is an ordinary `async def` that runs its steps in order with
+`await run.step(step)`. A step's words live in a YAML file; its type, its
+models and its code hooks are chosen in code:
+
+```yaml
+fill_water:
+  does: fill the kettle with fresh water     # the plan the conversation reads
+  say: Fill the kettle and keep it in view.  # spoken as the step starts
+  done: Water is visible in the kettle.      # spoken when it finishes
+  watch:                                     # the watch step's own section
+    question: Describe whether water is visibly inside the kettle.
+    criteria: {instructions: Is there water?, positive: ..., negative: ..., unknown: ...}
+  escalation: The kettle has to be in view; the person knows if it is full.
+steep:
+  say: Steeping for {minutes:g} minutes.
+  done: The tea is ready.
+```
 
 ```python
-from xr_ai_kit.sop import Criteria, Run, SopRunner, timer, verify
+from xr_ai_kit.sop import Escalated, Escalator, Run, SopRunner, StepDefinitions, WaitStep, WatchStep
 
-WATER = Criteria(
-    "Is there water in the kettle?",
-    positive="Water is visible inside the kettle.",
-    negative="The kettle is visibly empty.",
-    unknown="No kettle is in view, or its inside cannot be seen.",
+STEPS = StepDefinitions.load("steps.yaml")
+fill = Escalated(
+    WatchStep.define(STEPS["fill_water"], observe=vlm, decide=classifier),
+    Escalator.define(STEPS["fill_water"], reasoning),
 )
+steep = WaitStep.define(STEPS["steep"]).lasting(180).format(minutes=3)
+STEPS.check_read()  # every section of the file has a reader
 
 async def make_tea(run: Run) -> None:
-    await run.step(
-        "fill_water",
-        lambda: verify(run.p.frames, observe=observe, decide=decide, question="Is there water in the kettle?",
-                       criteria=WATER, on_state=run.report()),
-        say="Fill the kettle with water.",
-    )
-    await run.step("steep", lambda: timer(180, on_state=run.report()), say="Steeping for three minutes.")
+    await run.step(fill)
+    await run.step(steep)
 
-tea = SopRunner("tea", make_tea, title="Tea guidance", decide=decide)
-app.add(tea)
+tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier, plan=STEPS.plan()))
 # tea.control is a router destination (start, stop, skip, restart; anything else passes on);
 # tea.context is the run's summary, for a Conversation's context=.
 ```
 
-- `judge(frame, ...)` is one frame's verdict: an observing role describes
-  the frame (free text, or a schema with an optional check in code), and a
-  deciding role (Clef or an LLM) picks positive, negative or unknown against
-  the criteria. `verify` loops it over fresh frames until N of the last M
-  decidable frames are positive; unknowns take no slot. An evaluation calls
-  `judge` on recorded frames, so it measures exactly what runs live.
-- `timer` counts down on the core clock (virtual time in tests), `identify`
-  reads into a schema and then derives a result, optionally from retrieved
-  text.
+- **Steps.** A step is any object with `id`, `say` and `run(io)`; `io` gives
+  it the camera frames, speech and a progress callback. Each step type names
+  the models it uses as its own fields (a watch step's `observe` and
+  `decide`), reads its own section of the YAML, and may have
+  `closing(result)`, the line spoken when it finishes. `WatchStep` labels a
+  frame every few seconds (observe, then decide) until N of the last M
+  decidable frames are positive; `ReadStep` reads into a schema and derives a
+  result; `WaitStep` counts down. An app's own step type works the same way.
+- **Escalation** is optional and separate from the steps. An `Escalator`
+  runs beside one step (`Escalated(step, escalator)`) and shares only a
+  `Link` with it: it reads the step's **outbound** context (what the step
+  does, its recent reports, what it knows) and gives it **inbound** context
+  (what the person said). It talks to the person itself: when the step is
+  stuck, it asks for what is missing or tells them what to bring into view.
+  A step type supports it by implementing `linked(link)`; the watch step does.
 - `SopRunner` owns the run: each step is its own task, so skip cancels only
   the step and stop cancels the run; a new turn never cancels either. Every
   change is traced, written to the participant's artifacts (`sop-<name>.jsonl`)
   when the app has an artifacts folder, and summarized in `runner.context`.
+  An escalator reads the channels named in `escalation_context` (the
+  dialogue) and the run's summary, as its settings choose.
+- `xr_ai_kit.sop.evaluation` runs one step at a time on a recorded scene and
+  a scripted person, scored by the step type's own scoring module (and the
+  escalator's, for an escalated step); it runs the step that ships.
 
 ## Routing helpers
 

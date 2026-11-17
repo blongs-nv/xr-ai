@@ -89,7 +89,7 @@ class Check:
     decision. ``reconcile(observation, known)`` returns the observation corrected with the known facts before anything
     judges it (a unit the person stated replacing one the model claims to read): known facts win in code, not by
     asking the deciding model to prefer them. ``needs`` is a schema of facts the check may need but the camera may
-    not establish (a display's unit, a vessel's contents); the step's escalator (:mod:`.escalator`) may ask the person
+    not establish (a display's unit, a vessel's contents); the step's escalator (``...escalation``) may ask the person
     for them.
     """
 

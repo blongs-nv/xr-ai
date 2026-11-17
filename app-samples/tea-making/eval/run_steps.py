@@ -25,27 +25,23 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-from procedure import build_steps  # noqa: E402
+from procedure import TeaModels, build_steps  # noqa: E402
 from xr_ai_app.devkit import fakes_from_file  # noqa: E402
-from xr_ai_kit.sop import (  # noqa: E402
-    Roles,
-    Step,
-    evaluation,  # noqa: E402
-)
+from xr_ai_kit.sop import Step, evaluation  # noqa: E402
 
 
 def build(values: Mapping[str, Any], fakes: Any) -> Mapping[str, Step[Any]]:
-    """The app's steps; on scripted roles for a plumbing run."""
-    import app  # the app's roles and settings  # noqa: PLC0415
+    """The app's steps; on scripted models for a plumbing run."""
+    import app  # the app's models and settings  # noqa: PLC0415
 
-    roles = app.ROLES
+    models = app.MODELS
     if fakes is not None:
-        roles = Roles(
+        models = TeaModels(
             observe=fakes.role("perceive"),
             decide=fakes.role("decide"),
             reason=fakes.role("answer_with_reasoning"),
         )
-    return build_steps(roles, app.SETTINGS.tea, **values)
+    return build_steps(models, app.SETTINGS.tea, **values)
 
 
 def main(argv: list[str] | None = None) -> int:

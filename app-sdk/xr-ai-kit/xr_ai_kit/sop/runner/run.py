@@ -3,7 +3,8 @@
 
 """One run of a procedure for one participant: what the procedure function receives and what a step touches.
 
-A :class:`Run` is a :class:`~..steps.step_api.StepIO`; :class:`~.sop_runner.SopRunner` creates one per start.
+A :class:`Run` is what a step touches (a :class:`~..steps.step_api.StepIO`) and what an escalator beside a step
+touches (an :class:`~..escalation.link.EscalationIO`); :class:`~.sop_runner.SopRunner` creates one per start.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from typing import Any, Literal, TypeVar
 
 from xr_ai_app import Participant, Sink
 
-from ..steps.step_api import Frames, Step
+from ..steps.step_api import Frames, Step, closing_line
 
 T = TypeVar("T")
 
@@ -82,8 +83,10 @@ class Run:
 
         ``step`` is a step object (``run.step(heat)``: its ``run(self)`` is the work and its ``say`` the instruction)
         or a step id with ``work``, any coroutine function of the app's own. ``say`` is spoken as the step starts
-        (it replaces the step's own). A step that fails fails the run (the exception propagates).
+        (it replaces the step's own); a step object's ``closing(result)``, if it has one, is spoken when it finishes
+        (not when it is skipped). A step that fails fails the run (the exception propagates).
         """
+        obj: object = None
         if isinstance(step, str):
             if work is None:
                 raise TypeError("run.step(step_id, work): work is required with a step id")
@@ -112,6 +115,8 @@ class Run:
             raise
         record.status = "done"
         await self._changed("step", step=step_id, status="done")
+        if closing := closing_line(obj, result):
+            await self.say(closing)
         return result
 
     def report(self, step_id: str | None = None) -> Callable[[Any], Awaitable[None]]:
@@ -161,8 +166,8 @@ class Run:
         return answer
 
     async def situation(self, sources: Sequence[str]) -> str:
-        """What is going on, for a step's escalator: ``run`` (the run's summary) and the runner's ``step_context``
-        channels by name, in the order given; a name the runner does not have is an error."""
+        """What is going on, for a step's escalator: ``run`` (the run's summary) and the runner's
+        ``escalation_context`` channels by name, in the order given; a name the runner does not have is an error."""
         return await self._situation(self.p, sources) if self._situation is not None else ""
 
     def answer(self, text: str) -> bool:

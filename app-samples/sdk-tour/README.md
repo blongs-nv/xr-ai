@@ -159,7 +159,7 @@ the `tests/` project, not the samples' own).
 | 07 | delegate-a2a | front end + another agent | `Delegate`, `A2ABackend`: long work runs on any A2A (Agent2Agent) agent; its progress and result become context and speech; cancel sends A2A `tasks/cancel` |
 | 08 | delegate-langgraph | front end + LangGraph | `GraphBackend`, `chat_model(role)` (adapter package) |
 | 09 | langchain-agent | a LangChain agent as a destination | `chat_model`, `langchain_tools`, `messages`, `stream_text`, `from_langchain` |
-| 10 | guided-procedure | a camera-verified checklist | `xr_ai_kit.sop`: `SopRunner` (controls, the run's state for the conversation), `StepDefinitions` (the steps' words, YAML), `WatchStep` (a camera check), `Escalator` (wired per camera step: tells the user what to show, or asks them), `WaitStep`; the procedure is a plain `async def` |
+| 10 | guided-procedure | a camera-verified checklist | `xr_ai_kit.sop`: `SopRunner` (controls, the run's state for the conversation), `StepDefinitions` (the steps' words, YAML), `WatchStep` (a camera check), `Escalated` and `Escalator` (an agent beside each camera step: tells the user what to show, or asks them), `WaitStep`; each step says its own lines; the procedure is a plain `async def` |
 | 11 | tracing | observability | trace events and ids, `app.trace.add(sink)`, `app.trace.span`, `trace:` in app.yaml |
 | 12 | procedure-capture | a recorder | `xr_ai_kit.sop.capture.ProcedureCapture`: "start capture", narrate, "stop capture"; frames, captions (activity, phase, change) and narration become an evidence packet, the input for writing a guide that 10 can run; `scenarios/demo.yaml` |
 

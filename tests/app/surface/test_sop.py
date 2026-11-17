@@ -22,16 +22,17 @@ from xr_ai_kit.sop import (
     Escalator,
     Facts,
     Judgment,
+    Link,
     Run,
     SopRunner,
     StepContext,
-    Watched,
     escalation_for,
     identify,
     judge,
     timer,
     verify,
 )
+from xr_ai_kit.sop.step_types.watch import outbound
 
 WATER = Criteria(
     "Is there water in the kettle?",
@@ -211,7 +212,7 @@ UNIT_GUIDANCE = "Some displays print no unit; the person knows which unit theirs
 
 
 class _IO:
-    """The part of a StepIO an escalator touches."""
+    """An escalator's EscalationIO: the person, and what is going on."""
 
     def __init__(self, *, ask=None, say=None, context: dict[str, str] | None = None) -> None:
         self._ask, self._say, self._context = ask, say, context or {}
@@ -228,15 +229,22 @@ class _IO:
         return "\n\n".join(self._context[s] for s in sources if s in self._context)
 
 
-def _watched(context: StepContext, labels: tuple[str, ...]) -> Watched:
-    return Watched("heat", _escalating_check(), context, lambda: _reports(*labels), clock.now())
+def _linked(context: StepContext, labels: tuple[str, ...]) -> Link:
+    """A link as a running watch step attaches it: its outbound context from ``context`` and ``labels``, inbound
+    context into ``context``."""
+    started, link = clock.now(), Link()
+    link.attach(
+        lambda: outbound("heat", _escalating_check(), _reports(*labels), context.facts, started),
+        lambda inbound: context.add(inbound.note, inbound.known),
+    )
+    return link
 
 
 def _escalator(role, *, reader=None, **settings) -> Escalator:
     return Escalator(UNIT_GUIDANCE, role, reader, EscalationSettings(every_s=0.01, min_gap_s=0, **settings))
 
 
-async def test_an_escalator_reads_the_checks_reports_and_only_adds_to_its_context() -> None:
+async def test_an_escalator_reads_the_steps_outbound_context_and_answers_only_inbound() -> None:
     models = FakeModels(
         {
             "reviewer": [
@@ -255,7 +263,7 @@ async def test_an_escalator_reads_the_checks_reports_and_only_adds_to_its_contex
 
     escalator = _escalator(models.role("reviewer"), reader=models.role("reader"))
     side = asyncio.ensure_future(
-        escalator.run(_watched(context, ("negative", "unknown", "unknown", "unknown")), _IO(ask=ask))
+        escalator.run(_linked(context, ("negative", "unknown", "unknown", "unknown")), _IO(ask=ask))
     )
     for _ in range(200):
         if len(models.calls("reviewer")) >= 2:
@@ -285,7 +293,7 @@ async def test_an_escalator_tells_the_person_what_to_do_without_waiting_for_an_a
     context = StepContext()
     escalator = _escalator(models.role("reviewer"), max_lines=1)
     labels = ("unknown", "unknown", "unknown", "unknown")
-    await asyncio.wait_for(escalator.run(_watched(context, labels), _IO(ask=ask, say=say)), 2)
+    await asyncio.wait_for(escalator.run(_linked(context, labels), _IO(ask=ask, say=say)), 2)
     assert said == ["Show me the kettle."]
     assert context.facts.text() == ""
 
@@ -294,7 +302,7 @@ async def test_an_escalator_stays_quiet_while_the_check_still_decides() -> None:
     models = FakeModels({"reviewer": []})
     escalator = _escalator(models.role("reviewer"))
     side = asyncio.ensure_future(
-        escalator.run(_watched(StepContext(), ("unknown", "negative", "negative", "unknown")), _IO())
+        escalator.run(_linked(StepContext(), ("unknown", "negative", "negative", "unknown")), _IO())
     )
     await asyncio.sleep(0.1)
     side.cancel()
@@ -309,7 +317,7 @@ async def test_each_escalator_reads_only_the_context_it_is_configured_with() -> 
         models = FakeModels({"reviewer": [{"action": "tell", "words": "Show me the kettle."}]})
         escalator = _escalator(models.role("reviewer"), max_lines=1, context=sources)
         io = _IO(say=lambda text: asyncio.sleep(0), context=io_context)
-        await asyncio.wait_for(escalator.run(_watched(StepContext(), labels), io), 2)
+        await asyncio.wait_for(escalator.run(_linked(StepContext(), labels), io), 2)
         prompts[tuple(sources)] = models.calls("reviewer")[0].prompt
         assert io.sources == ([list(sources)] if sources else [])
     assert "Fahrenheit" not in prompts[()] and "run 1" not in prompts[()]
@@ -322,7 +330,8 @@ async def test_each_escalator_reads_only_the_context_it_is_configured_with() -> 
 async def test_without_guidance_there_is_no_escalation() -> None:
     models = FakeModels({"reviewer": []})
     unknowns = _reports("unknown", "unknown", "unknown", "unknown")
-    assert await escalation_for(WATER_CHECK, models.role("reviewer"), unknowns, guidance="") is None
+    step = outbound("fill", WATER_CHECK, unknowns, Facts(), clock.now())
+    assert await escalation_for(step, models.role("reviewer"), guidance="") is None
     assert models.calls("reviewer") == []
 
 

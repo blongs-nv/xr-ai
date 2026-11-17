@@ -10,18 +10,22 @@ heat_water      the display reads at least the target (a watch step, on a
 start_steeping  tea touching the water in a real cup (a watch step)
 steep           a countdown for the recommended time (a wait step)
 
-build_steps makes the steps from steps.yaml's words and this app's schemas,
-and wires each camera step's escalator (the side agent that asks the person
-or tells them what to show), each configured on its own. The evaluation
+build_steps makes the steps from steps.yaml and this app's models and
+schemas. Each camera step has an escalator beside it (Escalated): an agent
+of its own, configured per step, that reads what the step sees and, when it
+cannot decide, asks the person or tells them what to show. The evaluation
 (eval/run_steps.py) builds them the same way, so the step it evaluates is
-the step that runs. The runner (SopRunner in app.py) owns the
-run, skips and stops. A skipped identification falls back to the default
-settings here, never inside a step.
+the step that runs. Each step says its own lines (steps.yaml's say and
+done); the procedure says only what depends on more than one step. The
+runner (SopRunner in app.py) owns the run, skips and stops. A skipped
+identification falls back to the default settings here, never inside a
+step.
 """
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -32,17 +36,19 @@ from tea import (
     TeaLabel,
     Thermometer,
     assessable,
-    reading_of,
     reconcile,
     target,
 )
+from xr_ai_app import Role
 from xr_ai_kit.sop import (
+    Escalated,
     EscalationSettings,
     Escalator,
-    Roles,
+    ReadStep,
     Run,
     Step,
     StepDefinitions,
+    WaitStep,
     WatchSettings,
     WatchStep,
 )
@@ -52,6 +58,18 @@ DEFINITIONS = StepDefinitions.load(
 )
 WATCHED = {"fill_water", "heat_water", "start_steeping"}
 """The camera steps, each with its own escalator."""
+
+
+@dataclass(frozen=True)
+class TeaModels:
+    """The models the tea steps use, by what each does (app.py's roles)."""
+
+    observe: Role
+    """Reads a frame: the label, the kettle, the display."""
+    decide: Role
+    """Labels an observation against a step's criteria (fast)."""
+    reason: Role
+    """Derives brewing settings; each escalator reasons with it."""
 
 
 class TeaSettings(BaseModel):
@@ -71,7 +89,7 @@ class TeaSettings(BaseModel):
 
 
 def build_steps(
-    roles: Roles,
+    models: TeaModels,
     settings: TeaSettings,
     *,
     temperature_c: float | None = None,
@@ -87,56 +105,64 @@ def build_steps(
     if unknown:
         raise ValueError(f"escalation_per_step: no step {sorted(unknown)}")
 
-    def escalator(step_id: str) -> Escalator:
-        changes = settings.escalation_per_step.get(step_id, {})
-        base = DEFINITIONS.escalator(step_id, roles.reason, settings.escalation)
-        return base.but(**changes)
+    def watching(step_id: str, **check: Any) -> WatchStep:
+        return WatchStep.define(
+            DEFINITIONS[step_id],
+            observe=models.observe,
+            decide=models.decide,
+            settings=watch,
+            **check,
+        )
 
-    def watching(step: WatchStep) -> WatchStep:
-        return step.escalating(escalator(step.id))
+    def escalated(step: WatchStep) -> Escalated:
+        helper = Escalator.define(
+            DEFINITIONS[step.id], models.reason, settings.escalation
+        )
+        changes = settings.escalation_per_step.get(step.id, {})
+        return Escalated(step, helper.but(**changes))
 
-    heat = DEFINITIONS.watch(
+    heat = watching(
         "heat_water",
-        roles,
-        watch,
         needs=DisplayFacts,
         observation_model=Thermometer,
         reconcile=reconcile,
         can_assess=assessable,
     )
     return {
-        "identify": DEFINITIONS.read(
-            "identify",
-            roles,
+        "identify": ReadStep.define(
+            DEFINITIONS["identify"],
+            observe=models.observe,
+            reason=models.reason,
             visual_model=TeaLabel,
             result_model=Brewing,
             ready=lambda tea: tea.tea_type is not None,
             interval_s=watch.interval_s,
             timeout_s=watch.timeout_s,
         ),
-        "fill_water": watching(DEFINITIONS.watch("fill_water", roles, watch)),
-        "heat_water": watching(
+        "fill_water": escalated(watching("fill_water")),
+        "heat_water": escalated(
             heat.format(
                 minimum=target(temperature_c, unit), temperature_c=temperature_c
             ).knowing(DisplayFacts(unit=unit) if unit else None)
         ),
-        "start_steeping": watching(
-            DEFINITIONS.watch("start_steeping", roles, watch)
-        ),
-        "steep": DEFINITIONS.wait("steep")
+        "start_steeping": escalated(watching("start_steeping")),
+        "steep": WaitStep.define(DEFINITIONS["steep"])
         .lasting(duration_s)
         .format(minutes=duration_s / 60),
     }
 
 
 def make_tea(
-    roles: Roles, settings: TeaSettings
+    models: TeaModels, settings: TeaSettings
 ) -> Callable[[Run], Awaitable[None]]:
-    """The procedure for SopRunner."""
+    """The procedure for SopRunner. Builds every step once first, so a
+    mistake in steps.yaml or the settings fails when the app starts."""
+    build_steps(models, settings)
+    DEFINITIONS.check_read()
 
     async def procedure(run: Run) -> None:
         # 1. Identify the tea and its settings; defaults when skipped.
-        found = await run.step(build_steps(roles, settings)["identify"])
+        found = await run.step(build_steps(models, settings)["identify"])
         brewing = found.result if found and found.result else Brewing()
         temperature_c = brewing.temperature_c or settings.default_temperature_c
         duration_s = brewing.duration_s or settings.default_duration_s
@@ -162,15 +188,11 @@ def make_tea(
 
         # 2-5, for this tea's settings.
         steps = build_steps(
-            roles, settings, temperature_c=temperature_c, duration_s=duration_s
+            models, settings, temperature_c=temperature_c, duration_s=duration_s
         )
-        if await run.step(steps["fill_water"]):
-            await run.say(DEFINITIONS.line("water_seen"))
-        if heated := await run.step(steps["heat_water"]):
-            reading = reading_of(heated)
-            await run.say(DEFINITIONS.line("hot_enough", reading=reading))
+        await run.step(steps["fill_water"])
+        await run.step(steps["heat_water"])
         await run.step(steps["start_steeping"])
-        if await run.step(steps["steep"]):
-            await run.say(DEFINITIONS.line("steeped"))
+        await run.step(steps["steep"])
 
     return procedure

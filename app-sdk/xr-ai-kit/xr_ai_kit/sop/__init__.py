@@ -5,12 +5,17 @@
 
 The package::
 
-    steps/            what every step shares: step_api.py (Step, StepIO, Frames, Roles) and
-                      step_definitions.py (StepDefinitions: steps written in YAML, and the steps built from them)
-    watch/            WatchStep: the fast camera check (judge, verify) and its per-step Escalator
-    read/             ReadStep: read the camera into a schema, derive a result (identify)
-    wait/             WaitStep: a countdown (timer)
-                      (each step type also has a *_scoring.py module, used only by the evaluation)
+    steps/            what every step shares, whatever its type
+      step_api.py         Step, StepIO, Frames, and how a step type plugs in (models, define, closing, scoring)
+      step_definitions.py StepDefinitions: a procedure's steps written in YAML (does, say, done; and sections,
+                          each read by its owner)
+    step_types/       the kit's step types, one package each; an app's own follow the same shape
+      watch/              WatchStep: the fast camera check (judge, verify); supports escalation
+      read/               ReadStep: read the camera into a schema, derive a result (identify)
+      wait/               WaitStep: a countdown (timer)
+                          (each also has a *_scoring.py module, used only by the evaluation)
+    escalation/       an agent of its own beside a step: it reads the step's outbound context, gives it inbound
+                      context, and talks to the person itself (Link, Escalator, Escalated); optional
     runner/           SopRunner (one run per participant, controls, the run's summary), Run (what the procedure
                       receives), the controls' default wording
     evaluation/       one step at a time on a recorded scene and a scripted person; imported only to evaluate
@@ -22,60 +27,82 @@ between them. Everything it needs is importable from here.
 A procedure::
 
     STEPS = StepDefinitions.load("steps.yaml")
-    fill = STEPS.watch("fill_water", roles).escalating(STEPS.escalator("fill_water", reasoning))
-    steep = STEPS.wait("steep")
+    fill = Escalated(
+        WatchStep.define(STEPS["fill_water"], observe=vlm, decide=classifier),
+        Escalator.define(STEPS["fill_water"], reasoning),
+    )
+    steep = WaitStep.define(STEPS["steep"])
 
     async def make_tea(run: Run) -> None:
-        if await run.step(fill):
-            await run.say(STEPS.line("water_seen"))
+        await run.step(fill)                  # says its say, then its done
         await run.step(steep.lasting(120))
+
+Each step names the models it uses as its own fields, so steps may use different models, and a step type of the
+app's own (any object with ``id``, ``say`` and ``run(io)``) runs and is evaluated like the kit's.
 """
 
 from __future__ import annotations
 
-from .read import Identification, ReadStep, identify
+from .escalation import (
+    STUCK,
+    Escalatable,
+    Escalated,
+    Escalation,
+    EscalationIO,
+    EscalationSettings,
+    Escalator,
+    Inbound,
+    Link,
+    Outbound,
+    Report,
+    escalation_for,
+    stuck,
+)
 from .runner import CONTROLS, MESSAGES, Run, SopRunner, StepRecord
-from .steps import Frames, Roles, Step, StepIO
-from .steps.step_definitions import StepDefinition, StepDefinitions
-from .wait import TimerState, WaitStep, timer
-from .watch import (
+from .step_types.read import Identification, ReadStep, ReadWords, identify
+from .step_types.wait import TimerState, WaitStep, timer
+from .step_types.watch import (
     LABELS,
     Check,
     Criteria,
-    Escalation,
-    EscalationSettings,
-    Escalator,
     Facts,
     Judgment,
     Label,
     StepContext,
     Verification,
-    Watched,
     WatchSettings,
     WatchStep,
-    escalation_for,
+    WatchWords,
     judge,
-    stuck,
     verify,
 )
+from .steps import Frames, Step, StepDefinition, StepDefinitions, StepIO
 
 __all__ = [
     "CONTROLS",
     "Check",
     "Criteria",
+    "Escalatable",
+    "Escalated",
     "Escalation",
+    "EscalationIO",
     "EscalationSettings",
     "Escalator",
     "Facts",
     "Frames",
     "Identification",
+    "Inbound",
     "Judgment",
     "LABELS",
     "Label",
+    "Link",
     "MESSAGES",
+    "Outbound",
     "ReadStep",
-    "Roles",
+    "ReadWords",
+    "Report",
     "Run",
+    "STUCK",
     "SopRunner",
     "Step",
     "StepContext",
@@ -88,7 +115,7 @@ __all__ = [
     "WaitStep",
     "WatchSettings",
     "WatchStep",
-    "Watched",
+    "WatchWords",
     "escalation_for",
     "identify",
     "judge",

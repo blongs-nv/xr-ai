@@ -3,28 +3,31 @@
 
 # The printer pre-flight's step definitions (xr_ai_kit.sop.StepDefinitions).
 # One entry per step, keyed by its id; app.py chooses each step's type, its
-# escalator and their order.
+# models, its escalator and their order. Every step may have:
 #   does        what the person does, for the plan the conversation reads
 #   say         spoken as the step starts
-#   question    a camera step: what the observing model describes per frame
-#   criteria    a camera step: how the deciding model labels a description
-#   escalation  a camera step: when the camera cannot tell, what the person
-#               can be told or asked (read by the step's escalator)
-# `lines:` holds everything else the procedure says.
+#   done        spoken when it finishes
+# and sections, each read by its owner:
+#   watch       a camera step's question (what the observing model describes
+#               per frame) and criteria (how the deciding model labels it)
+#   escalation  when the camera cannot tell, what the person can be told or
+#               asked (read by the step's escalator)
 
 bed_clear:
   does: clear everything off the print bed
   say: First, make sure the print bed is clear.
-  question: >-
-    Describe the 3D printer's print bed: whether it is in view, and whether
-    anything (a print, a spool, a tool, debris) lies on it.
-  criteria:
-    instructions: Is the print bed clear?
-    positive: The print bed is in view and nothing lies on it.
-    negative: Something lies on the print bed.
-    unknown: >-
-      The print bed is not in view, is partly hidden, or the view is too
-      dark or blurred to tell.
+  done: The bed is clear.
+  watch:
+    question: >-
+      Describe the 3D printer's print bed: whether it is in view, and whether
+      anything (a print, a spool, a tool, debris) lies on it.
+    criteria:
+      instructions: Is the print bed clear?
+      positive: The print bed is in view and nothing lies on it.
+      negative: Something lies on the print bed.
+      unknown: >-
+        The print bed is not in view, is partly hidden, or the view is too
+        dark or blurred to tell.
   escalation: >-
     The whole print bed has to be in the camera's view. When it is not, tell
     the person to point the camera at the print bed. The person can also say
@@ -33,16 +36,18 @@ bed_clear:
 door_closed:
   does: close the printer door
   say: Close the printer door.
-  question: >-
-    Describe the 3D printer's door or enclosure front: whether it is in view,
-    and whether it is open or closed.
-  criteria:
-    instructions: Is the printer door closed?
-    positive: The printer door is in view and fully closed.
-    negative: The printer door is open or ajar.
-    unknown: >-
-      The door is not in view, is partly hidden, or the view is too dark or
-      blurred to tell.
+  done: The door is closed.
+  watch:
+    question: >-
+      Describe the 3D printer's door or enclosure front: whether it is in view,
+      and whether it is open or closed.
+    criteria:
+      instructions: Is the printer door closed?
+      positive: The printer door is in view and fully closed.
+      negative: The printer door is open or ajar.
+      unknown: >-
+        The door is not in view, is partly hidden, or the view is too dark or
+        blurred to tell.
   escalation: >-
     The printer's door has to be in the camera's view. When it is not, tell
     the person to point the camera at the door. The person can also say
@@ -51,8 +56,5 @@ door_closed:
 warm_up:
   does: wait 90 seconds while the printer warms up (a timer)
   say: Warming up for ninety seconds.
+  done: Warm-up done. You can start the print.
 
-lines:
-  bed_clear: The bed is clear.
-  door_closed: The door is closed.
-  warmed_up: Warm-up done. You can start the print.
