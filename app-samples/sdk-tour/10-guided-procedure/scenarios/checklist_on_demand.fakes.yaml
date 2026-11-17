@@ -1,9 +1,10 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-decide: [procedure, start]
+# decide: the router, the runner's control, then one label per camera look.
+decide: [preflight, start, positive, positive, positive, positive]
 perceive:
-  - {seen: "The bed is clear.", state: clear}
-  - {seen: "The bed is clear.", state: clear}
-  - {seen: "The door is closed.", state: closed}
-  - {seen: "The door is closed.", state: closed}
+  - The print bed is in view and empty.
+  - The print bed is in view and empty.
+  - The printer door is closed.
+  - The printer door is closed.

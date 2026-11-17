@@ -3,30 +3,29 @@
 
 """Guided procedure: a spoken checklist the camera verifies.
 
-SHAPE: a PROCEDURE (xr_ai_procedures). A state machine walks the user
-steps; each camera step is a structured read plus a judge in plain code; the
-user can say start, stop, next, back, or tell it facts. This is a small
-tea guide, with no retrieval.
+SHAPE: a PROCEDURE (xr_ai_kit.sop). The procedure is a plain async function
+that runs its steps in order; a SopRunner runs it for each participant who
+starts it, and the user can say start, stop, skip or restart, or ask about
+it. Each camera step judges a frame a second (observe, then decide) until two
+of the last three agree; when the camera cannot tell for a while, a side
+escalation tells the user what to show, or asks them.
 
-  procedures                     this file
+  xr_ai_kit.sop                  this file
   ---------------------------    -------------------------------------------
-  GuidedProcedure (component)    the steps, their schemas and judges
-  read_check, Timer (steps)      sop.yaml: the words and the order
-  Watching (debounce policy)
-  controls: start | stop | next | back | info, gated by state
+  SopRunner (component)          preflight(run): the steps and their order
+  WatchStep, WaitStep (steps)    sop.yaml: the words (Wording)
+  controls: start | stop |       the roles each camera step uses
+    skip | restart
 
-The procedure publishes a summary of where it is to `procedure.channel`; the
-conversation reads it, so "what step am I on?" just works.
+The runner publishes a summary of where the run is to `preflight.context`;
+the conversation reads it, so "what step am I on?" just works.
 """
 
 from pathlib import Path
-from typing import Literal
 
-from pydantic import BaseModel, Field
 from xr_ai_app import App, Hub, PerConnection, Voice
 from xr_ai_kit import Conversation, OneShotDestination, Router
-from xr_ai_procedures import GuidedProcedure, Sop, StepDef, Timer
-from xr_ai_procedures.perception import Watching, read_check
+from xr_ai_kit.sop import Roles, Run, SopRunner, WatchSettings, Wording
 
 HERE = Path(__file__).resolve().parent
 
@@ -37,71 +36,39 @@ decide = app.role("decide")
 reasoning = app.role("answer_with_reasoning")
 voice = app.add(Voice(summarize=app.role("answer_lightweight")))
 
-WATCHING = Watching(required_positives=2, window=3, stuck_after_s=20)
 WARM_UP_S = 90
 
+# ---- the steps: words from sop.yaml, types and settings here ----
+WORDS = Wording.load(HERE / "sop.yaml")
+# observe describes a frame, decide labels it, reason runs the escalation.
+ROLES = Roles(observe=perceive, decide=decide, reason=reasoning)
+# A look a second; done when two of the last three decided looks are yes.
+WATCH = WatchSettings(required=2, window=3, interval_s=1.0)
 
-# ---- the camera steps: what to read, and how to judge it ----
-class Bed(BaseModel):
-    seen: str = Field(description="One short sentence about the print bed.")
-    state: Literal["clear", "objects_on_it", "cannot_tell"]
-
-
-class Door(BaseModel):
-    seen: str = Field(description="One short sentence about the door.")
-    state: Literal["closed", "open", "cannot_tell"]
-
-
-def camera_step(question: str, reads: type[BaseModel], ok: str):
-    def build(p, run, spec):
-        step = read_check(
-            frames=p.frames,
-            perceive=perceive,
-            question=question,
-            reads=reads,
-            judge=lambda r: {ok: "yes", "cannot_tell": "unknown"}.get(
-                r.state, "no"
-            ),
-            text=lambda r: r.seen,
-            watching=WATCHING,
-        )
-        return step, ()  # the key: nothing the user says changes this step
-
-    return build
+bed_clear = WORDS.watch("bed_clear", ROLES, WATCH)
+door_closed = WORDS.watch("door_closed", ROLES, WATCH)
+warm_up = WORDS.wait("warm_up", WARM_UP_S)
 
 
-STEPS = [
-    StepDef(
-        "bed_clear",
-        camera_step("Is the print bed clear?", Bed, "clear"),
-    ),
-    StepDef(
-        "door_closed",
-        camera_step("Is the printer door closed?", Door, "closed"),
-    ),
-    StepDef("warm_up", lambda p, run, spec: (Timer(WARM_UP_S), ())),
-]
-
-
-def lengths(run):
-    """Lines for the summary the conversation reads: how long steps take."""
-    if run.index < len(STEPS) - 1:  # before the warm-up
-        return [
-            f"warm_up (a {WARM_UP_S}-second timer) has not started; it starts "
-            "after the camera checks, which take as long as the user needs. "
-            "No time is running yet."
-        ]
-    return [f"warm_up is a {WARM_UP_S}-second timer."]
+async def preflight(run: Run) -> None:
+    """The procedure: ordinary code. A skipped step returns None."""
+    if await run.step(bed_clear):
+        await run.say(WORDS.line("bed_clear"))
+    if await run.step(door_closed):
+        await run.say(WORDS.line("door_closed"))
+    if await run.step(warm_up):
+        await run.say(WORDS.line("warmed_up"))
 
 
 procedure = app.add(
-    GuidedProcedure(
-        sop=Sop.load(HERE / "sop.yaml"),
-        steps=STEPS,
-        output=voice,
+    SopRunner(
+        "preflight",
+        preflight,
+        title="Printer pre-flight",
         decide=decide,
-        reason=reasoning,
-        describe=lengths,
+        output=voice,
+        plan=WORDS.plan(),  # the steps ahead, for the conversation
+        step_context=[voice.dialogue],  # what the escalation also reads
     )
 )
 # Spoken answers; the checklist's state (in the context) is the only source
@@ -118,7 +85,7 @@ conversation = app.add(
         role=reasoning,
         output=voice,
         instructions=INSTRUCTIONS,
-        context=[voice.dialogue, procedure.channel],
+        context=[voice.dialogue, procedure.context],
     )
 )
 chat = OneShotDestination(
@@ -128,7 +95,7 @@ chat = OneShotDestination(
     'is in it (it reads the checklist\'s state): "what step am I on?", '
     '"what\'s next?", "which steps are done?", "how long is left?", "what '
     'temperature for PLA?". Not commands to the checklist: not "start the '
-    'checklist", "next step", "skip this", "go back", "stop".',
+    'checklist", "next step", "skip this", "stop".',
     conversation.answer,
 )
 routing = app.add(

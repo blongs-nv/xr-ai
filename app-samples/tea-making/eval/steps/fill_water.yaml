@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Water visible in the kettle. The kettle was filled before the recording
+# started, so these are traps only.
+step: fill_water
+cases:
+  - name: label_held_up
+    scene: [4, 16]
+    expect: {completes: false}
+    why: the kettle's inside is not visible
+  - name: pouring_into_the_mug
+    scene: [359, 364]
+    why: water is visible, leaving the kettle; either outcome is fine

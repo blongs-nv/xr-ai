@@ -964,7 +964,6 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
 - Runtime dependencies:
   - `xr-ai-app[video]` → [`xr-ai-app`](app-sdk/xr-ai-app/) (local, editable)
   - `xr-ai-kit[a2a,langchain]` → [`xr-ai-kit`](app-sdk/xr-ai-kit/) (local, editable)
-  - `xr-ai-procedures` → [`xr-ai-procedures`](app-sdk/xr-ai-procedures/) (local, editable)
   - `a2a-sdk[http-server]>=1.2,<2`
   - `xr-ai-agent-runtime` → [`xr-ai-agent-runtime`](agent-sdk/xr-ai-runtime/) (local, editable)
   - `xr-ai-interaction` → [`xr-ai-interaction`](agent-sdk/xr-ai-interaction/) (local, editable)
@@ -1061,9 +1060,10 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
     - `xr-ai-app-samples-sdk-tour-model-servers` → [`xr-ai-app-samples-sdk-tour-model-servers`](app-samples/sdk-tour/model-servers/) (local, editable)
     - `xr-ai-app-sample-simple-vlm` → [`xr-ai-app-sample-simple-vlm`](app-samples/simple-vlm/) (local, editable)
     - `xr-ai-app-sample-simple-vlm-model-servers` → [`xr-ai-app-sample-simple-vlm-model-servers`](app-samples/simple-vlm/model-servers/) (local, editable)
+    - `xr-ai-app-sample-tea-making` → [`xr-ai-app-sample-tea-making`](app-samples/tea-making/) (local, editable)
+    - `xr-ai-app-sample-tea-making-model-servers` → [`xr-ai-app-sample-tea-making-model-servers`](app-samples/tea-making/model-servers/) (local, editable)
     - `xr-ai-app[video]` → [`xr-ai-app`](app-sdk/xr-ai-app/) (local, editable)
     - `xr-ai-kit[a2a,langchain]` → [`xr-ai-kit`](app-sdk/xr-ai-kit/) (local, editable)
-    - `xr-ai-procedures` → [`xr-ai-procedures`](app-sdk/xr-ai-procedures/) (local, editable)
     - `xr-ai-eval-adapters` → [`xr-ai-eval-adapters`](evals/adapters/) (local, editable)
     - `xr-ai-eval` → [`xr-ai-eval`](evals/runner/) (local, editable)
     - `clef-server` → [`clef-server`](services/clef-server/) (local, editable)
@@ -1294,10 +1294,8 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
 - Build dependencies:
   - `hatchling`
 - Runtime dependencies:
-  - `pydantic>=2.10`
   - `xr-ai-kit` → [`xr-ai-kit`](app-sdk/xr-ai-kit/) (local, editable)
   - `xr-ai-app[video]` → [`xr-ai-app`](app-sdk/xr-ai-app/) (local, editable)
-  - `xr-ai-procedures` → [`xr-ai-procedures`](app-sdk/xr-ai-procedures/) (local, editable)
 - Optional dependency groups: none
 - Commands:
   - `guided_procedure_app` → `app:app.run`
@@ -1322,7 +1320,7 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
 - Runtime dependencies:
   - `pydantic>=2.10`
   - `xr-ai-app` → [`xr-ai-app`](app-sdk/xr-ai-app/) (local, editable)
-  - `xr-ai-procedures` → [`xr-ai-procedures`](app-sdk/xr-ai-procedures/) (local, editable)
+  - `xr-ai-kit` → [`xr-ai-kit`](app-sdk/xr-ai-kit/) (local, editable)
 - Optional dependency groups: none
 - Commands:
   - `procedure_capture_app` → `app:app.run`
@@ -1363,6 +1361,35 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
 - Commands:
   - `simple_vlm_model_servers` → `main:run`
 
+#### `xr-ai-app-sample-tea-making` — [`app-samples/tea-making/`](app-samples/tea-making/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `Pillow>=13.0.0`
+  - `pydantic>=2`
+  - `pyyaml>=6`
+  - `xr-ai-kit` → [`xr-ai-kit`](app-sdk/xr-ai-kit/) (local, editable)
+  - `xr-ai-launcher` → [`xr-ai-launcher`](utils/xr-ai-launcher/) (local, editable)
+  - `xr-ai-logging` → [`xr-ai-logging`](utils/xr-ai-logging/) (local, editable)
+  - `xr-ai-app` → [`xr-ai-app`](app-sdk/xr-ai-app/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `tea_making` → `main:run`
+  - `tea_making_app` → `app:main`
+
+#### `xr-ai-app-sample-tea-making-model-servers` — [`app-samples/tea-making/model-servers/`](app-samples/tea-making/model-servers/)
+
+- Python: `>=3.11,<3.15`
+- Build dependencies:
+  - `hatchling`
+- Runtime dependencies:
+  - `xr-ai-model-server-stack` → [`xr-ai-model-server-stack`](utils/xr-ai-model-server-stack/) (local, editable)
+- Optional dependency groups: none
+- Commands:
+  - `tea_making_model_servers` → `main:run`
+
 ### App Sdk
 
 #### `xr-ai-app` — [`app-sdk/xr-ai-app/`](app-sdk/xr-ai-app/)
@@ -1396,6 +1423,7 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
   - `hatchling`
 - Runtime dependencies:
   - `pydantic>=2.10`
+  - `pyyaml>=6.0`
   - `xr-ai-app` → [`xr-ai-app`](app-sdk/xr-ai-app/) (local, editable)
 - Optional dependency groups:
   - `a2a`:
@@ -1404,19 +1432,6 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
   - `langchain`:
     - `langchain-core>=1.0,<2`
     - `langgraph>=1.0,<2`
-- Commands: none
-
-#### `xr-ai-procedures` — [`app-sdk/xr-ai-procedures/`](app-sdk/xr-ai-procedures/)
-
-- Python: `>=3.11,<3.15`
-- Build dependencies:
-  - `hatchling`
-- Runtime dependencies:
-  - `pydantic>=2.10`
-  - `pyyaml>=6.0`
-  - `xr-ai-kit` → [`xr-ai-kit`](app-sdk/xr-ai-kit/) (local, editable)
-  - `xr-ai-app` → [`xr-ai-app`](app-sdk/xr-ai-app/) (local, editable)
-- Optional dependency groups: none
 - Commands: none
 
 ### Evals

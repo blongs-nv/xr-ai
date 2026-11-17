@@ -3,9 +3,9 @@
 
 """Exercise one piece of a sample on a window of a video, through its real code, the app unchanged.
 
-The clip is synthetic (cv2-written, a few seconds of solid colour); the vision role is scripted, so what is checked
-is the harness: the step is built as the procedure would, frames from the window reach it, its outcome and the clip
-time it ended at come back, and so do its report lines and model calls.
+The clip is synthetic (cv2-written, a few seconds of solid colour); the roles are scripted, so what is checked is the
+harness: a unit runs sample 10's own camera step (an ``xr_ai_kit.sop`` step run on its own), frames from the window
+reach it, and its outcome, the clip time it ended at and its model calls come back.
 """
 
 from __future__ import annotations
@@ -17,10 +17,41 @@ import pytest
 from xr_ai_app.devkit import Probe, exercise, resolve_target
 from xr_ai_app.devkit.__main__ import main as devkit_main
 from xr_ai_app.testing import FakeModels
+from xr_ai_kit.sop import Run
 
-BED = {"seen": "The bed has a spool on it.", "state": "objects_on_it"}
-CLEAR = {"seen": "The bed is clear.", "state": "clear"}
-DOOR_OPEN = {"seen": "The door is open.", "state": "open"}
+BED = "A spool lies on the print bed."
+CLEAR = "The print bed is in view and empty."
+DOOR_OPEN = "The printer door is open."
+
+UNIT_FILE = """
+from dataclasses import dataclass
+
+from xr_ai_app import trace
+
+
+@dataclass
+class Done:
+    frames: int
+
+
+async def three_frames(p, probe):
+    n = 0
+    async for _ in p.frames.every(0.5):
+        n += 1
+        await probe.report(f"frame {n}")
+        if n == 3:
+            trace.emit("unit", "three_frames", frames=n)
+            return Done(n)
+"""
+
+
+def step_unit(step):  # noqa: ANN001, ANN201
+    """A unit that runs one step of a procedure on its own, with a run as its io (as the runner would)."""
+
+    async def unit(p, probe):  # noqa: ANN001, ANN202
+        return await step.run(Run(p, 1, name="exercise"))
+
+    return unit
 
 
 @pytest.fixture(scope="module")
@@ -39,33 +70,31 @@ def clip(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 async def test_a_step_runs_on_a_window_until_done(load_sample, clip: Path) -> None:
     m = load_sample("10-guided-procedure")
-    models = FakeModels({"perceive": [BED, CLEAR, CLEAR, CLEAR, CLEAR]})
-    unit = resolve_target(m.app, "step:bed_clear")
-    run = await exercise(m.app, unit, target="step:bed_clear", video=clip, from_s=2.0, to_s=7.0, fps=2, models=models)
-    assert run.status == "returned" and run.outcome == "Done", run.to_json()
+    models = FakeModels({"perceive": [BED, CLEAR, CLEAR], "decide": ["negative", "positive", "positive"]})
+    unit = step_unit(m.bed_clear)
+    run = await exercise(m.app, unit, target="bed_clear", video=clip, from_s=2.0, to_s=7.0, fps=2, models=models)
+    assert run.status == "returned" and run.outcome == "Verification", run.to_json()
+    assert run.result.status == "completed" and run.result.positives == 2
     assert run.ended_at_s is not None and 2.0 <= run.ended_at_s <= 7.0
-    assert [text for _, text in run.reports][:2] == ["The bed has a spool on it.", "The bed is clear."]
-    assert len(run.calls) == len(models.calls("perceive")) >= 3
-    assert all(call["name"] == "perceive" for call in run.calls)
+    assert [call["name"] for call in run.calls] == ["perceive", "decide"] * 3
+    assert models.calls("perceive")[0].prompt == m.bed_clear.check.question
 
 
 async def test_a_step_that_never_finishes_is_unfinished(load_sample, clip: Path) -> None:
     m = load_sample("10-guided-procedure")
-    models = FakeModels({"perceive": [DOOR_OPEN] * 10})
-    unit = resolve_target(m.app, "step:door_closed")
+    models = FakeModels({"perceive": [DOOR_OPEN] * 10, "decide": ["negative"] * 10})
+    unit = step_unit(m.door_closed)
     run = await exercise(m.app, unit, video=clip, from_s=0.0, to_s=2.0, fps=2, models=models, linger_s=0.5)
     assert run.status == "unfinished" and run.outcome == "unfinished"
-    assert [text for _, text in run.reports][0] == "The door is open."  # it was looking
+    assert len(models.calls("decide")) >= 1  # it was looking
 
 
 async def test_unknown_targets_say_what_exists(load_sample) -> None:
-    m = load_sample("10-guided-procedure")
-    with pytest.raises(ValueError, match="bed_clear"):
-        resolve_target(m.app, "step:no_such_step")
-    with pytest.raises(ValueError, match="no facts model"):
-        resolve_target(m.app, "step:bed_clear", {"facts": {"warm_up": {"x": 1}}})
+    m = load_sample("05-manual-dispatch")
     with pytest.raises(ValueError, match="unknown target kind"):
         resolve_target(m.app, "nope:x")
+    with pytest.raises(ValueError, match="fn targets are"):
+        resolve_target(m.app, "fn:no_module")
 
 
 async def test_a_router_destination_runs_on_one_turn(load_sample) -> None:
@@ -114,13 +143,15 @@ async def test_any_function_with_context_injected(load_sample, clip: Path) -> No
 
 def test_cli_checks_the_outcome_and_the_window(load_sample, clip: Path, tmp_path: Path, capsys) -> None:  # noqa: ANN001
     sample = Path(__file__).resolve().parents[3] / "app-samples" / "sdk-tour" / "10-guided-procedure"
+    units = tmp_path / "units.py"
+    units.write_text(UNIT_FILE)
     fakes = tmp_path / "fakes.yaml"
-    fakes.write_text(json.dumps({"perceive": [CLEAR] * 6}))
+    fakes.write_text(json.dumps({}))
     load_sample("10-guided-procedure")  # the guard profile, so nothing reaches a real endpoint
     args = [
         "exercise",
         str(sample / "app.py"),
-        "step:bed_clear",
+        f"fn:{units}:three_frames",
         "--video",
         str(clip),
         "--from",
@@ -136,7 +167,7 @@ def test_cli_checks_the_outcome_and_the_window(load_sample, clip: Path, tmp_path
     ]
     assert devkit_main([*args, "--between", "3", "7"]) == 0
     saved = json.loads((tmp_path / "out" / "exercise.json").read_text())
-    assert saved["outcome"] == "Done" and saved["result"]["type"] == "Done"
+    assert saved["outcome"] == "Done" and saved["result"] == {"type": "Done", "frames": 3}
     assert (tmp_path / "out" / "trace.jsonl").read_text().strip()
     assert devkit_main([*args, "--between", "0", "1"]) == 1  # ended outside the annotated window
     capsys.readouterr()
@@ -144,6 +175,6 @@ def test_cli_checks_the_outcome_and_the_window(load_sample, clip: Path, tmp_path
 
 async def test_a_clip_that_cannot_play_is_an_error_not_an_outcome(load_sample, tmp_path: Path) -> None:
     m = load_sample("10-guided-procedure")
-    unit = resolve_target(m.app, "step:bed_clear")
+    unit = step_unit(m.bed_clear)
     with pytest.raises(FileNotFoundError):
         await exercise(m.app, unit, video=tmp_path / "missing.mp4", models=FakeModels({}), linger_s=0.2)

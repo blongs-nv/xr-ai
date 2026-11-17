@@ -15,12 +15,12 @@ requires-python = ">=3.11,<3.15"
 dependencies = [
     "pydantic>=2.10",
     "xr-ai-app",
-    "xr-ai-procedures",
+    "xr-ai-kit",
 ]
 
 [tool.uv.sources]
-xr-ai-app        = { path = "../../../app-sdk/xr-ai-app", editable = true }
-xr-ai-procedures = { path = "../../../app-sdk/xr-ai-procedures", editable = true }
+xr-ai-app = { path = "../../../app-sdk/xr-ai-app", editable = true }
+xr-ai-kit = { path = "../../../app-sdk/xr-ai-kit", editable = true }
 
 [project.scripts]
 procedure_capture_app = "app:app.run"

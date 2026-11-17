@@ -3,10 +3,10 @@
 
 """Run a procedure written as ordinary Python, one run per participant, with start/stop/skip/restart controls.
 
-The procedure is an ``async def procedure(run)`` that calls its steps in order, each as ``await run.step(...)``
-around an ordinary coroutine (a :func:`verify`, a :func:`timer`, an :func:`identify`, or the app's own code). There
-is no step language and no workflow engine: the order, the branches and the data passed between steps are the
-function's own code.
+The procedure is an ``async def procedure(run)`` that runs its steps in order, each as ``await run.step(step)``
+(a :mod:`.steps` object: a watch, a read, a wait) or ``await run.step(step_id, work)`` around any coroutine of the
+app's own. There is no step language and no workflow engine: the order, the branches and the data passed between
+steps are the function's own code. :class:`Run` is what a step touches (it is a :class:`~.step.StepIO`).
 
 What the runner adds:
 
@@ -24,15 +24,16 @@ What the runner adds:
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeVar
 
 from xr_ai_app import Component, ContextValue, Participant, Role, Sink, Turn, clock, trace
+from xr_ai_app.context import ContextChannel, render
 
 from ..routing import DestinationResult, RouterDestination
+from .step import Frames, Step
 
 T = TypeVar("T")
 
@@ -109,6 +110,7 @@ class Run:
 
     output: Sink | None = field(default=None, repr=False)
     _publish: Callable[..., Awaitable[None]] | None = field(default=None, repr=False)
+    _situation: Callable[[Participant], Awaitable[str]] | None = field(default=None, repr=False)
     _answer: asyncio.Future[str] | None = field(default=None, repr=False)
 
     @property
@@ -118,32 +120,37 @@ class Run:
             return self.steps[-1]
         return None
 
+    @property
+    def frames(self) -> Frames:
+        """The participant's camera frames."""
+        return self.p.frames
+
     async def step(
         self,
-        step_id: str,
-        work: Callable[[], Awaitable[T]],
+        step: Step[T] | str,
+        work: Callable[[], Awaitable[T]] | None = None,
         *,
         say: str | None = None,
-        alongside: Sequence[Callable[[], Awaitable[Any]]] = (),
     ) -> T | None:
-        """Run one step: ``work()`` as its own task; return its result, or ``None`` when the user skipped it.
+        """Run one step as its own task; return its result, or ``None`` when the user skipped it.
 
-        ``say`` is spoken as the step starts (its instruction). A step that fails fails the run (the exception
-        propagates). Report the step's progress by passing :meth:`report` as its flow's ``on_state``. ``alongside``
-        are companions that run for the step's lifetime only (for example :func:`~.escalate.gather`): each is its
-        own task, cancelled when the step ends however it ends; they never decide the step, and one that fails is
-        logged and reported without failing it.
+        ``step`` is a step object (``run.step(heat)``: its ``run(self)`` is the work and its ``say`` the instruction)
+        or a step id with ``work``, any coroutine function of the app's own. ``say`` is spoken as the step starts
+        (it replaces the step's own). A step that fails fails the run (the exception propagates).
         """
+        if isinstance(step, str):
+            if work is None:
+                raise TypeError("run.step(step_id, work): work is required with a step id")
+            step_id = step
+        else:
+            step_id, say, obj = step.id, say if say is not None else step.say, step
+            work = lambda: obj.run(self)  # noqa: E731
         record = StepRecord(step_id, "running")
         self.steps.append(record)
         await self._changed("step", step=step_id, status="running")
         if say:
             await self.say(say)
         task = self.p.spawn(work(), key=f"sop:{self.name}:step", supersede=True)
-        companions = [
-            self.p.spawn(make(), key=f"sop:{self.name}:alongside:{i}", supersede=True)
-            for i, make in enumerate(alongside)
-        ]
         try:
             result = await task
         except asyncio.CancelledError:
@@ -157,12 +164,6 @@ class Run:
             record.status = "failed"
             await self._changed("step", step=step_id, status="failed")
             raise
-        finally:
-            for companion in companions:
-                companion.cancel()
-            for companion in companions:
-                with contextlib.suppress(BaseException):
-                    await companion
         record.status = "done"
         await self._changed("step", step=step_id, status="done")
         return result
@@ -213,6 +214,10 @@ class Run:
         await self._changed("answer", question=question, answer=answer)
         return answer
 
+    async def situation(self) -> str:
+        """What is going on, for a step's reasoning: the run's summary and the runner's ``step_context``."""
+        return await self._situation(self.p) if self._situation is not None else ""
+
     def answer(self, text: str) -> bool:
         """Give the pending question its answer; whether one was pending."""
         if self._answer is None or self._answer.done():
@@ -232,7 +237,9 @@ class SopRunner(Component):
     comes next; without it the summary has only the steps entered so far. ``decide`` classifies control requests
     (Clef or an LLM). ``output`` is where the runner speaks (``None``: the
     app's speech output). ``description`` is what a Router reads to send control requests here. ``controls`` and
-    ``messages`` override the default wording (:data:`CONTROLS`, :data:`MESSAGES`) key by key.
+    ``messages`` override the default wording (:data:`CONTROLS`, :data:`MESSAGES`) key by key. ``step_context``
+    lists context channels a step's reasoning reads besides the run's summary (the recent dialogue, where the person
+    may already have said what a step would ask).
     """
 
     def __init__(
@@ -249,6 +256,7 @@ class SopRunner(Component):
         messages: Mapping[str, str] | None = None,
         plan: Sequence[tuple[str, str]] = (),
         context_budget_bytes: int = 8_000,
+        step_context: Sequence[ContextChannel] = (),
     ) -> None:
         super().__init__()
         unknown = set(controls or {}) - set(CONTROLS)
@@ -263,6 +271,8 @@ class SopRunner(Component):
         self._question = control_question
         self._messages = {**MESSAGES, **(messages or {})}
         self._plan = list(plan)
+        self._step_context = list(step_context)
+        self._budget = context_budget_bytes
         self.context = ContextValue(f"sop:{name}", scope="participant", budget_bytes=context_budget_bytes)
         """The run's summary, for a Conversation's ``context=``."""
         self.control = RouterDestination(
@@ -299,6 +309,7 @@ class SopRunner(Component):
             asking=run.asking,
             output=self.output,
             _publish=self._changed,
+            _situation=self._situation,
         )
         await self.context.set(p, self.summary(p))
 
@@ -341,9 +352,13 @@ class SopRunner(Component):
     def _new_run(self, p: Participant) -> Run:
         previous = self.run(p)
         number = (previous.number + 1) if previous else 1
-        run = Run(p, number, name=self.name, output=self.output, _publish=self._changed)
+        run = Run(p, number, name=self.name, output=self.output, _publish=self._changed, _situation=self._situation)
         p.state[self._key] = run
         return run
+
+    async def _situation(self, p: Participant) -> str:
+        around = await render(p, self._step_context, budget_bytes=self._budget) if self._step_context else ""
+        return "\n\n".join(part for part in (self.summary(p), around) if part)
 
     @property
     def _key(self) -> str:

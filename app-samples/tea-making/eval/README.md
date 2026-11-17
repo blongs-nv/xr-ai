@@ -3,85 +3,91 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Test packets for the tea guide
+# Evaluating the tea guide
 
-One packet per step says what can reasonably happen while that step is
-active, and what the guide should do about it. `harness.py` runs every
-packet against the app's own code and models and reports what passed.
+Two suites, one per layer:
+
+| Suite | What it evaluates | Cases | Script |
+|---|---|---|---|
+| Steps | each step on its own: the real step, on a recording and a scripted person | `steps/<step id>.yaml` | `run_steps.py` |
+| Dialogue | the guide around the steps: what the user says during each step | `dialogue/<step>.yaml` | `run_dialogue.py` |
 
 ```text
-packets/
-  common.yaml          utterances asked during every step; step words
-  not_started.yaml     before the guide starts
-  identify.yaml        one file per step: its state, frames, utterances
-  fill_water.yaml
-  heat_water.yaml
-  heat_water.asking.yaml  the same step while it waits for the person's answer
-  start_steeping.yaml
-  steep.yaml
-  completed.yaml       after the guide finished
+steps/               one case file per step: scenes, person, expectations
+dialogue/            one packet per step state: utterances and expectations
+  common.yaml        utterances asked during every step; step words
 recordings/
-  green-tea-04.yaml    what the recording shows, when, and where the times came from
+  green-tea-04.yaml  what the recording shows, when, and where the times came from
+run_steps.py         builds the steps with procedure.build_steps; xr_ai_kit.sop.eval runs them
+run_dialogue.py      the Router, the guide's controls and the Conversation, in a given state
 ```
 
-## A packet
+## Step cases
 
 ```yaml
 step: heat_water
-state:                       # the run while this step is active
+build: {temperature_c: 80}          # passed to procedure.build_steps
+cases:
+  - name: unit_unknown_then_answered
+    scene: [26, 346]                # seconds of the recording
+    person: {answers: [Fahrenheit]}
+    expect: {asks: [unit], completes: {after: 330}}
+  - name: looked_away
+    scene: [[26, 36], [5, 12], [5, 12], [5, 12]]   # parts played back to back
+    build: {unit: fahrenheit}       # this case's own build values
+    person: {after_tell: [[36, 80]]}               # what the camera shows once told
+    expect: {says: [kettle, display], completes: false}
+```
+
+Each case runs the step that ships (built by `procedure.build_steps`, as
+the procedure builds it) on the devkit's virtual clock: frames from the
+scene at the recording's pace, the person's answers after
+`answer_after_s` (3 s), idle waits skipped, model calls in real time (so
+their latency counts as it would live). The case ends when the step
+finishes or the scene does.
+
+**Scenes** are times in the recording: `[start, end]` plays one part as
+recorded; a list of parts plays them back to back, in any order and
+repeated, to build what the recording never had (the person looking away
+for a minute while the kettle heats). Scene time starts at the first
+part's start, so for one part it is the recording's own time.
+
+**Person**: `answers` (to the step's questions, in order; beyond them,
+none), `answer_after_s`, `after_tell` (the scene parts shown once the
+step told the person to do something).
+
+**Expectations** belong to the step's type (`xr_ai_kit.sop.steps`), so
+each type is scored by its own rules:
+
+| Step type | `expect` keys |
+|---|---|
+| watch (`fill_water`, `heat_water`, `start_steeping`) | `completes`: true / false / `{after, before}` in scene time; `asks`: words its question must include (`[]`: any); `says`: the same for an instruction; `quiet`: says nothing |
+| read (`identify`) | `completes`; `reads` / `derives`: per field, words its value must include (`[]`: not empty) |
+| wait (`steep`) | `completes` |
+
+A case without `expect` is run and reported only (ambiguous footage); give
+it a `why`.
+
+## Dialogue cases
+
+A packet puts the guide in a state and lists what the user may say:
+
+```yaml
+step: heat_water
+state:
   steps: {identify: done, fill_water: done, heat_water: running}
   detail: "running: 0 of 2 confirmations ..."   # the running step's latest report
   asking: "..."            # optional: a question the step is waiting on
   noted: {temperature_c: 80, duration_s: 120}
-frames:                      # what the camera may show during this step
-  - {name: rising, at: [26, 321], expect: not_done}
-  - {name: at_target, at: [339, 346], expect: done}
-  - name: setpoint_flash     # looks done, is not
-    at: [22.5, 25.5]
-    expect: not_done
-    why: 176 is the kettle's target setting while the button is pressed
-utterances:                  # what the user may say during this step
+utterances:
   - say: What temperature are we waiting for?
     expect: {route: conversation, answer: {mentions: ["80", "176"]}}
 ```
 
-**Frames** are times in the recording: `at: [start, end]` plays one part
-as recorded; a list of parts (`at: [[26, 36], [5, 12], [5, 12]]`) plays
-them back to back on the harness's clock, in any order and repeated, to
-build a scene the recording never had (the person looking away for a
-minute while the kettle heats). The step's check (exactly the live
-one: `judge` with `steps.yaml`'s wording) is run on a frame every 2 s of
-the group, and the live rule (2 positive among the last 4 decidable
-frames) is replayed over them:
-
-| `expect` | Passes when |
-|---|---|
-| `done` | the rule completes the step on the group |
-| `not_done` | it does not: completing here is a false completion |
-| `either` | always (ambiguous footage, reported only) |
-
-A group may also give `facts` (what the person already said, typed as the
-check's `needs`, for example `{unit: fahrenheit}`), and test the side
-escalation that runs beside the check: `escalates: ask` means it should
-ask the person something during this group, `escalates: tell` that it
-should tell them to do something (bring the kettle back into view),
-`escalates: none` that it should say nothing; `about` lists words of which
-its line must include one. The harness replays it as live: every
-`review_every_s` seconds of the recording, when some of the check's recent
-reports are unknown, the reasoning model reads those reports, the step's
-state and the facts (`escalation_for`; it sees no frames). Nothing is said
-to anyone. The escalation never decides the step, so `expect` scores the
-fast check alone.
-
-Groups from other steps' parts of the recording test what happens when a
-step sees the wrong scene: frames of the label while the guide waits for
-hot water, frames of the heating kettle while it waits for the tea bag.
-
-**Utterances** are judged in the packet's state, through the app's own
-decisions, performing nothing: the Router's choice (`Router.choose`), the
-guide's control decision (`SopRunner.classify`; a non-control passes the
-turn on, as live) and the Conversation's answer (`Conversation.answer`
-with the guide's state as context).
+Each utterance goes through the app's own decisions, performing nothing:
+the Router's choice (`Router.choose`), the guide's control decision
+(`SopRunner.classify`; a non-control passes the turn on, as live) and the
+Conversation's answer.
 
 | `expect` key | Meaning |
 |---|---|
@@ -97,15 +103,12 @@ answered (not acted on) with words of `heat_water`.
 
 ## Adding cases
 
-- A new thing the user might say during one step: one entry under that
-  packet's `utterances`; during every step: one entry in `common.yaml`.
-- A new part of a recording: one entry under a packet's `frames`, with its
-  `why` when it is a trap.
-- A new step: one packet file, and its words in `common.yaml`.
-- A new recording: one file in `recordings/` and frame groups that use its
-  times (one recording per run, `--recording`).
-
-No code changes for any of these.
+- Something a step must handle: one case in `steps/<step>.yaml`; a scene
+  the recording lacks is spliced from its parts.
+- Something the user may say during one step: one entry in that packet's
+  `utterances`; during every step: one entry in `dialogue/common.yaml`.
+- A new step: its words in `steps.yaml`, one line in
+  `procedure.build_steps`, one case file, one packet.
 
 ## Run
 
@@ -115,23 +118,14 @@ second or more and write an index CSV with `source_time_s` and
 the models in `yaml/models.json` running:
 
 ```bash
-uv --config-file ../../uv.toml run python eval/harness.py \
-    --frames-index /path/to/frames/index.csv --out runs/packets/
+uv --config-file ../../uv.toml run python eval/run_steps.py \
+    --frames-index /path/to/frames/index.csv --out runs/steps/
+uv --config-file ../../uv.toml run python eval/run_dialogue.py --out runs/dialogue/
 ```
 
-Without `--frames-index` only the utterances run. `--only heat_water
-steep` runs some packets; `--fakes eval/smoke.fakes.yaml` runs the plumbing
-on scripted replies (the numbers then mean nothing). The exit code is 0 when
-everything passed.
-
-## Output
-
-`runs/packets/report.md`: the totals (frame groups and utterances passed;
-false completions; unintended state changes, a control from something
-that is not one; missed controls), then each packet's frame groups (judged
-positive, negative, unknown; when the rule completed) and utterances
-(route, control, what was wrong). `results.json` has every frame's verdict
-with the model's observation and every answer, for reading why.
-
-The labels come from one recording, derived from captions and checked by
-eye; read the numbers with that in mind.
+`--only heat_water` (a step) or `--only looked_away` (a case) runs some;
+`--fakes eval/smoke.fakes.yaml` runs the plumbing on scripted replies (the
+numbers then mean nothing). Each writes `report.md` and `results.json`
+(every line said, every reported state, timings) and exits 0 when
+everything passed. The labels come from one recording, derived from
+captions and checked by eye; read the numbers with that in mind.

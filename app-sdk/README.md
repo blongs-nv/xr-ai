@@ -22,8 +22,7 @@ class whose public names the package README lists.
 | Path | What |
 |---|---|
 | [`xr-ai-app`](xr-ai-app/README.md) | the SDK: import `xr_ai_app`; the `xr-ai-dev` local device |
-| [`xr-ai-kit`](xr-ai-kit/README.md) | the kit: `Conversation` (with its tool loop), `Router` and destinations, `Delegate` and job back ends, import `xr_ai_kit`; LangChain and LangGraph adapters, import `xr_ai_kit.langchain` with the extra `xr-ai-kit[langchain]` ([README](xr-ai-kit/xr_ai_kit/langchain/README.md)) |
-| [`xr-ai-procedures`](xr-ai-procedures/README.md) | kit: procedures (SOPs), capture a demonstration as an evidence packet and guide someone through an approved one, import `xr_ai_procedures` |
+| [`xr-ai-kit`](xr-ai-kit/README.md) | the kit: `Conversation` (with its tool loop), `Router` and destinations, `Delegate` and job back ends, import `xr_ai_kit`; procedures (SOPs: steps that watch the camera, a runner, and capturing a demonstration as an evidence packet), import `xr_ai_kit.sop`; LangChain and LangGraph adapters, import `xr_ai_kit.langchain` with the extra `xr-ai-kit[langchain]` ([README](xr-ai-kit/xr_ai_kit/langchain/README.md)) |
 | [`../app-samples`](../app-samples/README.md) | apps grouped by the model servers they use: `sdk-tour/` (a numbered walk through the SDK, one small app per piece: voice, vision, monitoring, routing, multi-party, delegation, tracing, procedure guidance and capture), `simple-vlm`, `conversation`, `lab-instruments` |
 
 Each sample is its own uv project: its `pyproject.toml` names the packages

@@ -17,7 +17,6 @@ Units come from **targets**, named the way the app already names its pieces:
 ``fn:<module>:<attr>``     any ``async fn(p, probe)``, imported from a file next to the app or a module
 ``destination:<name>``     a router destination run on one turn: ``options={"text": ...}`` (``xr-ai-kit``
                            registers it)
-``step:<step id>``         a procedure step, run on its own (``xr-ai-procedures`` registers it)
 =========================  ======================================================================================
 
 A package adds a kind with :func:`target_kind` or the ``xr_ai_app.exercise_targets`` entry-point group
@@ -137,7 +136,7 @@ class Exercise:
 
     @property
     def outcome(self) -> str:
-        """The result's type name (``Done``, ``Needs``, ``Stuck``, ``DestinationResult``...), or the status."""
+        """The result's type name (``Verification``, ``DestinationResult``...), or the status."""
         if self.status != "returned":
             return self.status
         return "None" if self.result is None else type(self.result).__name__

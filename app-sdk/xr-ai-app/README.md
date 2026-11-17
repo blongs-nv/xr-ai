@@ -54,6 +54,6 @@ uv --config-file <repo>/uv.toml run xr-ai-dev run app.py scenario.yaml --fakes f
 ```
 
 See `skills/test-with-local-device/SKILL.md` for the scenario format, the
-HTTP endpoint and the report. The samples are in `../../app-samples/`. Watching the camera over time (`Verify`,
-`read_check`, `Watching` and the outcomes) is in the procedures kit,
-`xr_ai_procedures.perception`.
+HTTP endpoint and the report. The samples are in `../../app-samples/`. Watching the camera over time (a
+step that judges frames until enough agree) is in the kit's procedure library,
+`xr_ai_kit.sop`.

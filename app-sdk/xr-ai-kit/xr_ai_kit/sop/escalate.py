@@ -4,7 +4,7 @@
 """Side escalation: gather what a check cannot establish by asking the person, outside the fast loop.
 
 :func:`gather` runs beside a step (``run.step(..., alongside=[...])``). It reads the fast check's recent reports (each
-frame's observation and label); when its latest ones are all ``unknown``, the check is missing something, and every
+frame's observation and label); when most of its latest ones are ``unknown``, the check is missing something, and every
 ``every_s`` seconds a reasoning model reads those reports with the check's criteria and the facts so far and infers
 what is missing and whether the person can help: by telling it (a question, whose answer goes into the step's
 :class:`~.judge.StepContext`, which the check reads on every frame) or by doing something, such as bringing the
@@ -41,15 +41,19 @@ class Escalation:
     text: str
 
 
-STUCK_AFTER = 3
+STUCK = (3, 4)
+"""Stuck: at least 3 of the check's last 4 reports are ``unknown``."""
 
 
-def stuck(reports: Sequence[Judgment], after: int = STUCK_AFTER) -> bool:
-    """Whether the check has stopped deciding: its last ``after`` reports are all ``unknown``.
+def stuck(reports: Sequence[Judgment], rule: tuple[int, int] = STUCK) -> bool:
+    """Whether the check has mostly stopped deciding: ``rule[0]`` of its last ``rule[1]`` reports are ``unknown``.
 
-    One unreadable frame among decisions is noise; a run of them means the check is missing something.
+    One unreadable frame among decisions is noise; mostly unknowns, even with a stray misread among them (a number
+    read off a display cut off by the edge of the view), mean the check is missing something.
     """
-    return len(reports) >= after and all(r.label == "unknown" for r in reports[-after:])
+    unknowns, of = rule
+    recent = reports[-of:]
+    return len(recent) >= of and sum(r.label == "unknown" for r in recent) >= unknowns
 
 
 async def escalation_for(

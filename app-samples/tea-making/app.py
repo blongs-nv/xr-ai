@@ -25,12 +25,11 @@ every frame's verdict) and speech_out (Pocket TTS).
 
 from pathlib import Path
 
-from procedure import Steps, TeaSettings, make_tea
+from procedure import WORDS, TeaSettings, make_tea
 from pydantic import BaseModel, Field
 from xr_ai_app import App, Hub, Participant, PerConnection, Turn, Voice
-from xr_ai_app.context import render
 from xr_ai_kit import Ack, Conversation, OneShotDestination, Router
-from xr_ai_kit.sop import SopRunner
+from xr_ai_kit.sop import Roles, SopRunner
 
 HERE = Path(__file__).resolve().parent
 PROMPTS = HERE / "prompts"
@@ -54,6 +53,7 @@ app.add(Hub())  # the device connection: who is here, and their camera
 perceive = app.role("perceive")
 answer = app.role("answer_with_reasoning")
 decide = app.role("decide")
+ROLES = Roles(observe=perceive, decide=decide, reason=answer)
 voice = app.add(
     Voice(
         tts=app.role("speech_out"),
@@ -65,24 +65,14 @@ voice = app.add(
 tea = app.add(
     SopRunner(
         "tea",
-        make_tea(
-            observe=perceive,
-            answer=answer,
-            decide=decide,
-            steps=Steps.load(HERE / "steps.yaml"),
-            settings=SETTINGS.tea,
-            situation=lambda p: situation(p),  # defined below
-        ),
+        make_tea(ROLES, SETTINGS.tea),
         title="Tea guidance",
         decide=decide,
         output=voice,
-        plan=[
-            ("identify", "show the tea's label so its settings can be read"),
-            ("fill_water", "fill the kettle with fresh water"),
-            ("heat_water", "heat the water to the recommended temperature"),
-            ("start_steeping", "put the tea in the hot water"),
-            ("steep", "wait while the timer runs"),
-        ],
+        plan=WORDS.plan(),
+        # A step's reasoning also reads the recent dialogue: the person may
+        # already have said what it would ask.
+        step_context=[voice.dialogue],
         description=(
             "Only explicit controls of the tea-making guide: start, stop, "
             "skip the current step, restart. Not questions about tea, the "
@@ -90,17 +80,6 @@ tea = app.add(
         ),
     )
 )
-
-
-async def situation(p: Participant) -> str:
-    """What is going on, for the side escalation: the guide's state (with
-    the running check's latest report) and the recent dialogue."""
-    return await render(
-        p,
-        [tea.context, voice.dialogue],
-        budget_bytes=SETTINGS.dialogue_budget_bytes,
-    )
-
 
 conversation = app.add(
     Conversation(

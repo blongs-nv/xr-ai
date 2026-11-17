@@ -27,10 +27,13 @@ settings:
     # The kettle display's unit when it prints none (celsius / fahrenheit);
     # without it, a reading with no printed unit is not judged.
     # display_unit: fahrenheit
-    # A check completes on `required` positives among the last `window`
-    # decidable frames, looking every `interval_s` seconds.
-    required: 2
-    window: 4
-    interval_s: 2.0
-    # Bound on one model call while watching.
-    timeout_s: 30.0
+    # How the camera steps watch (xr_ai_kit.sop.WatchSettings): a step
+    # completes on `required` positives among the last `window` decidable
+    # frames, looking every `interval_s` seconds; `timeout_s` bounds one
+    # model call; the side escalation looks every `review_every_s` seconds.
+    watch:
+      required: 2
+      window: 4
+      interval_s: 2.0
+      timeout_s: 30.0
+      review_every_s: 20.0

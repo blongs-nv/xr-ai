@@ -16,15 +16,21 @@ import json
 import socket
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import pytest
+from pydantic import BaseModel
 from xr_ai_app._base import _virtual
-from xr_ai_app.devkit import exercise, resolve_target, run_virtual
+from xr_ai_app.devkit import exercise, run_virtual
 from xr_ai_app.testing import FakeModels
+from xr_ai_kit.sop import Run
 
-BED = {"seen": "The bed has a spool on it.", "state": "objects_on_it"}
-CLEAR = {"seen": "The bed is clear.", "state": "clear"}
+BED = "A spool lies on the print bed."
+CLEAR = "The print bed is in view and empty."
+BED_READ = {"seen": "The bed has a spool on it.", "state": "objects_on_it"}
+CLEAR_READ = {"seen": "The bed is clear.", "state": "clear"}
 
 
 @pytest.fixture(scope="module")
@@ -38,6 +44,15 @@ def clip(tmp_path_factory: pytest.TempPathFactory) -> Path:
         writer.write(np.full((48, 64, 3), 128, dtype=np.uint8))
     writer.release()
     return path
+
+
+def step_unit(step):  # noqa: ANN001, ANN201
+    """A unit that runs one step of sample 10 on its own, with a run as its io (as the runner would)."""
+
+    async def unit(p, probe):  # noqa: ANN001, ANN202
+        return await step.run(Run(p, 1, name="exercise"))
+
+    return unit
 
 
 def _timed(run, coro):  # noqa: ANN001, ANN202
@@ -79,22 +94,23 @@ def test_a_step_agrees_on_both_clocks_and_virtual_is_fast(load_sample, clip: Pat
     runs = {}
     for name, run in (("real", asyncio.run), ("virtual", run_virtual)):
         m = load_sample("10-guided-procedure")
-        models = FakeModels({"perceive": [BED, CLEAR, CLEAR, CLEAR, CLEAR]})
-        unit = resolve_target(m.app, "step:bed_clear")
+        models = FakeModels({"perceive": [BED, CLEAR, CLEAR], "decide": ["negative", "positive", "positive"]})
+        unit = step_unit(m.bed_clear)
         runs[name] = _timed(run, exercise(m.app, unit, video=clip, from_s=2.0, to_s=8.0, fps=2, models=models))
     (real, real_wall), (virtual, virtual_wall) = runs["real"], runs["virtual"]
-    assert real.outcome == virtual.outcome == "Done", (real.to_json(), virtual.to_json())
+    assert real.outcome == virtual.outcome == "Verification", (real.to_json(), virtual.to_json())
     assert abs(real.ended_at_s - virtual.ended_at_s) <= 0.5  # within one frame interval at 2 fps
-    assert [t for _, t in real.reports] == [t for _, t in virtual.reports]
+    labels = [[j.label for j in r.result.judgments] for r in (real, virtual)]
+    assert labels[0] == labels[1] == ["negative", "positive", "positive"]
     assert virtual_wall < real_wall / 3, (real_wall, virtual_wall)
 
 
 def test_a_ninety_second_timer_step_runs_in_moments(load_sample) -> None:
     m = load_sample("10-guided-procedure")
-    unit = resolve_target(m.app, "step:warm_up")  # Timer(90)
+    unit = step_unit(m.warm_up)  # a 90 s wait
     run, wall = _timed(run_virtual, exercise(m.app, unit, models=FakeModels({})))
-    assert run.outcome == "Done" and run.result.value == 90
-    assert run.reports[-1][1] == "time is up"
+    assert run.outcome == "TimerState" and run.result.status == "completed"
+    assert run.result.duration_s == 90
     assert wall < 5, wall
 
 
@@ -142,6 +158,32 @@ def _stub_vision_server(latency_s: float, replies: list[dict]) -> tuple[str, lis
     return f"http://127.0.0.1:{port}", seen, server
 
 
+class Bed(BaseModel):
+    seen: str
+    state: Literal["clear", "objects_on_it", "cannot_tell"]
+
+
+@dataclass
+class Done:
+    looks: int
+
+
+def bed_watch(perceive):  # noqa: ANN001, ANN201
+    """A camera check on one real role: a structured read a second until two in a row say clear."""
+
+    async def unit(p, probe):  # noqa: ANN001, ANN202
+        looks, streak = 0, 0
+        async for frame in p.frames.every(1.0):
+            looks += 1
+            bed = await perceive.ask(frame, "Is the print bed clear?", response_format=Bed, timeout_s=5.0)
+            streak = streak + 1 if bed.state == "clear" else 0
+            if streak == 2:
+                return Done(looks)
+        return None
+
+    return unit
+
+
 def test_real_http_model_calls_keep_their_latency_and_timeouts(
     load_sample, clip: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -149,7 +191,7 @@ def test_real_http_model_calls_keep_their_latency_and_timeouts(
     guard = json.loads(Path(__import__("os").environ["XR_AI_PROFILE"]).read_text())
     runs = {}
     for name, run in (("real", asyncio.run), ("virtual", run_virtual)):
-        url, seen, server = _stub_vision_server(0.4, [BED, CLEAR, CLEAR, CLEAR, CLEAR, CLEAR])
+        url, seen, server = _stub_vision_server(0.4, [BED_READ, *[CLEAR_READ] * 5])
         try:
             profile = json.loads(json.dumps(guard))
             profile["models"]["perceive"]["endpoint"]["base_url"] = url  # only perceive is real; nothing else reachable
@@ -157,11 +199,11 @@ def test_real_http_model_calls_keep_their_latency_and_timeouts(
             path.write_text(json.dumps(profile))
             monkeypatch.setenv("XR_AI_PROFILE", str(path))
             m = load_sample("10-guided-procedure")
-            unit = resolve_target(m.app, "step:bed_clear")
+            unit = bed_watch(m.perceive)
             result, wall = _timed(run, exercise(m.app, unit, video=clip, from_s=2.0, to_s=8.0, fps=2, models="real"))
         finally:
             server.should_exit = True
-        failed = [e for e in result.events if e["kind"] in ("error", "procedure") and "fail" in json.dumps(e)]
+        failed = [e for e in result.events if e["kind"] == "error" and "fail" in json.dumps(e)]
         runs[name] = (result, wall, len(seen), failed)
     (real, real_wall, real_calls, real_failed), (virtual, virtual_wall, virtual_calls, virtual_failed) = (
         runs["real"],

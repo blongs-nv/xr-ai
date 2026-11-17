@@ -66,9 +66,10 @@ repository = [
     "xr-ai-app-samples-sdk-tour-model-servers",
     "xr-ai-app-sample-simple-vlm",
     "xr-ai-app-sample-simple-vlm-model-servers",
+    "xr-ai-app-sample-tea-making",
+    "xr-ai-app-sample-tea-making-model-servers",
     "xr-ai-app[video]",
     "xr-ai-kit[a2a,langchain]",
-    "xr-ai-procedures",
     "xr-ai-eval-adapters",
     "xr-ai-eval",
     "clef-server",
@@ -151,9 +152,10 @@ conflicts = [[{ extra = "repository" }, { extra = "vllm" }]]
 "xr-ai-app-samples-sdk-tour-model-servers"       = { path = "../app-samples/sdk-tour/model-servers", editable = true }
 "xr-ai-app-sample-simple-vlm"                    = { path = "../app-samples/simple-vlm", editable = true }
 "xr-ai-app-sample-simple-vlm-model-servers"      = { path = "../app-samples/simple-vlm/model-servers", editable = true }
+"xr-ai-app-sample-tea-making"                    = { path = "../app-samples/tea-making", editable = true }
+"xr-ai-app-sample-tea-making-model-servers"      = { path = "../app-samples/tea-making/model-servers", editable = true }
 "xr-ai-app"                                      = { path = "../app-sdk/xr-ai-app", editable = true }
 "xr-ai-kit"                                      = { path = "../app-sdk/xr-ai-kit", editable = true }
-"xr-ai-procedures"                               = { path = "../app-sdk/xr-ai-procedures", editable = true }
 "xr-ai-eval-adapters"                            = { path = "../evals/adapters", editable = true }
 "xr-ai-eval"                                     = { path = "../evals/runner", editable = true }
 "clef-server"                                    = { path = "../services/clef-server", editable = true }

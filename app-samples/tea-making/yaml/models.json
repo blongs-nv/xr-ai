@@ -26,6 +26,7 @@
     "answer_with_reasoning": {
       "adapter": {
         "preset": "nemotron_omni",
+        "capabilities": {"json_schema": true},
         "thinking": {
           "control": "chat_template",
           "default": true

@@ -10,8 +10,8 @@ voice/video-first front end, one small sample per piece,
 on the `xr_ai_app` SDK (`../../app-sdk/xr-ai-app`) and its kit, `xr_ai_kit`
 (`../../app-sdk/xr-ai-kit`: `Conversation`, `Router`, `Delegate`). Samples 08
 and 09 also use the optional LangChain adapters
-(`xr_ai_kit.langchain`, the kit's `langchain` extra); 10 and 12 the procedures kit
-(`../../app-sdk/xr-ai-procedures`). The core package README
+(`xr_ai_kit.langchain`, the kit's `langchain` extra); 10 and 12 its procedure
+library (`xr_ai_kit.sop`). The core package README
 (`../../app-sdk/xr-ai-app/README.md`) lists every public name of the core
 classes.
 
@@ -66,10 +66,9 @@ under `~/.local/share/xr-ai/captures/xr-ai-app-sdk-tour`),
 | 12 | `uv run sdk-tour 12` | **Live video** (on demand: two pictures a second): "start capture", do and narrate the task, "stop capture"; the packet is in `12-procedure-capture/artifacts/` |
 
 The camera samples work in both camera modes. A question reads
-`p.frames.current()` (02, 09, and each look of 10's camera steps, the
-procedures kit's `Eyes`): the newest streamed frame, or, in on-demand camera
-mode (nothing streamed), one picture asked of the device. A monitor reads
-`p.frames.every(interval)` (03, 12): a frame per tick, streamed or, on
+`p.frames.current()` (02, 09): the newest streamed frame, or, in on-demand
+camera mode (nothing streamed), one picture asked of the device. A monitor
+reads `p.frames.every(interval)` (03, 10's camera steps, 12): a frame per tick, streamed or, on
 demand, one picture per tick (after the first tick, which waits 2 s for a
 stream). 12 records at two frames a second, so on demand it asks for two
 pictures a second; **Live video** is what a recording is for. If no frame
@@ -118,7 +117,7 @@ uv --config-file ../../../../uv.toml run research_agent   # A2A agent on :8830
 |---|---|---|
 | 01, 04, 05, 06, 11 | `xr-ai-app`, `xr-ai-kit` | none |
 | 02, 03 | `xr-ai-app` (03: with `[video]`, for its scenario), `xr-ai-kit` | `pydantic` (02 also: `pytest`, `pytest-asyncio` as dev tools) |
-| 10, 12 | `xr-ai-app` (10: with `[video]`, to exercise its steps on recorded video), `xr-ai-procedures` (the procedure kit, which brings `xr-ai-kit`; 10 also names `xr-ai-kit` for its Router) | `pydantic` |
+| 10, 12 | `xr-ai-app` (10: with `[video]`, to exercise its steps on recorded video), `xr-ai-kit` (its procedure library, `xr_ai_kit.sop`; 10 also uses its Router) | 12: `pydantic` |
 | 07 | `xr-ai-app`, `xr-ai-kit[a2a]` (the A2A client) | `pydantic`. Its stand-in agent, `research_agent/`, is a separate uv project that needs only `a2a-sdk[http-server]` and `uvicorn`, nothing from this repo |
 | 08, 09 | `xr-ai-app`, `xr-ai-kit[langchain]` (the LangChain adapters) | `langchain-core`, `langgraph` |
 | the launcher (`pyproject.toml` here) | `xr-ai-launcher`, `xr-ai-logging` | none |
@@ -142,17 +141,8 @@ uv --config-file ../../../../uv.toml run research_agent   # A2A agent on :8830
 | 11 | `hello.yaml` | a traced turn (read `trace.jsonl`) | nothing |
 | 12 | `demo.yaml` | capture: frames, captions and narration into an evidence packet | frames of a short task (a folder, `media/demo/`) |
 
-**When each step happened (sample 10):** a procedure is also checked against
-the times you mark on your recording, the earliest and latest moment each step
-is plainly done (`10-guided-procedure/scenarios/printer.windows.yaml`):
-
-```bash
-uv --config-file ../../../uv.toml run xr-ai-dev exercise app.py procedure: --video ~/recordings/printer.mp4 \
-    --real-models --option annotations=@scenarios/printer.windows.yaml --out runs/windows/
-```
-
-Each step gets `ok`, `early`, `late` or `missing`; one step alone on a window
-is `step:<id>` (see `skills/test-with-local-device/SKILL.md`). The tests that
+One piece of a sample alone on a window of a recording is `xr-ai-dev
+exercise` (see `skills/test-with-local-device/SKILL.md`). The tests that
 run every sample with scripted models are in `tests/app/surface/` (they use
 the `tests/` project, not the samples' own).
 
@@ -169,9 +159,9 @@ the `tests/` project, not the samples' own).
 | 07 | delegate-a2a | front end + another agent | `Delegate`, `A2ABackend`: long work runs on any A2A (Agent2Agent) agent; its progress and result become context and speech; cancel sends A2A `tasks/cancel` |
 | 08 | delegate-langgraph | front end + LangGraph | `GraphBackend`, `chat_model(role)` (adapter package) |
 | 09 | langchain-agent | a LangChain agent as a destination | `chat_model`, `langchain_tools`, `messages`, `stream_text`, `from_langchain` |
-| 10 | guided-procedure | a camera-verified checklist | `xr_ai_procedures`: `GuidedProcedure`, `Sop`, `StepDef`, `Timer`; steps from `xr_ai_procedures.perception` (`read_check`, `Watching`) |
+| 10 | guided-procedure | a camera-verified checklist | `xr_ai_kit.sop`: `SopRunner` (controls, the run's state for the conversation), `Wording` (the words, YAML), `WatchStep` (a camera check with its side escalation), `WaitStep`; the procedure is a plain `async def` |
 | 11 | tracing | observability | trace events and ids, `app.trace.add(sink)`, `app.trace.span`, `trace:` in app.yaml |
-| 12 | procedure-capture | a recorder | `xr_ai_procedures.ProcedureCapture`: "start capture", narrate, "stop capture"; frames, captions (activity, phase, change) and narration become an evidence packet, the input for writing a guide that 10 can run; `scenarios/demo.yaml` |
+| 12 | procedure-capture | a recorder | `xr_ai_kit.sop.capture.ProcedureCapture`: "start capture", narrate, "stop capture"; frames, captions (activity, phase, change) and narration become an evidence packet, the input for writing a guide that 10 can run; `scenarios/demo.yaml` |
 
 Each app adds `Hub()` (the device connection: without it nobody joins, so no
 turn reaches the app) and gets its speech models from the profile's

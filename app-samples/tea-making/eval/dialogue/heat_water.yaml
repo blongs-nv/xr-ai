@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# What the user may say while the water heats to 80 C (176 on this
+# kettle's Fahrenheit display).
+step: heat_water
+state:
+  steps: {identify: done, fill_water: done, heat_water: running}
+  detail: "running: 0 of 2 confirmations in the last 4. Latest: negative: {\"value\":131.0,\"unit_text\":\"°\"}"
+  noted: {tea: {tea_name: Bigelow, tea_type: green tea}, temperature_c: 80, duration_s: 120, settings_from: recommended}
+utterances:
+  - say: Is the water hot enough yet?
+    expect: {route: [observation, conversation]}
+  - say: How long will it take to heat up?
+    expect: {route: conversation}
+  - say: What temperature are we waiting for?
+    expect: {route: conversation, answer: {mentions: ["80", "176"]}}
+  - say: How long is left on the timer?
+    expect: {route: conversation, answer: {not: [seconds left, minutes left]}}  # no timer yet

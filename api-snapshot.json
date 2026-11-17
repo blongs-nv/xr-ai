@@ -230,23 +230,77 @@
         "Criteria",
         "Escalation",
         "Facts",
+        "Frames",
         "Identification",
         "Judgment",
         "LABELS",
         "Label",
+        "Line",
         "MESSAGES",
+        "ReadStep",
+        "Roles",
         "Run",
         "SopRunner",
+        "Step",
         "StepContext",
+        "StepIO",
         "StepRecord",
+        "StepTrace",
+        "StepWords",
         "TimerState",
         "Verification",
+        "WaitStep",
+        "WatchSettings",
+        "WatchStep",
+        "Wording",
         "escalation_for",
         "gather",
         "identify",
         "judge",
         "timer",
         "verify"
+      ]
+    },
+    "xr_ai_kit.sop.capture": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/capture/__init__.py",
+      "all": [
+        "Caption",
+        "CaptureSession",
+        "DEFAULT_CAPTURE_MESSAGES",
+        "ProcedureCapture",
+        "caption_prompt"
+      ]
+    },
+    "xr_ai_kit.sop.eval": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/eval/__init__.py",
+      "all": [
+        "Build",
+        "Case",
+        "CaseFile",
+        "CaseResult",
+        "Person",
+        "Recording",
+        "SceneFrames",
+        "ScriptedIO",
+        "Shot",
+        "main",
+        "report",
+        "run_case",
+        "run_files",
+        "segments"
+      ]
+    },
+    "xr_ai_kit.sop.steps": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/__init__.py",
+      "all": [
+        "ReadExpect",
+        "ReadStep",
+        "WaitExpect",
+        "WaitStep",
+        "WatchExpect",
+        "WatchSettings",
+        "WatchStep",
+        "Window"
       ]
     },
     "xr_ai_launcher": {
@@ -355,65 +409,6 @@
       "all": [
         "available_presets",
         "get_preset"
-      ]
-    },
-    "xr_ai_procedures": {
-      "path": "app-sdk/xr-ai-procedures/xr_ai_procedures/__init__.py",
-      "all": [
-        "Caption",
-        "CaptureSession",
-        "DEFAULT_ASKS",
-        "DEFAULT_CAPTURE_MESSAGES",
-        "DEFAULT_MESSAGES",
-        "EventKind",
-        "Facts",
-        "GuidedProcedure",
-        "ProcedureCapture",
-        "ProcedureEvent",
-        "ProcedureRun",
-        "Run",
-        "Sop",
-        "StepDef",
-        "StepSpec",
-        "StepTiming",
-        "Timer",
-        "caption_prompt",
-        "procedure_unit",
-        "procedures_of",
-        "resolve_procedure",
-        "resolve_step",
-        "step_unit"
-      ]
-    },
-    "xr_ai_procedures.perception": {
-      "path": "app-sdk/xr-ai-procedures/xr_ai_procedures/perception/__init__.py",
-      "all": [
-        "Confirmation",
-        "Criteria",
-        "Done",
-        "Eyes",
-        "FrameSource",
-        "Judge",
-        "Missing",
-        "Needs",
-        "Observer",
-        "Outcome",
-        "Report",
-        "Retrieved",
-        "Runnable",
-        "Source",
-        "Stuck",
-        "Tier",
-        "Verdict",
-        "Verify",
-        "VisionRetrieval",
-        "Watching",
-        "all_of",
-        "by_choices",
-        "describe",
-        "read",
-        "read_check",
-        "text_of"
       ]
     },
     "xr_ai_routing": {

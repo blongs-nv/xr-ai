@@ -1,0 +1,219 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""xr_ai_kit.sop's step types, their wording file, and the step evaluation (scene, scripted io, scoring)."""
+
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+
+import pytest
+from PIL import Image
+from xr_ai_app import App
+from xr_ai_app._base.app import AppConfig
+from xr_ai_app.devkit import run_virtual
+from xr_ai_app.testing import FakeModels, solid_frame
+from xr_ai_kit.sop import Check, Criteria, Line, Roles, Run, SopRunner, StepTrace, WatchSettings, WatchStep, Wording
+from xr_ai_kit.sop import eval as step_eval
+from xr_ai_kit.sop.steps import ReadStep, WaitStep, Window
+
+WATER = Criteria("Is there water?", "Water is visible.", "The kettle is empty.", "The kettle's inside cannot be seen.")
+FAST = WatchSettings(interval_s=0.01, review_every_s=0.01, required=2, window=4, max_lines=1)
+
+
+def _roles(models: FakeModels) -> Roles:
+    return Roles(models.role("observe"), models.role("decide"), models.role("reason"))
+
+
+async def _until(s, condition, timeout_s: float = 3.0) -> None:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout_s
+    while not condition():
+        assert loop.time() < deadline, f"not in time; errors: {s.trace.events(kind='error')}"
+        await s.show_frame(solid_frame("white"))
+        await asyncio.sleep(0.01)
+        await s.settle()
+
+
+async def _run_alone(models: FakeModels, step, until=None, then=None):
+    """Run ``step`` as the only step of a procedure; return the run."""
+    app = App(AppConfig(config_dir=Path(".")))
+    results: list[object] = []
+
+    async def procedure(run: Run) -> None:
+        results.append(await run.step(step))
+
+    runner = app.add(SopRunner("t", procedure, title="T", decide=models.role("decide")))
+    async with app.test_session(models=models) as s:
+        await s.join()
+        p = s.participant()
+        await runner.start(p)
+        if until is not None:
+            await _until(s, lambda: until(runner.run(p)))
+            await then(runner, p)
+        await _until(s, lambda: not runner.running(p))
+        return runner.run(p), results
+
+
+# ---------------------------------------------------------------------------------- the watch step
+
+
+async def test_a_watch_step_completes_on_the_fast_check_and_a_failing_escalation_cannot_fail_it() -> None:
+    models = FakeModels(
+        {
+            "observe": ["A kettle."] * 60,
+            "decide": ["unknown"] * 12 + ["positive"] * 40,
+            "reason": [ValueError("the reasoning model is down")] * 5,
+        }
+    )
+    step = WatchStep(
+        "fill", Check("Water?", WATER, escalation="The kettle must be in view."), _roles(models), settings=FAST
+    )
+    run, results = await _run_alone(models, step)
+    assert run.status == "completed" and run.steps[0].status == "done"
+    assert results[0].status == "completed"
+    assert models.calls("reason")  # it was stuck, the escalation ran and failed
+
+
+async def test_skipping_a_watch_step_withdraws_its_pending_question() -> None:
+    ask = {"missing": "whether there is water", "action": "ask", "words": "Is there water in the kettle?"}
+    models = FakeModels({"observe": ["A kettle."] * 300, "decide": ["unknown"] * 300, "reason": [ask]})
+    step = WatchStep("fill", Check("Water?", WATER, escalation="The person knows."), _roles(models), settings=FAST)
+
+    async def skip(runner, p) -> None:
+        await runner.skip(p)
+
+    run, results = await _run_alone(models, step, until=lambda r: r is not None and r.asking is not None, then=skip)
+    assert run.steps[0].status == "skipped" and run.asking is None and results == [None]
+
+
+async def test_a_watch_step_without_guidance_never_reasons() -> None:
+    models = FakeModels({"observe": ["A kettle."] * 60, "decide": ["unknown"] * 8 + ["positive"] * 40, "reason": []})
+    run, _ = await _run_alone(models, WatchStep("fill", Check("Water?", WATER), _roles(models), settings=FAST))
+    assert run.status == "completed" and models.calls("reason") == []
+
+
+def test_watch_step_scoring() -> None:
+    expect = WatchStep.Expect
+    done = StepTrace("s", completed=True, completed_at_s=341.0)
+    assert WatchStep.score(done, expect(completes=True)) == []
+    assert WatchStep.score(done, expect(completes=Window(after=330, before=350))) == []
+    assert WatchStep.score(done, expect(completes=Window(before=300))) == [
+        "completed at 341 s, expected within [None, 300.0]"
+    ]
+    asked = StepTrace("s", lines=[Line(48, "ask", "What unit is the display showing?", "F")])
+    assert WatchStep.score(asked, expect(asks=["unit"])) == []
+    assert WatchStep.score(asked, expect(says=["kettle"]))[0].startswith("said nothing")
+    assert WatchStep.score(asked, expect(quiet=True))[0].endswith("expected nothing")
+    with pytest.raises(ValueError):
+        expect.model_validate({"complete": True})  # a misspelled key is an error, not a silent pass
+
+
+def test_read_and_wait_step_scoring() -> None:
+    class Read:
+        visual = type("V", (), {"tea_type": "green tea"})()
+        result = type("R", (), {"temperature_c": 80})()
+
+    trace = StepTrace("identify", completed=True, result=Read())
+    expect = ReadStep.Expect(completes=True, reads={"tea_type": ["green"]}, derives={"temperature_c": []})
+    assert ReadStep.score(trace, expect) == []
+    assert ReadStep.score(trace, ReadStep.Expect(reads={"tea_type": ["black"]})) == [
+        "read tea_type='green tea', expected one of ['black']"
+    ]
+    assert WaitStep.score(StepTrace("w"), WaitStep.Expect(completes=True)) == ["did not complete"]
+
+
+# ---------------------------------------------------------------------------------- the wording
+
+
+def test_wording_builds_steps_from_words_and_code(tmp_path: Path) -> None:
+    (tmp_path / "steps.yaml").write_text(
+        """
+fill:
+  does: fill the kettle
+  say: Fill the kettle to {level}.
+  question: Is there water?
+  criteria: {instructions: "Water at {level}?", positive: "yes", negative: "no", unknown: unclear}
+  escalation: The person knows.
+steep:
+  does: wait
+  say: Steeping for {minutes:g} minutes.
+lines:
+  done: Done after {minutes:g} minutes.
+""",
+        encoding="utf-8",
+    )
+    words = Wording.load(tmp_path / "steps.yaml")
+    models = FakeModels()
+    fill = words.watch("fill", _roles(models)).format(level="the line")
+    assert (fill.say, fill.check.criteria.instructions) == ("Fill the kettle to the line.", "Water at the line?")
+    assert fill.check.escalation == "The person knows."
+    steep = words.wait("steep").lasting(120).format(minutes=2)
+    assert (steep.duration_s, steep.say) == (120, "Steeping for 2 minutes.")
+    assert words.plan() == [("fill", "fill the kettle"), ("steep", "wait")]
+    assert words.line("done", minutes=2) == "Done after 2 minutes."
+    with pytest.raises(ValueError, match="needs question and criteria"):
+        words.watch("steep", _roles(models))
+
+
+# ---------------------------------------------------------------------------------- the evaluation
+
+
+def _recording(tmp_path: Path, seconds: int) -> step_eval.Recording:
+    Image.new("RGB", (8, 8), "gray").save(tmp_path / "f.jpg")
+    return step_eval.Recording([(float(t), tmp_path / "f.jpg") for t in range(seconds)])
+
+
+def test_a_scene_plays_parts_back_to_back_on_its_own_clock(tmp_path: Path) -> None:
+    recording = _recording(tmp_path, 60)
+    one = recording.shots([10, 13])
+    assert [(s.t_s, s.source_s) for s in one] == [(10, 10), (11, 11), (12, 12)]
+    spliced = recording.shots([[40, 42], [10, 12], [10, 12]])
+    assert [s.t_s for s in spliced] == [40, 41, 42, 43, 44, 45]
+    assert [s.source_s for s in spliced] == [40, 41, 10, 11, 10, 11]
+
+
+def test_scene_frames_stream_like_a_camera_and_numbers_repeats_as_new_frames(tmp_path: Path) -> None:
+    scene = step_eval.SceneFrames(_recording(tmp_path, 60), [[0, 3], [0, 3]])
+
+    async def take() -> list[tuple[float, int]]:
+        scene.begin()
+        out = []
+        async for frame in scene.every(1.0):
+            out.append((round(scene.now()), frame.sequence))
+            if len(out) == 6:
+                return out
+        return out
+
+    seen = run_virtual(take())
+    assert [t for t, _ in seen] == [0, 1, 2, 3, 4, 5]
+    assert len({seq for _, seq in seen}) == 6  # a repeated part is new frames, not duplicates
+
+
+def test_a_case_runs_the_real_step_on_a_scene_and_a_scripted_person(tmp_path: Path) -> None:
+    """The person answers the step's question; the answer reaches the check, which then completes."""
+    ask = {"missing": "the unit", "action": "ask", "words": "Which unit is the display in?"}
+    models = FakeModels(
+        {
+            "observe": ["A kettle reading 176."] * 400,
+            "decide": [lambda call: "positive" if "Fahrenheit" in call.context else "unknown"] * 400,
+            "reason": [ask] * 3,
+        }
+    )
+    step = WatchStep(
+        "heat",
+        Check("Read the display.", WATER, escalation="The person knows the unit."),
+        _roles(models),
+        settings=WatchSettings(interval_s=2.0, review_every_s=20.0),
+    )
+    case = step_eval.Case(
+        name="answered",
+        scene=[0, 120],
+        person={"answers": ["Fahrenheit"]},
+        expect={"asks": ["unit"], "completes": {"after": 20, "before": 40}},
+    )
+    result = run_virtual(step_eval.run_case(step, case, _recording(tmp_path, 120)))
+    assert result.ok, result.problems
+    (line,) = result.trace.lines
+    assert (line.kind, line.answer) == ("ask", "Fahrenheit")

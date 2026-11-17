@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Reading the tea's label, then recommending brewing settings.
+step: identify
+cases:
+  - name: label_held_up
+    scene: [4, 16]
+    expect:
+      completes: true
+      reads: {tea_type: [green]}
+      derives: {temperature_c: [], duration_s: []}
+  - name: kettle_and_mug_only
+    scene: [0, 4]
+    expect: {completes: false}
+  - name: heating_packet_at_the_edge
+    scene: [30, 120]
+    why: the packet lies at the edge of the view, partly readable
+  - name: steeping_packet_at_the_edge
+    scene: [364, 381]

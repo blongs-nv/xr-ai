@@ -7,8 +7,8 @@
     python -m xr_ai_app.devkit run  path/to/app.py scenarios/ --out runs/                 # every scenario in a folder
     python -m xr_ai_app.devkit run  path/to/app.py scenarios/ --real-models --media-dir ~/recordings --out runs/
     python -m xr_ai_app.devkit serve path/to/app.py --fakes fakes.yaml --port 8765
-    python -m xr_ai_app.devkit exercise path/to/app.py step:bed_clear --video clip.mp4 --from 12 --to 31.5 \
-        --fakes fakes.yaml --expect Done --between 14 30 --out runs/bed/
+    python -m xr_ai_app.devkit exercise path/to/app.py fn:units.py:bed_clear --video clip.mp4 --from 12 --to 31.5 \
+        --fakes fakes.yaml --expect Verification --between 14 30 --out runs/bed/
 
 Roles are the app's real profile (``--real-models``: real model calls, only when asked for) or scripted: ``--fakes``,
 else the scenario's own ``<name>.fakes.yaml`` (or ``fakes.yaml``) beside it, else an empty script, so any model call
@@ -45,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         p = sub.add_parser(name)
         p.add_argument("app", help="the app file (its module-level `app`)")
         if name == "exercise":
-            p.add_argument("target", help="fn:<file.py or module>:<attr>, or a kit's: destination:<name>, step:<id>")
+            p.add_argument("target", help="fn:<file.py or module>:<attr>, or a kit's: destination:<name>")
             p.add_argument("--video", help="a video file to play into the camera")
             p.add_argument("--from", dest="from_s", type=float, default=0.0, help="window start, seconds")
             p.add_argument("--to", dest="to_s", type=float, default=None, help="window end, seconds")
@@ -63,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             p.add_argument("--setup", help="file.py:fn or module:fn, called as fn(p, probe) before the unit")
             p.add_argument("--linger", type=float, default=3.0, help="seconds the unit may run past the window")
-            p.add_argument("--expect", help="the outcome expected: Done, Needs, Stuck, returned, unfinished...")
+            p.add_argument("--expect", help="the outcome expected: the result's type name, returned, unfinished...")
             p.add_argument(
                 "--between",
                 nargs=2,

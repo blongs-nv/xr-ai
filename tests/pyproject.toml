@@ -14,7 +14,6 @@ dependencies = [
     # Pulled in via editable installs of the workspace packages.
     "xr-ai-app[video]",
     "xr-ai-kit[a2a,langchain]",
-    "xr-ai-procedures",
     # A2A agents served in tests (sample 07's research agent, test doubles).
     "a2a-sdk[http-server]>=1.2,<2",
     "xr-ai-agent-runtime",
@@ -60,7 +59,6 @@ dependencies = [
 xr-ai-gpu = { path = "../utils/xr-ai-gpu", editable = true }
 xr-ai-app             = { path = "../app-sdk/xr-ai-app", editable = true }
 xr-ai-kit             = { path = "../app-sdk/xr-ai-kit", editable = true }
-xr-ai-procedures      = { path = "../app-sdk/xr-ai-procedures", editable = true }
 xr-ai-model-server-stack = { path = "../utils/xr-ai-model-server-stack", editable = true }
 xr-ai-agent-runtime      = { path = "../agent-sdk/xr-ai-runtime",       editable = true }
 xr-ai-routing            = { path = "../agent-sdk/xr-ai-routing",       editable = true }

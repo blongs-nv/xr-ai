@@ -1,49 +1,20 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Capture: record a demonstrated procedure as an evidence packet, the input for writing a guide.
+"""The capture component: the frame, caption and narration work of one capture, and sealing its packet.
 
-While a capture runs, :class:`ProcedureCapture` saves the participant's camera frames (``frames_per_s``), captions
-the newest frame against the previous captioned one with a vision role (every ``caption_every_s``: a caption, the
-change since, and a broad activity with its current phase), and keeps the narration it is given. Stopping seals the
-packet under the participant's artifacts, ``sessions/<session-id>/``:
-
-==========================  ========================================================================================
-``packet.json``             the index: status, times, counts, the activity/phase hierarchy
-``summary.md``              the same for people, plus a timeline of what was heard and seen
-``frames/index.jsonl``      one line per saved frame (``frames/frame_<id>_<timestamp>.jpg``)
-``captions.jsonl``          one line per caption
-``transcript.jsonl``        one line per narrated utterance
-``errors.jsonl``            missing frames, failed captions
-==========================  ========================================================================================
-
-It is the format of ``agent-samples/procedure-capture-guide``, whose ``guide-generation-skills`` turn a packet into
-a guide; :class:`~xr_ai_procedures.GuidedProcedure` then guides someone through it.
-
-Wiring::
-
-    capture = app.add(ProcedureCapture(caption=app.role("perceive"), output=voice))
-
-    async def on_turn(turn, p):
-        if turn.text == "start capture": capture.start(p)
-        elif turn.text == "stop capture": capture.stop(p, said=turn.text)
-        else: capture.narrate(p, turn.text, timestamp_us=turn.timestamp_us)
-
-``start``, ``stop`` and ``narrate`` return at once: a participant's actions are applied in order by one worker, so a
-turn that is superseded never cuts a capture short, and a stop always seals what came before it. ``await
-capture.settled(p)`` waits for them. A participant who leaves has their open capture sealed. The app needs an
-``artifacts_dir``.
+See the package docstring for the packet and the wiring.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from dataclasses import dataclass
 from importlib import resources
 from typing import TYPE_CHECKING, Any, Literal
 
-from loguru import logger
 from pydantic import BaseModel, Field
 from xr_ai_app import Component, trace
 
@@ -53,6 +24,8 @@ if TYPE_CHECKING:
     from xr_ai_app import Frame, Participant, Role, Sink
 
 __all__ = ["DEFAULT_CAPTURE_MESSAGES", "Caption", "CaptureSession", "ProcedureCapture", "caption_prompt"]
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CAPTURE_MESSAGES: dict[str, str] = {
     "welcome": "Say start capture to start the recording and demonstrate your procedure. "
@@ -217,7 +190,7 @@ class ProcedureCapture(Component):
             try:
                 await self._apply(p, action)
             except Exception:  # noqa: BLE001 - one failed action must not end the queue
-                logger.exception("capture action {} failed for {}", action.kind, p.id)
+                logger.exception("capture action %s failed for %s", action.kind, p.id)
             finally:
                 queue.task_done()
 
@@ -243,7 +216,7 @@ class ProcedureCapture(Component):
         try:
             await p.say(text, to=self._output)
         except Exception:  # noqa: BLE001
-            logger.exception("capture announcement {} failed for {}", key, p.id)
+            logger.exception("capture announcement %s failed for %s", key, p.id)
 
     # -- start and evidence ------------------------------------------------------------------------------
 
@@ -258,7 +231,7 @@ class ProcedureCapture(Component):
             await p.artifacts.write_blob(self._name(session, "transcript.jsonl"), b"")
             await self._write_views(p, session)
         except Exception:  # noqa: BLE001 - a failed start leaves an incomplete packet and a fresh start possible
-            logger.exception("capture start failed for {}", p.id)
+            logger.exception("capture start failed for %s", p.id)
             session.status = "incomplete"
             await self._seal(p, session, status="incomplete")
             self._recording[p.id] = False
@@ -300,7 +273,7 @@ class ProcedureCapture(Component):
             try:
                 await self._save_frame(p, session, frame)
             except Exception as exc:  # noqa: BLE001 - one failed frame does not end the capture
-                logger.warning("frame capture failed for {}: {}", p.id, exc)
+                logger.warning("frame capture failed for %s: %s", p.id, exc)
                 await self._error(p, session, "capture_error", str(exc))
 
     async def _save_frame(self, p: Participant, session: CaptureSession, frame: Frame) -> None:
@@ -336,7 +309,7 @@ class ProcedureCapture(Component):
             try:
                 await self._caption_once(p, session)
             except Exception as exc:  # noqa: BLE001 - one failed caption does not end the capture
-                logger.warning("frame caption failed for {}: {}", p.id, exc)
+                logger.warning("frame caption failed for %s: %s", p.id, exc)
                 await self._error(p, session, "caption_error", str(exc))
             await asyncio.sleep(self._caption_every_s)
 
@@ -382,7 +355,7 @@ class ProcedureCapture(Component):
                 self._name(session, "errors"), {"timestamp_us": now_us(), "kind": kind, "message": message}
             )
         except Exception:  # noqa: BLE001
-            logger.exception("capture error log failed for {} ({})", p.id, kind)
+            logger.exception("capture error log failed for %s (%s)", p.id, kind)
 
     # -- sealing -----------------------------------------------------------------------------------------
 
@@ -427,11 +400,11 @@ class ProcedureCapture(Component):
             await self._write_views(p, session)
         except Exception:  # noqa: BLE001
             session.status = "incomplete"
-            logger.exception("capture finalization failed for {}", p.id)
+            logger.exception("capture finalization failed for %s", p.id)
             try:  # a failed view must never leave a packet advertised as complete
                 await self._write_views(p, session)
             except Exception:  # noqa: BLE001
-                logger.exception("incomplete packet seal failed for {}", p.id)
+                logger.exception("incomplete packet seal failed for %s", p.id)
         finally:
             session.sealed = True
             self._sealed.setdefault(p.id, []).append(session)

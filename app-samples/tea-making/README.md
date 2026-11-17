@@ -7,10 +7,11 @@
 
 Tea-making guidance on the core and the kit: a procedure that watches the
 camera (`xr_ai_kit.sop`), next to a conversation that answers questions
-about it. The design follows the tea sample's independent-flows
-architecture: the procedure is ordinary Python calling plain async steps,
-a small runner owns the run and its controls, and the conversation reads
-the run's state. There is no step language and no workflow engine.
+about it. Three layers, each with one job: **steps** (kit step types,
+each verified on its own), the **procedure** (`procedure.py`: which steps,
+in what order, what passes between them) and the **runner** (`SopRunner`:
+one run per person, its controls, its state for the conversation). There
+is no step language and no workflow engine.
 
 ## How it works
 
@@ -18,7 +19,7 @@ the run's state. There is no step language and no workflow engine.
 Voice -> Router (Clef)
            |-- tea           controls only: start, stop, skip, restart
            |                 -> SopRunner -> procedure.py (one run per person)
-           |                                   identify, verify x3, timer
+           |                                   read, watch x3, wait
            |                                   |
            |                     tea.context <-+ the run's state
            |                         |
@@ -26,31 +27,35 @@ Voice -> Router (Clef)
            |-- observation   what the camera shows now
 ```
 
-| Step | Function (`xr_ai_kit.sop`) | Done when |
+| Step | Kit step type | Done when |
 |---|---|---|
-| identify | `identify`: read the label into `TeaLabel`, then recommend `Brewing` settings | a tea type is read; skipping uses the defaults |
-| fill_water | `verify` | water is seen in the kettle in 2 of the last 4 decidable frames |
-| heat_water | `verify` on a `Thermometer` reading | the display reads at least the target, with a unit (printed, or `display_unit` in `app.yaml`); a setpoint or a reading with no unit is not judged |
-| start_steeping | `verify` | a real tea bag touches real water (not packaging art) |
-| steep | `timer` | the recommended time has passed; it starts after the tea goes in, or when that check is skipped |
+| identify | `ReadStep`: read the label into `TeaLabel`, then recommend `Brewing` settings | a tea type is read; skipping uses the defaults |
+| fill_water | `WatchStep` | water is seen in the kettle in 2 of the last 4 decidable frames |
+| heat_water | `WatchStep` on a `Thermometer` reading | the display reads at least the target, with a unit (printed, said by the person, or `display_unit` in `app.yaml`); a setpoint is not judged |
+| start_steeping | `WatchStep` | a real tea bag touches real water (not packaging art) |
+| steep | `WaitStep` | the recommended time has passed; it starts after the tea goes in, or when that check is skipped |
 
-Each check is `judge` in a loop: the omni model describes the frame (or
-reads it into a schema), and Clef judges that description against the
-step's criteria (positive, negative or unknown). Unknowns take no slot, so
-an obscured view neither confirms nor resets a check. The wording of every
-question, criterion and message is in `steps.yaml`; the procedure itself
-is `procedure.py`, front to back.
+A watch step has two parts. The **fast check** judges a frame every 2 s:
+the omni model describes it (or reads it into a schema) and Clef labels
+that description against the step's criteria (positive, negative or
+unknown); unknowns take no slot, so an obscured view neither confirms nor
+resets it. Beside it, the **side escalation**: when the check's latest
+reports are mostly unknown, a reasoning model reads them and either asks the
+person for what is missing (the kettle's unit; the answer goes into the
+step's context, which the check reads) or tells them what to bring into
+view. It never completes a step. The words of every step (instruction,
+question, criteria, escalation guidance) are in `steps.yaml`; which type
+each step is, and its schemas, are in `procedure.build_steps`.
 
 Starting the guide starts a run that outlives the turn: a question or an
 interruption never cancels it. "Skip this step" cancels only the current
-step; "stop" ends the run. Each change is traced and written to
-`artifacts/<participant>/sop-tea.jsonl`.
+step (and any question it is waiting on); "stop" ends the run. Each
+change is traced and written to `artifacts/<participant>/sop-tea.jsonl`.
 
 Compared with the original tea sample, this port does not yet retrieve
-brewing settings from documents (the model recommends them; `identify`
-takes a `retrieve` function when an embedding service is running), does not
-ask the user which unit the kettle displays (set `display_unit` instead),
-and has no live event viewer.
+brewing settings from documents (the model recommends them; a `ReadStep`
+takes a `retrieve` function when an embedding service is running), and has
+no live event viewer.
 
 ## Run
 
@@ -85,13 +90,14 @@ uv --config-file ../../uv.toml run pytest
 With `--real-models` and your own pictures (`--media-dir`, same file
 names) the same scenario runs on the real models.
 
-## Test packets
+## Evaluation
 
-`eval/` holds one test packet per step: the frames the camera may show
-while that step is active (its own scene, other steps' scenes, look-alikes
-such as the kettle's target setting flashing on its display) and what the
-user may say then (questions such as "what's the next step?", controls,
-chatter, negated or quoted controls), each with what the guide should do.
-`eval/harness.py` runs them against the app's own decisions and models and
-reports false completions, unintended state changes, missed controls and
-ungrounded answers. See `eval/README.md`.
+`eval/` evaluates each layer on its own. **Step cases** (`eval/steps/`,
+one file per step) run the real step, built by `procedure.build_steps`, on
+scenes from a recording (its own scene, other steps' scenes, look-alikes
+such as the kettle's target setting, and spliced scenes such as the person
+looking away) with a scripted person, scored by the step type's own rules
+(`xr_ai_kit.sop.eval`). **Dialogue cases** (`eval/dialogue/`) put the guide
+in a state and check what it does with what the user says (questions such
+as "what's the next step?", controls, chatter, negated or quoted
+controls). See `eval/README.md`.

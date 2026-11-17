@@ -108,7 +108,7 @@ are helpers, and anything else is a `RouterDestination` with its hooks.
   an attribute; `focused(p) -> bool` holds the focus, `admit(turn, p) ->
   Admission` accepts or declines before the handler runs; the handler may
   return `DestinationResult("pass", reason=...)` to hand the turn back. The
-  procedures kit's `procedure.control` and the conversation sample's
+  procedure runner's `SopRunner.control` and the conversation sample's
   observation, alert and note destinations are written this way.
 
   ```python

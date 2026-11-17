@@ -1,25 +1,57 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# The words and the order. What each step does is in app.py.
-name: printer pre-flight
-steps:
-  - id: bed_clear
-    instruction: clear everything off the print bed
-    enter: First, make sure the print bed is clear.
-    done: The bed is clear.
-    unable: confirm
-    confirm: Is the print bed clear?
-  - id: door_closed
-    instruction: close the printer door
-    enter: Close the printer door.
-    done: The door is closed.
-    unable: confirm
-    confirm: Is the door closed?
-  - id: warm_up
-    instruction: wait while the printer warms up
-    enter: Warming up for ninety seconds.
-    done: Warm-up done. You can start the print.
+# The words of the printer pre-flight (xr_ai_kit.sop.Wording). One entry per
+# step, keyed by its id; app.py chooses each step's type and their order.
+#   does        what the person does, for the plan the conversation reads
+#   say         spoken as the step starts
+#   question    a camera step: what the observing model describes per frame
+#   criteria    a camera step: how the deciding model labels a description
+#   escalation  a camera step: when the camera cannot tell, what the person
+#               can be told or asked (without it the step never speaks up)
+# `lines:` holds everything else the procedure says.
 
-# Everything else (start, stop, next, back, the default questions) uses the
-# procedure's built-in wording; override any of it under `messages:`/`asks:`.
+bed_clear:
+  does: clear everything off the print bed
+  say: First, make sure the print bed is clear.
+  question: >-
+    Describe the 3D printer's print bed: whether it is in view, and whether
+    anything (a print, a spool, a tool, debris) lies on it.
+  criteria:
+    instructions: Is the print bed clear?
+    positive: The print bed is in view and nothing lies on it.
+    negative: Something lies on the print bed.
+    unknown: >-
+      The print bed is not in view, is partly hidden, or the view is too
+      dark or blurred to tell.
+  escalation: >-
+    The whole print bed has to be in the camera's view. When it is not, tell
+    the person to point the camera at the print bed. The person can also say
+    whether the bed is clear.
+
+door_closed:
+  does: close the printer door
+  say: Close the printer door.
+  question: >-
+    Describe the 3D printer's door or enclosure front: whether it is in view,
+    and whether it is open or closed.
+  criteria:
+    instructions: Is the printer door closed?
+    positive: The printer door is in view and fully closed.
+    negative: The printer door is open or ajar.
+    unknown: >-
+      The door is not in view, is partly hidden, or the view is too dark or
+      blurred to tell.
+  escalation: >-
+    The printer's door has to be in the camera's view. When it is not, tell
+    the person to point the camera at the door. The person can also say
+    whether it is closed.
+
+warm_up:
+  does: wait 90 seconds while the printer warms up (a timer)
+  say: Warming up for ninety seconds.
+
+lines:
+  bed_clear: The bed is clear.
+  door_closed: The door is closed.
+  warmed_up: Warm-up done. You can start the print.

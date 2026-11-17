@@ -3,8 +3,8 @@
 
 # One recording of someone making green tea: a 381 s first-person video. The
 # recording and its frames are not in the repository; pass their local
-# index to harness.py (--frames-index). The packets refer to its frames by
-# time (seconds from the start).
+# index to run_steps.py (--frames-index). The step cases refer to its
+# frames by time (seconds from the start).
 #
 # What it shows (times in seconds):
 #   0-4      a black frame, then the kettle and the mug

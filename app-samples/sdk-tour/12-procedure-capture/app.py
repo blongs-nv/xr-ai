@@ -22,9 +22,9 @@ format); 10-guided-procedure then guides someone through the result.
   artifacts/<participant>/sessions/<session-id>/
     packet.json  summary.md  frames/  captions.jsonl  transcript.jsonl
 
-ProcedureCapture comes from the procedures kit (xr-ai-procedures). Its
-start/stop/narrate return at once and are applied in order, so a turn that
-is superseded never cuts a capture short.
+ProcedureCapture comes from the kit's procedure library
+(xr_ai_kit.sop.capture). Its start/stop/narrate return at once and are
+applied in order, so a turn that is superseded never cuts a capture short.
 """
 
 import re
@@ -32,7 +32,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 from xr_ai_app import App, Hub, Participant, PerConnection, Turn, Voice
-from xr_ai_procedures import ProcedureCapture
+from xr_ai_kit.sop.capture import ProcedureCapture
 
 HERE = Path(__file__).resolve().parent
 

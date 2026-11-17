@@ -264,7 +264,7 @@ async def test_gather_tells_the_person_what_to_do_without_waiting_for_an_answer(
         gather(
             context,
             _escalating_check(),
-            lambda: _reports("unknown", "unknown", "unknown"),
+            lambda: _reports("unknown", "unknown", "unknown", "unknown"),
             role=models.role("reviewer"),
             ask=ask,
             say=say,
@@ -284,7 +284,7 @@ async def test_gather_stays_quiet_while_the_check_still_decides() -> None:
         gather(
             StepContext(),
             _escalating_check(),
-            lambda: _reports("unknown", "unknown", "negative", "unknown"),
+            lambda: _reports("unknown", "negative", "negative", "unknown"),
             role=models.role("reviewer"),
             ask=None,  # type: ignore[arg-type]
             every_s=0.01,
@@ -297,46 +297,18 @@ async def test_gather_stays_quiet_while_the_check_still_decides() -> None:
 
 async def test_without_guidance_there_is_no_escalation() -> None:
     models = FakeModels({"reviewer": []})
-    assert await escalation_for(WATER_CHECK, models.role("reviewer"), _reports("unknown", "unknown", "unknown")) is None
+    assert (
+        await escalation_for(WATER_CHECK, models.role("reviewer"), _reports("unknown", "unknown", "unknown", "unknown"))
+        is None
+    )
     await gather(
         StepContext(),
         WATER_CHECK,
-        lambda: _reports("unknown", "unknown", "unknown"),
+        lambda: _reports("unknown", "unknown", "unknown", "unknown"),
         role=models.role("reviewer"),
         ask=None,
     )  # type: ignore[arg-type]
     assert models.calls("reviewer") == []
-
-
-async def test_a_steps_companions_end_with_it_and_cannot_fail_it() -> None:
-    app = _app()
-    events: list[str] = []
-
-    async def companion() -> None:
-        try:
-            await asyncio.Event().wait()
-        except asyncio.CancelledError:
-            events.append("companion cancelled")
-            raise
-
-    async def broken() -> None:
-        raise ValueError("side task failed")
-
-    async def procedure(run: Run) -> None:
-        events.append(
-            str(await run.step("s", lambda: asyncio.sleep(0.05, result="done"), alongside=[companion, broken]))
-        )
-
-    models = FakeModels()
-    runner = _runner(app, procedure, models)
-    async with app.test_session(models=models) as s:
-        await s.join()
-        p = s.participant()
-        await runner.start(p)
-        await _until(s, lambda: not runner.running(p))
-        run = runner.run(p)
-    assert events == ["companion cancelled", "done"]
-    assert run.status == "completed"
 
 
 async def test_timer_counts_down_and_reports() -> None:

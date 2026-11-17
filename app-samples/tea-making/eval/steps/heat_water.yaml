@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Heating the water to 80 C: 176 on this kettle's display, which prints no
+# unit (Fahrenheit). Scenes are times in recordings/green-tea-04.yaml.
+step: heat_water
+build: {temperature_c: 80}
+cases:
+  # The person answers the unit question; the check then completes at 176.
+  - name: unit_unknown_then_answered
+    scene: [26, 346]
+    person: {answers: [Fahrenheit]}
+    expect:
+      asks: [unit, celsius, fahrenheit]
+      completes: {after: 330}
+
+  # Nobody answers: without a unit the check never decides.
+  - name: unit_unknown_no_answer
+    scene: [26, 130]
+    expect: {asks: [unit, celsius, fahrenheit], completes: false}
+
+  # The unit is known (app.yaml): it watches quietly while the water heats.
+  - name: rising
+    scene: [26, 321]
+    build: {unit: fahrenheit}
+    expect: {completes: false, quiet: true}
+
+  - name: at_target
+    scene: [335, 346]
+    build: {unit: fahrenheit}
+    expect: {completes: true}
+
+  # Heating in view, then the person looks away (the packet close up, then
+  # opening the tea bag); told to, they show the kettle again.
+  - name: looked_away
+    scene: [[26, 36], [5, 12], [5, 12], [5, 12], [346, 351], [346, 351]]
+    build: {unit: fahrenheit}
+    person: {after_tell: [[36, 80]]}
+    expect: {says: [kettle, display, view], completes: false}
+
+  - name: setpoint_flash
+    scene: [20, 30]
+    build: {unit: fahrenheit}
+    expect: {completes: false}
+    why: 176 shows at 22.5-25.5 s while the button is pressed; it is the kettle's target setting
+
+  - name: label_held_up
+    scene: [4, 16]
+    expect: {completes: false}
+
+  - name: steeping_kettle_still_hot
+    scene: [364, 381]
+    why: the kettle reads 176-182 at the edge of the view; either outcome is fine

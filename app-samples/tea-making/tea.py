@@ -52,12 +52,24 @@ class TeaLabel(BaseModel):
         return None
 
 
+# Recommended brewing settings for the identified tea (None: not
+# established). No class docstring on purpose: it becomes the schema's
+# description, and with one the reasoning model's constrained JSON leaves
+# temperature_c out (reproduced 6 of 6; without it, 3 of 3 filled).
 class Brewing(BaseModel):
-    """Brewing settings for the identified tea (None when not established)."""
-
     model_config = ConfigDict(extra="ignore")
-    temperature_c: float | None = Field(default=None, gt=0, lt=101)
-    duration_s: float | None = Field(default=None, gt=0, le=1800)
+    temperature_c: float | None = Field(
+        default=None,
+        gt=0,
+        lt=101,
+        description="the recommended water temperature in degrees Celsius",
+    )
+    duration_s: float | None = Field(
+        default=None,
+        gt=0,
+        le=1800,
+        description="the recommended steeping time in seconds",
+    )
 
 
 class Thermometer(BaseModel):
@@ -133,3 +145,25 @@ def assessable(reading: Thermometer, known: DisplayFacts | None) -> bool:
 
 def fahrenheit(celsius: float) -> float:
     return celsius * 9 / 5 + 32
+
+
+def target(temperature_c: float, unit: str | None) -> str:
+    """The minimum as the criteria say it, in the display's unit if known."""
+    if unit == "fahrenheit":
+        return f"{fahrenheit(temperature_c):g} degrees Fahrenheit"
+    if unit == "celsius":
+        return f"{temperature_c:g} degrees Celsius"
+    return (
+        f"{temperature_c:g} degrees Celsius or "
+        f"{fahrenheit(temperature_c):g} degrees Fahrenheit, matching the"
+        " reading's unit"
+    )
+
+
+def reading_of(verification: Any) -> str:
+    """The last positive reading of a completed heating check, as spoken."""
+    for j in reversed(verification.judgments):
+        r = j.parsed
+        if j.label == "positive" and isinstance(r, Thermometer) and r.value:
+            return f"{r.value:g} {r.unit_text or ''}".strip()
+    return "the target"

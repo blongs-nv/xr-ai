@@ -1,8 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Scripted replies for a plumbing run of harness.py (--fakes): every call
-# gets the same kind of answer, so the numbers mean nothing.
+# Scripted replies for a plumbing run of run_steps.py and run_dialogue.py
+# (--fakes): every call gets the same kind of answer, so the numbers mean
+# nothing.
 decide:
   by_prompt:
     - ["change the procedure now", none]
@@ -15,5 +16,6 @@ perceive:
   otherwise: A kettle and a mug on a desk.
 answer_with_reasoning:
   by_prompt:
+    - ["Recommend conventional brewing settings", {temperature_c: 80, duration_s: 120}]
     - ["what is the check missing", {missing: the unit, action: ask, words: "Does the display show Celsius or Fahrenheit?"}]
   otherwise: You're on reading the label; next, fill the kettle with water.

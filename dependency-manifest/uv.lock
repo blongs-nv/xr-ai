@@ -8573,18 +8573,14 @@ name = "xr-ai-app-sample-guided-procedure"
 version = "0.1.0"
 source = { editable = "../app-samples/sdk-tour/10-guided-procedure" }
 dependencies = [
-    { name = "pydantic" },
     { name = "xr-ai-app", extra = ["video"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
     { name = "xr-ai-kit" },
-    { name = "xr-ai-procedures" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "pydantic", specifier = ">=2.10" },
     { name = "xr-ai-app", extras = ["video"], editable = "../app-sdk/xr-ai-app" },
     { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
-    { name = "xr-ai-procedures", editable = "../app-sdk/xr-ai-procedures" },
 ]
 
 [[package]]
@@ -8702,14 +8698,14 @@ source = { editable = "../app-samples/sdk-tour/12-procedure-capture" }
 dependencies = [
     { name = "pydantic" },
     { name = "xr-ai-app" },
-    { name = "xr-ai-procedures" },
+    { name = "xr-ai-kit" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "pydantic", specifier = ">=2.10" },
     { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
-    { name = "xr-ai-procedures", editable = "../app-sdk/xr-ai-procedures" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
 ]
 
 [[package]]
@@ -8754,6 +8750,48 @@ dev = [
 name = "xr-ai-app-sample-simple-vlm-model-servers"
 version = "0.1.0"
 source = { editable = "../app-samples/simple-vlm/model-servers" }
+dependencies = [
+    { name = "xr-ai-model-server-stack" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "xr-ai-model-server-stack", editable = "../utils/xr-ai-model-server-stack" }]
+
+[[package]]
+name = "xr-ai-app-sample-tea-making"
+version = "0.1.0"
+source = { editable = "../app-samples/tea-making" }
+dependencies = [
+    { name = "pillow" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "xr-ai-app" },
+    { name = "xr-ai-kit" },
+    { name = "xr-ai-launcher" },
+    { name = "xr-ai-logging" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pillow", specifier = ">=13.0.0" },
+    { name = "pydantic", specifier = ">=2" },
+    { name = "pyyaml", specifier = ">=6" },
+    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
+    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
+    { name = "xr-ai-launcher", editable = "../utils/xr-ai-launcher" },
+    { name = "xr-ai-logging", editable = "../utils/xr-ai-logging" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23" },
+]
+
+[[package]]
+name = "xr-ai-app-sample-tea-making-model-servers"
+version = "0.1.0"
+source = { editable = "../app-samples/tea-making/model-servers" }
 dependencies = [
     { name = "xr-ai-model-server-stack" },
 ]
@@ -8898,6 +8936,8 @@ repository = [
     { name = "xr-ai-app-sample-shared-room" },
     { name = "xr-ai-app-sample-simple-vlm" },
     { name = "xr-ai-app-sample-simple-vlm-model-servers" },
+    { name = "xr-ai-app-sample-tea-making" },
+    { name = "xr-ai-app-sample-tea-making-model-servers" },
     { name = "xr-ai-app-sample-tracing" },
     { name = "xr-ai-app-sample-vision-qa" },
     { name = "xr-ai-app-samples-sdk-tour" },
@@ -8913,7 +8953,6 @@ repository = [
     { name = "xr-ai-logging" },
     { name = "xr-ai-model-server-stack" },
     { name = "xr-ai-models", extra = ["riva", "speaker"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-    { name = "xr-ai-procedures" },
     { name = "xr-ai-routing", extra = ["runtime"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
     { name = "xr-ai-tests" },
     { name = "xr-ai-tools", extra = ["capture", "frames", "image-editing", "marker-tracking", "relay", "services", "vision"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
@@ -8984,6 +9023,8 @@ requires-dist = [
     { name = "xr-ai-app-sample-shared-room", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/06-shared-room" },
     { name = "xr-ai-app-sample-simple-vlm", marker = "extra == 'repository'", editable = "../app-samples/simple-vlm" },
     { name = "xr-ai-app-sample-simple-vlm-model-servers", marker = "extra == 'repository'", editable = "../app-samples/simple-vlm/model-servers" },
+    { name = "xr-ai-app-sample-tea-making", marker = "extra == 'repository'", editable = "../app-samples/tea-making" },
+    { name = "xr-ai-app-sample-tea-making-model-servers", marker = "extra == 'repository'", editable = "../app-samples/tea-making/model-servers" },
     { name = "xr-ai-app-sample-tracing", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/11-tracing" },
     { name = "xr-ai-app-sample-vision-qa", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour/02-vision-qa" },
     { name = "xr-ai-app-samples-sdk-tour", marker = "extra == 'repository'", editable = "../app-samples/sdk-tour" },
@@ -8999,7 +9040,6 @@ requires-dist = [
     { name = "xr-ai-logging", marker = "extra == 'repository'", editable = "../utils/xr-ai-logging" },
     { name = "xr-ai-model-server-stack", marker = "extra == 'repository'", editable = "../utils/xr-ai-model-server-stack" },
     { name = "xr-ai-models", extras = ["riva", "speaker"], marker = "extra == 'repository'", editable = "../agent-sdk/xr-ai-models" },
-    { name = "xr-ai-procedures", marker = "extra == 'repository'", editable = "../app-sdk/xr-ai-procedures" },
     { name = "xr-ai-routing", extras = ["runtime"], marker = "extra == 'repository'", editable = "../agent-sdk/xr-ai-routing" },
     { name = "xr-ai-tests", marker = "extra == 'repository'", editable = "../tests" },
     { name = "xr-ai-tools", extras = ["capture", "frames", "image-editing", "marker-tracking", "relay", "services", "vision"], marker = "extra == 'repository'", editable = "../agent-sdk/xr-ai-tools" },
@@ -9086,6 +9126,7 @@ version = "0.0.1"
 source = { editable = "../app-sdk/xr-ai-kit" }
 dependencies = [
     { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "xr-ai-app" },
 ]
 
@@ -9106,6 +9147,7 @@ requires-dist = [
     { name = "langchain-core", marker = "extra == 'langchain'", specifier = ">=1.0,<2" },
     { name = "langgraph", marker = "extra == 'langchain'", specifier = ">=1.0,<2" },
     { name = "pydantic", specifier = ">=2.10" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
 ]
 provides-extras = ["a2a", "langchain"]
@@ -9181,24 +9223,8 @@ requires-dist = [
 ]
 provides-extras = ["riva", "speaker"]
 
-[[package]]
-name = "xr-ai-procedures"
-version = "0.0.1"
-source = { editable = "../app-sdk/xr-ai-procedures" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "pyyaml" },
-    { name = "xr-ai-app" },
-    { name = "xr-ai-kit" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pydantic", specifier = ">=2.10" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "xr-ai-app", editable = "../app-sdk/xr-ai-app" },
-    { name = "xr-ai-kit", editable = "../app-sdk/xr-ai-kit" },
-]
+[package.metadata.requires-dev]
+eval = [{ name = "jsonschema", specifier = ">=4.23" }]
 
 [[package]]
 name = "xr-ai-routing"
@@ -9254,7 +9280,6 @@ dependencies = [
     { name = "xr-ai-logging" },
     { name = "xr-ai-model-server-stack" },
     { name = "xr-ai-models", extra = ["riva"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
-    { name = "xr-ai-procedures" },
     { name = "xr-ai-routing" },
     { name = "xr-ai-tools", extra = ["frames", "image-editing", "marker-tracking", "services", "vision"], marker = "extra == 'extra-25-xr-ai-dependency-manifest-repository'" },
     { name = "xr-ai-vad" },
@@ -9295,7 +9320,6 @@ requires-dist = [
     { name = "xr-ai-logging", editable = "../utils/xr-ai-logging" },
     { name = "xr-ai-model-server-stack", editable = "../utils/xr-ai-model-server-stack" },
     { name = "xr-ai-models", extras = ["riva"], editable = "../agent-sdk/xr-ai-models" },
-    { name = "xr-ai-procedures", editable = "../app-sdk/xr-ai-procedures" },
     { name = "xr-ai-routing", editable = "../agent-sdk/xr-ai-routing" },
     { name = "xr-ai-tools", extras = ["frames", "image-editing", "marker-tracking", "services", "vision"], editable = "../agent-sdk/xr-ai-tools" },
     { name = "xr-ai-vad", editable = "../utils/xr-ai-vad" },

@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Tea touching the water in a real cup.
+step: start_steeping
+cases:
+  - name: steeping
+    scene: [364, 381]
+    expect: {completes: true}
+  - name: bag_in_the_empty_mug
+    scene: [346, 359]
+    expect: {completes: false}
+    why: a dry tea bag in an empty mug is not steeping
+  - name: heating_empty_mug
+    scene: [26, 321]
+    expect: {completes: false}
+  - name: packet_artwork
+    scene: [4, 16]
+    expect: {completes: false}
+    why: the packet shows a picture of a cup of tea

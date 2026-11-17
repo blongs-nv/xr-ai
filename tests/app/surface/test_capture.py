@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""ProcedureCapture (xr_ai_procedures) and sample 12: a demonstration becomes an evidence packet.
+"""ProcedureCapture (xr_ai_kit.sop.capture) and sample 12: a demonstration becomes an evidence packet.
 
 The packet must stay readable by agent-samples/procedure-capture-guide's guide-generation skills, which read
 ``packet.json`` (status, counts, hierarchy, narration_status), ``summary.md``, ``frames/index.jsonl``,

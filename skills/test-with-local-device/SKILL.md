@@ -77,31 +77,33 @@ Stop the server when done.
 
 ## Exercise one piece on a window of a video
 
-Run ONE piece of the app through its real code, the app unchanged: a procedure step on the part of a recorded
-demonstration where it should happen, a router destination on one turn, or any `async fn(p, probe)`.
+Run ONE piece of the app through its real code, the app unchanged: any `async fn(p, probe)` on the part of a
+recorded demonstration where it should happen, or a router destination on one turn.
 
 ```bash
 cd app-samples/sdk-tour/10-guided-procedure
-uv --config-file ../../../../uv.toml run xr-ai-dev exercise app.py step:bed_clear \
+uv --config-file ../../../../uv.toml run xr-ai-dev exercise app.py fn:units.py:look \
     --video demo.mp4 --from 12 --to 31.5 --fakes fakes.yaml \
-    --expect Done --between 14 30 --out runs/bed/
+    --expect Done --between 14 30 --out runs/look/
 ```
+
+`units.py` is a file of your own next to `app.py`; `look` returns a `Done` when it has seen what it looks for.
 
 | Target | Runs |
 |---|---|
-| `step:<id>` (`<procedure>/<id>` if several) | the step built as the procedure builds it; inject state with `--option 'facts={"identify": {...}}'` and `--option 'results={"identify": ...}'` |
-| `destination:<name>` | a router destination (a `RouterDestination` attribute of a component, such as a `GuidedProcedure` control, or a `OneShotDestination`/`StartStopDestination` in the app's Router) on one turn: `--text "..."` (registered by `xr-ai-kit`, so the app must depend on it) |
+| `destination:<name>` | a router destination (a `RouterDestination` attribute of a component, such as a `SopRunner` control, or a `OneShotDestination`/`StartStopDestination` in the app's Router) on one turn: `--text "..."` (registered by `xr-ai-kit`, so the app must depend on it) |
 | `fn:<file.py or module>:<attr>` | any `async fn(p, probe)` |
-| `procedure:` (`procedure:<name>` if several) | the whole procedure on a recording, started in code; with `--option annotations=@windows.yaml` (`{step_id: [earliest, latest]}`) every step is checked against its window (`ok`, `early`, `late`, `missing`), and the exit code says whether all passed |
 
 `--setup file.py:fn` runs `fn(p, probe)` first (fill a context channel, set `p.state`); `--say 13.5:text` types a
-turn into the app mid-window. `exercise.json` gives the outcome (`Done`/`Needs`/`Stuck`, `returned`,
+turn into the app mid-window. `exercise.json` gives the outcome (the result's type name, `returned`,
 `unfinished`), the clip time it ended at (check it against an annotated earliest/latest with `--between`), the
-step's report lines with clip times, what was said, and the model calls; `trace.jsonl` has every event. Exit 0
+unit's report lines with clip times, what was said, and the model calls; `trace.jsonl` has every event. Exit 0
 when `--expect`/`--between` hold. Playing a video needs `xr-ai-app[video]`. With scripted roles it runs on a
 virtual clock (`--clock virtual`, the default then): idle waits such as look intervals and timers are skipped, so a
-long window takes moments; real model calls still take real time. `--real-models` defaults to `--clock real`. In Python:
-`await exercise(app, resolve_target(app, "step:bed_clear"), video=..., from_s=..., to_s=..., models=...)`.
+long window takes moments; real model calls still take real time. `--real-models` defaults to `--clock real`. In Python,
+one step of an `xr_ai_kit.sop` procedure on its own, with a `Run` as its io (`m` is the loaded app module):
+`await exercise(m.app, lambda p, probe: m.bed_clear.run(Run(p, 1, name="x")), video=..., from_s=..., to_s=...,
+models=...)`.
 
 ## In tests
 

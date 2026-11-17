@@ -220,7 +220,7 @@ def test_kits_reach_no_private_names_of_sdk_objects() -> None:
             assert _private_reaches(ast.parse(source.read_text(encoding="utf-8")), own, below) == [], source
 
 
-@pytest.mark.parametrize("package", ["xr_ai_app", "xr_ai_kit", "xr_ai_procedures", "xr_ai_kit.langchain"])
+@pytest.mark.parametrize("package", ["xr_ai_app", "xr_ai_kit", "xr_ai_kit.langchain"])
 def test_every_module_of_the_sdk_and_kits_imports(package: str) -> None:
     """Every module imports: a name moved or renamed elsewhere fails here, not first in an app."""
     import importlib  # noqa: PLC0415
@@ -245,17 +245,17 @@ def test_nothing_outside_the_app_sdk_depends_on_it() -> None:
         ):
             continue
         deps = tomllib.loads(pyproject.read_text(encoding="utf-8")).get("project", {}).get("dependencies", [])
-        assert not any(re.match(r"xr-ai-(app|kit|procedures)(?![-\w])", d) for d in deps), pyproject
+        assert not any(re.match(r"xr-ai-(app|kit)(?![-\w])", d) for d in deps), pyproject
     for source in (REPO / "agent-sdk").rglob("*.py"):
         if ".venv" in source.parts:
             continue
         text = source.read_text(encoding="utf-8")
-        assert not re.search(r"^\s*(from|import) xr_ai_(app|kit|procedures)\b", text, re.M), source
+        assert not re.search(r"^\s*(from|import) xr_ai_(app|kit)\b", text, re.M), source
 
 
 def test_the_core_imports_no_kit() -> None:
     """The core sits under every kit: no module of ``xr_ai_app`` imports ``xr_ai_kit`` or another kit (the devkit
     finds a kit's exercise targets through the ``xr_ai_app.exercise_targets`` entry points)."""
-    kits = re.compile(r"^\s*(?:from|import)\s+(xr_ai_(?:kit|procedures)\b)", re.M)
+    kits = re.compile(r"^\s*(?:from|import)\s+(xr_ai_kit\b)", re.M)
     for source in _sources(REPO / SDK_ROOT / CORE / "xr_ai_app"):
         assert kits.findall(source.read_text(encoding="utf-8")) == [], source
