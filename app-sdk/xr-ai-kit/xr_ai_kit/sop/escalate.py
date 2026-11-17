@@ -3,13 +3,14 @@
 
 """Side escalation: gather what a check cannot establish by asking the person, outside the fast loop.
 
-:func:`gather` runs beside a step (``run.step(..., alongside=[...])``). It reads the fast check's recent reports (each
-frame's observation and label); when most of its latest ones are ``unknown``, the check is missing something, and every
-``every_s`` seconds a reasoning model reads those reports with the check's criteria and the facts so far and infers
-what is missing and whether the person can help: by telling it (a question, whose answer goes into the step's
-:class:`~.judge.StepContext`, which the check reads on every frame) or by doing something, such as bringing the
-kettle back into view (an instruction, spoken only). It sees no frames: the fast check already looked. It never
-completes, skips or slows the step, and it ends (withdrawing a pending question) when the step ends.
+:func:`gather` runs beside a step's fast check (a :class:`~.steps.WatchStep` starts it as its own task). It reads
+the fast check's recent reports (each frame's observation and label); when most of its latest ones are ``unknown``,
+the check is missing something, and every ``every_s`` seconds a reasoning model reads those reports with the check's
+criteria and the facts so far and infers what is missing and whether the person can help: by telling it (a question,
+whose answer goes into the step's :class:`~.judge.StepContext`, which the check reads on every frame) or by doing
+something, such as bringing the kettle back into view (an instruction, spoken only). It sees no frames: the fast
+check already looked. It never completes, skips or slows the step, and it ends (withdrawing a pending question) when
+the step ends.
 """
 
 from __future__ import annotations

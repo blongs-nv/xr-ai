@@ -53,9 +53,9 @@ class TeaLabel(BaseModel):
 
 
 # Recommended brewing settings for the identified tea (None: not
-# established). No class docstring on purpose: it becomes the schema's
-# description, and with one the reasoning model's constrained JSON leaves
-# temperature_c out (reproduced 6 of 6; without it, 3 of 3 filled).
+# established). No class docstring on purpose: it would become the schema's
+# description, and with it the reasoning model's constrained reply for this
+# schema left temperature_c out (6 of 6 tries; 3 of 3 filled without it).
 class Brewing(BaseModel):
     model_config = ConfigDict(extra="ignore")
     temperature_c: float | None = Field(
