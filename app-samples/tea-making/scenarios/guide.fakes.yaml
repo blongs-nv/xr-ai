@@ -18,7 +18,7 @@ perceive:
   by_prompt:
     - ["Read only clearly legible text", {tea_name: Bicelon, tea_type: green tea}]
     - ["water is visibly inside", "The kettle holds water; its level shows in the window."]
-    - ["Transcribe the number", {value: 176, unit_text: "°F", role: unknown}]
+    - ["Transcribe the temperature", {value: 176, unit_text: "°F", role: unknown}]
     - ["tea-water contact", "A tea bag hangs in the mug and touches the hot water."]
 answer_with_reasoning:
   by_prompt:

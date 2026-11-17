@@ -11,7 +11,7 @@ decide:
 perceive:
   by_prompt:
     - ["Read only clearly legible text", {tea_name: Bigelow, tea_type: green tea}]
-    - ["Transcribe the number", {value: 150, role: current}]
+    - ["Transcribe the temperature", {value: 150, role: current}]
   otherwise: A kettle and a mug on a desk.
 perceive_with_reasoning:
   by_prompt:
