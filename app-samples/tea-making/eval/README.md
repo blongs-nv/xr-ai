@@ -64,7 +64,7 @@ tests the prompt that step ships with; a source the case leaves out is
 empty.
 
 **Expectations** belong to the step's type (its scoring module, next to
-the step: `xr_ai_kit.sop.steps.watch.watch_scoring` and so on), so each
+the step: `xr_ai_kit.sop.watch.watch_scoring` and so on), so each
 type is scored by its own rules:
 
 | Step type | `expect` keys |

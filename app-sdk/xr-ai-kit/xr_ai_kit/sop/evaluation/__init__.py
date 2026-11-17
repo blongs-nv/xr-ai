@@ -11,7 +11,7 @@
 ================  ==========================================================================================
 
 What every step shares lives here; how a case of a given step type is scored lives with that type, in its own
-scoring module (``steps/watch/watch_scoring.py``, ...). Nothing here looks inside a step. Imported only to evaluate;
+scoring module (``watch/watch_scoring.py``, ...). Nothing here looks inside a step. Imported only to evaluate;
 an app running a procedure never imports it.
 
 An app's evaluation script::

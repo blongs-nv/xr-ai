@@ -297,6 +297,14 @@
         "segments"
       ]
     },
+    "xr_ai_kit.sop.read": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/read/__init__.py",
+      "all": [
+        "Identification",
+        "ReadStep",
+        "identify"
+      ]
+    },
     "xr_ai_kit.sop.runner": {
       "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/runner/__init__.py",
       "all": [
@@ -314,35 +322,21 @@
       "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/__init__.py",
       "all": [
         "Frames",
-        "ReadStep",
         "Roles",
         "Step",
-        "StepDefinition",
-        "StepDefinitions",
-        "StepIO",
-        "WaitStep",
-        "WatchSettings",
-        "WatchStep"
+        "StepIO"
       ]
     },
-    "xr_ai_kit.sop.steps.read": {
-      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/read/__init__.py",
-      "all": [
-        "Identification",
-        "ReadStep",
-        "identify"
-      ]
-    },
-    "xr_ai_kit.sop.steps.wait": {
-      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/wait/__init__.py",
+    "xr_ai_kit.sop.wait": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/wait/__init__.py",
       "all": [
         "TimerState",
         "WaitStep",
         "timer"
       ]
     },
-    "xr_ai_kit.sop.steps.watch": {
-      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/watch/__init__.py",
+    "xr_ai_kit.sop.watch": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/watch/__init__.py",
       "all": [
         "Check",
         "Criteria",

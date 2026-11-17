@@ -29,10 +29,10 @@ from xr_ai_kit.sop import (
     evaluation,
 )
 from xr_ai_kit.sop.evaluation import Line, StepTrace
-from xr_ai_kit.sop.steps.read import read_scoring
-from xr_ai_kit.sop.steps.wait import wait_scoring
-from xr_ai_kit.sop.steps.watch import watch_scoring
-from xr_ai_kit.sop.steps.watch.watch_scoring import Window
+from xr_ai_kit.sop.read import read_scoring
+from xr_ai_kit.sop.wait import wait_scoring
+from xr_ai_kit.sop.watch import watch_scoring
+from xr_ai_kit.sop.watch.watch_scoring import Window
 
 WATER = Criteria("Is there water?", "Water is visible.", "The kettle is empty.", "The kettle's inside cannot be seen.")
 FAST = WatchSettings(interval_s=0.01, required=2, window=4)

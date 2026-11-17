@@ -67,9 +67,9 @@ def scoring_for(step: Step[Any], scorings: Scorings | None = None) -> Scoring:
     if scorings and kind in scorings:
         return scorings[kind]  # type: ignore[return-value]
     # The kit's scoring modules import this package; they are loaded here, when first needed.
-    from ..steps.read import ReadStep, read_scoring  # noqa: PLC0415
-    from ..steps.wait import WaitStep, wait_scoring  # noqa: PLC0415
-    from ..steps.watch import WatchStep, watch_scoring  # noqa: PLC0415
+    from ..read import ReadStep, read_scoring  # noqa: PLC0415
+    from ..wait import WaitStep, wait_scoring  # noqa: PLC0415
+    from ..watch import WatchStep, watch_scoring  # noqa: PLC0415
 
     kit: dict[type, ModuleType] = {WatchStep: watch_scoring, ReadStep: read_scoring, WaitStep: wait_scoring}
     if kind not in kit:

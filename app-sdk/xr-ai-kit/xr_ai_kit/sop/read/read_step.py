@@ -13,7 +13,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from ..step_api import Roles, StepIO
+from ..steps.step_api import Roles, StepIO
 from .identify import Identification, identify
 
 

@@ -5,13 +5,12 @@
 
 The package::
 
-    steps/            everything about steps
-      step_api.py         what every step is and touches (Step, StepIO, Frames, Roles)
-      step_definitions.py StepDefinitions: a procedure's steps written in YAML, and the steps built from them
-      watch/              WatchStep: the fast camera check (judge, verify) and its per-step Escalator
-      read/               ReadStep: read the camera into a schema, derive a result (identify)
-      wait/               WaitStep: a countdown (timer)
-                          (each type also has a *_scoring.py module, used only by the evaluation)
+    steps/            what every step shares: step_api.py (Step, StepIO, Frames, Roles) and
+                      step_definitions.py (StepDefinitions: steps written in YAML, and the steps built from them)
+    watch/            WatchStep: the fast camera check (judge, verify) and its per-step Escalator
+    read/             ReadStep: read the camera into a schema, derive a result (identify)
+    wait/             WaitStep: a countdown (timer)
+                      (each step type also has a *_scoring.py module, used only by the evaluation)
     runner/           SopRunner (one run per participant, controls, the run's summary), Run (what the procedure
                       receives), the controls' default wording
     evaluation/       one step at a time on a recorded scene and a scripted person; imported only to evaluate
@@ -34,11 +33,12 @@ A procedure::
 
 from __future__ import annotations
 
+from .read import Identification, ReadStep, identify
 from .runner import CONTROLS, MESSAGES, Run, SopRunner, StepRecord
-from .steps import Frames, Roles, Step, StepDefinition, StepDefinitions, StepIO
-from .steps.read import Identification, ReadStep, identify
-from .steps.wait import TimerState, WaitStep, timer
-from .steps.watch import (
+from .steps import Frames, Roles, Step, StepIO
+from .steps.step_definitions import StepDefinition, StepDefinitions
+from .wait import TimerState, WaitStep, timer
+from .watch import (
     LABELS,
     Check,
     Criteria,

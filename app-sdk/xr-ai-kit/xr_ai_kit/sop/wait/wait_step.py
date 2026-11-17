@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
-from ..step_api import StepIO
+from ..steps.step_api import StepIO
 from .timer import TimerState, timer
 
 

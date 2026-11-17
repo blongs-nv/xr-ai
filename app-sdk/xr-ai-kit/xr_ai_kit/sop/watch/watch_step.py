@@ -26,7 +26,7 @@ from dataclasses import dataclass, field, replace
 from pydantic import BaseModel, ConfigDict
 from xr_ai_app import clock, trace
 
-from ..step_api import Roles, StepIO
+from ..steps.step_api import Roles, StepIO
 from .escalator import Escalator, Watched
 from .judge import Check, Judgment, StepContext
 from .verify import Verification, verify
