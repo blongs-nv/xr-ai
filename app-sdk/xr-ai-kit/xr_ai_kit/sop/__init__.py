@@ -19,14 +19,15 @@ The runner              SopRunner (a component: one run per participant, control
                         (what the procedure receives, and what a step touches)
 ======================  =================================================================
 
-Under the steps: :func:`judge` (one frame against a :class:`Check`), :func:`verify` (the fast check), :func:`gather`
-(the side escalation), :func:`identify`, :func:`timer`. :mod:`.eval` runs one step on recorded frames and a scripted
-person, on the devkit's virtual clock, and scores it with the step's own ``score``; it is imported only to evaluate.
+Under the steps: :func:`judge` (one frame against a :class:`Check`), :func:`verify` (the fast check),
+:class:`Escalator` (a watch step's side escalation, attached and configured per step), :func:`identify`,
+:func:`timer`. :mod:`.eval` runs one step on recorded frames and a scripted person, on the devkit's virtual clock,
+and scores it with the step's own ``score``; it is imported only to evaluate.
 
 A procedure::
 
     WORDS = Wording.load("steps.yaml")
-    fill = WORDS.watch("fill_water", roles)
+    fill = WORDS.watch("fill_water", roles).escalating(WORDS.escalator("fill_water", reasoning))
     steep = WORDS.wait("steep")
 
     async def make_tea(run: Run) -> None:
@@ -37,7 +38,7 @@ A procedure::
 
 from __future__ import annotations
 
-from .escalate import Escalation, escalation_for, gather
+from .escalate import Escalation, EscalationSettings, Escalator, Watched, escalation_for, stuck
 from .identify import Identification, identify
 from .judge import LABELS, Check, Criteria, Facts, Judgment, Label, StepContext, judge
 from .runner import CONTROLS, MESSAGES, Run, SopRunner, StepRecord
@@ -52,6 +53,8 @@ __all__ = [
     "Check",
     "Criteria",
     "Escalation",
+    "EscalationSettings",
+    "Escalator",
     "Facts",
     "Frames",
     "Identification",
@@ -75,11 +78,12 @@ __all__ = [
     "WaitStep",
     "WatchSettings",
     "WatchStep",
+    "Watched",
     "Wording",
     "escalation_for",
-    "gather",
     "identify",
     "judge",
+    "stuck",
     "timer",
     "verify",
 ]

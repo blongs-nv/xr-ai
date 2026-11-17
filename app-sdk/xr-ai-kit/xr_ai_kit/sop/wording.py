@@ -3,16 +3,16 @@
 
 """A procedure's words in one YAML file, and the steps built from them.
 
-Only words live in the file; which type each step is, its schemas and code hooks are chosen where the step is built
-(``wording.watch("heat_water", roles, needs=..., ...)``). One entry per step, keyed by its id, and ``lines`` for
-whatever else the procedure says::
+Only words live in the file; which type each step is, its schemas, code hooks and escalator are chosen where the step
+is built (``wording.watch("heat_water", roles, needs=...).escalating(wording.escalator("heat_water", reasoning))``).
+One entry per step, keyed by its id, and ``lines`` for whatever else the procedure says::
 
     fill_water:
       does: fill the kettle with fresh water          # the plan the conversation reads
       say: Fill a kettle with fresh water and keep it in view.
       question: Describe whether water is visibly inside the kettle ...   # a watch step's check
       criteria: {instructions: ..., positive: ..., negative: ..., unknown: ...}
-      escalation: The kettle has to be in the camera's view ...           # optional: the side escalation
+      escalation: The kettle has to be in the camera's view ...           # optional: its escalator's guidance
     identify:
       does: show the tea's label
       say: Show the tea's label clearly.
@@ -32,7 +32,9 @@ from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict
+from xr_ai_app import Role
 
+from .escalate import EscalationSettings, Escalator
 from .judge import Check, Criteria
 from .step import Roles
 from .steps import ReadStep, WaitStep, WatchSettings, WatchStep
@@ -82,18 +84,16 @@ class Wording:
         return self.lines[name].format(**values)
 
     def check(self, step_id: str, **code: Any) -> Check:
-        """The step's :class:`~.judge.Check`: its question, criteria and escalation, plus what code declares
-        (``needs``, ``observation_model``, ``can_assess``, ``reconcile``)."""
+        """The step's :class:`~.judge.Check`: its question and criteria, plus what code declares (``needs``,
+        ``observation_model``, ``can_assess``, ``reconcile``)."""
         words = self._words(step_id)
         if words.question is None or words.criteria is None:
             raise ValueError(f"{step_id}: a watch step needs question and criteria")
         c = words.criteria
-        return Check(
-            words.question, Criteria(c.instructions, c.positive, c.negative, c.unknown), words.escalation, **code
-        )
+        return Check(words.question, Criteria(c.instructions, c.positive, c.negative, c.unknown), **code)
 
     def watch(self, step_id: str, roles: Roles, settings: WatchSettings | None = None, **code: Any) -> WatchStep:
-        """A :class:`~.steps.WatchStep` from the step's words; ``code`` as for :meth:`check`."""
+        """A :class:`~.steps.WatchStep` from the step's words, without an escalator; ``code`` as for :meth:`check`."""
         return WatchStep(
             step_id,
             self.check(step_id, **code),
@@ -101,6 +101,16 @@ class Wording:
             say=self._words(step_id).say,
             settings=settings or WatchSettings(),
         )
+
+    def escalator(
+        self, step_id: str, role: Role, settings: EscalationSettings | None = None, *, reader: Role | None = None
+    ) -> Escalator:
+        """An :class:`~.escalate.Escalator` for the step, with its ``escalation`` words as guidance; attach it with
+        ``WatchStep.escalating``. ``role`` reasons; ``reader`` reads answers (default ``role``)."""
+        guidance = self._words(step_id).escalation
+        if not guidance:
+            raise ValueError(f"{step_id}: an escalator needs the step's escalation words")
+        return Escalator(guidance, role, reader, settings or EscalationSettings())
 
     def read(self, step_id: str, roles: Roles, **code: Any) -> ReadStep:
         """A :class:`~.steps.ReadStep` from the step's words; ``code`` gives its schemas and hooks

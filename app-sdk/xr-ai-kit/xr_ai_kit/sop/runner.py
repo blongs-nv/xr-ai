@@ -110,7 +110,7 @@ class Run:
 
     output: Sink | None = field(default=None, repr=False)
     _publish: Callable[..., Awaitable[None]] | None = field(default=None, repr=False)
-    _situation: Callable[[Participant], Awaitable[str]] | None = field(default=None, repr=False)
+    _situation: Callable[[Participant, Sequence[str]], Awaitable[str]] | None = field(default=None, repr=False)
     _answer: asyncio.Future[str] | None = field(default=None, repr=False)
 
     @property
@@ -214,9 +214,10 @@ class Run:
         await self._changed("answer", question=question, answer=answer)
         return answer
 
-    async def situation(self) -> str:
-        """What is going on, for a step's reasoning: the run's summary and the runner's ``step_context``."""
-        return await self._situation(self.p) if self._situation is not None else ""
+    async def situation(self, sources: Sequence[str]) -> str:
+        """What is going on, for a step's escalator: ``run`` (the run's summary) and the runner's ``step_context``
+        channels by name, in the order given; a name the runner does not have is an error."""
+        return await self._situation(self.p, sources) if self._situation is not None else ""
 
     def answer(self, text: str) -> bool:
         """Give the pending question its answer; whether one was pending."""
@@ -238,8 +239,9 @@ class SopRunner(Component):
     (Clef or an LLM). ``output`` is where the runner speaks (``None``: the
     app's speech output). ``description`` is what a Router reads to send control requests here. ``controls`` and
     ``messages`` override the default wording (:data:`CONTROLS`, :data:`MESSAGES`) key by key. ``step_context``
-    lists context channels a step's reasoning reads besides the run's summary (the recent dialogue, where the person
-    may already have said what a step would ask).
+    lists the context channels a step's escalator may read, by name (``voice.dialogue`` as ``dialogue``: the person
+    may already have said what a step would ask); each escalator picks what it reads (its ``context`` setting), the
+    run's summary as ``run``.
     """
 
     def __init__(
@@ -356,9 +358,17 @@ class SopRunner(Component):
         p.state[self._key] = run
         return run
 
-    async def _situation(self, p: Participant) -> str:
-        around = await render(p, self._step_context, budget_bytes=self._budget) if self._step_context else ""
-        return "\n\n".join(part for part in (self.summary(p), around) if part)
+    async def _situation(self, p: Participant, sources: Sequence[str]) -> str:
+        channels = {channel.name: channel for channel in self._step_context}
+        parts = []
+        for source in sources:
+            if source == "run":
+                parts.append(self.summary(p))
+            elif source in channels:
+                parts.append(await render(p, [channels[source]], budget_bytes=self._budget))
+            else:
+                raise ValueError(f"no context {source!r} for a step; there is 'run' and {sorted(channels)}")
+        return "\n\n".join(part for part in parts if part)
 
     @property
     def _key(self) -> str:

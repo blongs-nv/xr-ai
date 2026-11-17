@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -30,10 +30,12 @@ class Person(BaseModel):
 class ScriptedIO:
     """What a step touches in an evaluation (see the module docstring)."""
 
-    def __init__(self, step_id: str, scene: SceneFrames, person: Person, situation: str = "") -> None:
+    def __init__(
+        self, step_id: str, scene: SceneFrames, person: Person, context: Mapping[str, str] | None = None
+    ) -> None:
         self.scene = scene
         self.person = person
-        self._situation = situation
+        self._context = dict(context or {})
         self._answers = list(person.answers)
         self._switched = False
         self.trace = StepTrace(step_id)
@@ -61,5 +63,6 @@ class ScriptedIO:
 
         return on_state
 
-    async def situation(self) -> str:
-        return self._situation
+    async def situation(self, sources: Sequence[str]) -> str:
+        """The case's text for each source asked for, in order (a source the case does not give is empty)."""
+        return "\n\n".join(self._context[s] for s in sources if self._context.get(s))

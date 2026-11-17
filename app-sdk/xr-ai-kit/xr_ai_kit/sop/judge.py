@@ -4,8 +4,8 @@
 """One camera frame judged against a check: the unit every visual check is built from.
 
 A :class:`Check` declares what a step verifies: the question asked of each frame, the criteria for done, and,
-optionally, what it may need to know that the camera cannot show (``needs``) and when to ask the person for it
-(``escalation``). An observing role describes the frame (free text, or an instance of a schema); a deciding role
+optionally, what it may need to know that the camera cannot show (``needs``; a step's escalator may ask the person
+for it). An observing role describes the frame (free text, or an instance of a schema); a deciding role
 reads that description, with the :class:`Facts` known so far, and picks ``positive``, ``negative`` or ``unknown``
 against the criteria. Keeping the two apart means the observation can be read back and evaluated on its own, and
 the same function runs live (inside :func:`verify`) and offline (an evaluation over recorded frames).
@@ -81,7 +81,7 @@ class Judgment:
 
 @dataclass(frozen=True, slots=True)
 class Check:
-    """What one visual check verifies, and how it may get help; declared by the app, run by :func:`verify`.
+    """What one visual check verifies; declared by the app, run by :func:`verify`.
 
     ``question`` is asked of each frame and ``criteria`` define done. ``observation_model`` makes the observation a
     schema instance, and ``can_assess(observation, known)`` is a check in code over it and the typed facts known so
@@ -89,13 +89,12 @@ class Check:
     decision. ``reconcile(observation, known)`` returns the observation corrected with the known facts before anything
     judges it (a unit the person stated replacing one the model claims to read): known facts win in code, not by
     asking the deciding model to prefer them. ``needs`` is a schema of facts the check may need but the camera may
-    not establish (a display's unit, a vessel's contents). ``escalation`` is free-form guidance on when to ask the
-    person and about what; without it the check never asks.
+    not establish (a display's unit, a vessel's contents); the step's escalator (:mod:`.escalate`) may ask the person
+    for them.
     """
 
     question: str
     criteria: Criteria
-    escalation: str | None = None
     needs: type[BaseModel] | None = None
     observation_model: type[BaseModel] | None = None
     can_assess: Callable[[Any, Any], bool] | None = None

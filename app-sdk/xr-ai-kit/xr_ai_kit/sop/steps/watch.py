@@ -8,11 +8,12 @@ Two parts, sharing the step's context (:class:`~..judge.StepContext`):
 - the fast check (:func:`~..verify.verify`): a frame every ``interval_s``, observed and labelled by fast models,
   done when ``required`` of the last ``window`` decidable frames are positive. No reasoning, never asks; it reads the
   context on every frame.
-- the side escalation (:func:`~..escalate.gather`), only when the check has escalation guidance: when the check's
-  latest reports are mostly unknown, a reasoning model reads them, infers what is missing, and asks the person (the
-  answer goes into the context) or tells them what to do (bring the kettle into view). It never decides the step.
+- the step's escalator (:class:`~..escalate.Escalator`), only when one is attached (:meth:`WatchStep.escalating`):
+  a separate agent, configured per step, that reads the check's reports and, when they are mostly unknown, asks the
+  person (the answer goes into the context) or tells them what to do (bring the kettle into view). It never decides
+  the step.
 
-The escalation runs as a task of the step's own and ends with it; a failure in it is traced and does not fail the
+The escalator runs as a task of the step's own and ends with it; a failure in it is traced and does not fail the
 step. ``Expect`` and :meth:`WatchStep.score` say how an evaluation case of a watch step is scored.
 """
 
@@ -25,7 +26,7 @@ from dataclasses import dataclass, field, replace
 from pydantic import BaseModel, ConfigDict
 from xr_ai_app import clock, trace
 
-from ..escalate import gather
+from ..escalate import Escalator, Watched
 from ..judge import Check, Judgment, StepContext
 from ..step import Roles, StepIO, StepTrace, mentions
 from ..verify import Verification, verify
@@ -43,10 +44,6 @@ class WatchSettings(BaseModel):
     """How often a frame is judged."""
     timeout_s: float = 30.0
     """Bound on one model call."""
-    review_every_s: float = 20.0
-    """How often the side escalation looks at the check's reports."""
-    max_lines: int = 2
-    """How many things the side escalation may say during one step."""
 
 
 class Window(BaseModel):
@@ -73,7 +70,7 @@ class WatchExpect(BaseModel):
 
 @dataclass(frozen=True, slots=True)
 class WatchStep:
-    """A camera check with its side escalation; see the module docstring."""
+    """A camera check, with an optional escalator; see the module docstring."""
 
     id: str
     check: Check
@@ -82,6 +79,8 @@ class WatchStep:
     known: BaseModel | None = None
     """Typed facts the step starts with (an instance of the check's ``needs``, from the app's settings)."""
     settings: WatchSettings = field(default_factory=WatchSettings)
+    escalator: Escalator | None = None
+    """The step's side escalation (``None``: the step never reasons, never asks)."""
 
     Expect = WatchExpect
 
@@ -93,6 +92,10 @@ class WatchStep:
     def knowing(self, known: BaseModel | None) -> WatchStep:
         """A copy that starts with ``known`` as its typed facts."""
         return replace(self, known=known)
+
+    def escalating(self, escalator: Escalator | None) -> WatchStep:
+        """A copy with ``escalator`` as its side escalation (``None``: without one)."""
+        return replace(self, escalator=escalator)
 
     async def run(self, io: StepIO) -> Verification:
         """Watch until the check completes; returns its final state. Cancelling the task ends the step."""
@@ -109,31 +112,14 @@ class WatchStep:
         def reports() -> tuple[Judgment, ...]:
             return latest[0].judgments if latest else ()
 
-        async def situation() -> str:
-            # The same text live and in an evaluation: the step's own status, then what the app adds.
-            lines = [f"The step '{self.id}' has been running for {clock.now() - started:.0f} s."]
-            if around := await io.situation():
-                lines.append(around)
-            return "\n".join(lines)
-
-        async def escalate() -> None:
+        async def escalate(escalator: Escalator) -> None:
+            watched = Watched(self.id, self.check, context, reports, started)
             try:
-                await gather(
-                    context,
-                    self.check,
-                    reports,
-                    role=self.roles.reason,
-                    ask=io.ask,
-                    say=io.say,
-                    reader=self.roles.reason,
-                    situation=situation,
-                    every_s=settings.review_every_s,
-                    max_questions=settings.max_lines,
-                )
+                await escalator.run(watched, io)
             except Exception as exc:  # noqa: BLE001 - the escalation never fails the step
                 trace.emit("sop", self.id, op="escalation_failed", error=repr(exc))
 
-        side = asyncio.create_task(escalate()) if self.check.escalation else None
+        side = asyncio.create_task(escalate(self.escalator)) if self.escalator is not None else None
         try:
             return await verify(
                 io.frames,  # type: ignore[arg-type]  # any Frames: the participant's, or a recorded scene

@@ -39,13 +39,18 @@ A watch step has two parts. The **fast check** judges a frame every 2 s:
 the omni model describes it (or reads it into a schema) and Clef labels
 that description against the step's criteria (positive, negative or
 unknown); unknowns take no slot, so an obscured view neither confirms nor
-resets it. Beside it, the **side escalation**: when the check's latest
-reports are mostly unknown, a reasoning model reads them and either asks the
-person for what is missing (the kettle's unit; the answer goes into the
-step's context, which the check reads) or tells them what to bring into
-view. It never completes a step. The words of every step (instruction,
-question, criteria, escalation guidance) are in `steps.yaml`; which type
-each step is, and its schemas, are in `procedure.build_steps`.
+resets it. Beside it, the step's **escalator**, a separate agent wired to
+each camera step on its own: when the check's latest reports are mostly
+unknown, a reasoning model reads them and either asks the person for what
+is missing (the kettle's unit; the answer goes into the step's context,
+which the check reads) or tells them what to bring into view. It never
+completes a step. Each escalator has its own settings, including what it
+reads besides its step (`context`: the procedure's summary `run`, the
+recent `dialogue`, or neither); app.yaml's `settings.tea.escalation` sets
+them for all, `escalation_per_step` per step. The words of every step
+(instruction, question, criteria, escalation guidance) are in `steps.yaml`;
+which type each step is, its schemas and its escalator are in
+`procedure.build_steps`.
 
 Starting the guide starts a run that outlives the turn: a question or an
 interruption never cancels it. "Skip this step" cancels only the current

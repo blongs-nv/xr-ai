@@ -10,9 +10,11 @@ heat_water      the display reads at least the target (a watch step, on a
 start_steeping  tea touching the water in a real cup (a watch step)
 steep           a countdown for the recommended time (a wait step)
 
-build_steps makes the steps from steps.yaml's words and this app's schemas;
-the evaluation (eval/run_steps.py) builds them the same way, so the step it
-evaluates is the step that runs. The runner (SopRunner in app.py) owns the
+build_steps makes the steps from steps.yaml's words and this app's schemas,
+and wires each camera step's escalator (the side agent that asks the person
+or tells them what to show), each configured on its own. The evaluation
+(eval/run_steps.py) builds them the same way, so the step it evaluates is
+the step that runs. The runner (SopRunner in app.py) owns the
 run, skips and stops. A skipped identification falls back to the default
 settings here, never inside a step.
 """
@@ -34,9 +36,20 @@ from tea import (
     reconcile,
     target,
 )
-from xr_ai_kit.sop import Roles, Run, Step, WatchSettings, Wording
+from xr_ai_kit.sop import (
+    EscalationSettings,
+    Escalator,
+    Roles,
+    Run,
+    Step,
+    WatchSettings,
+    WatchStep,
+    Wording,
+)
 
 WORDS = Wording.load(Path(__file__).resolve().parent / "steps.yaml")
+WATCHED = {"fill_water", "heat_water", "start_steeping"}
+"""The camera steps, each with its own escalator."""
 
 
 class TeaSettings(BaseModel):
@@ -47,6 +60,12 @@ class TeaSettings(BaseModel):
     display_unit: Literal["celsius", "fahrenheit"] | None = None
     """The kettle display's unit, when it prints none."""
     watch: WatchSettings = Field(default_factory=WatchSettings)
+    escalation: EscalationSettings = Field(
+        default_factory=lambda: EscalationSettings(context=["run", "dialogue"])
+    )
+    """Every camera step's escalator, unless escalation_per_step says else."""
+    escalation_per_step: dict[str, dict[str, Any]] = {}
+    """Per step id, settings that differ (heat_water: {context: [dialogue]})."""
 
 
 def build_steps(
@@ -62,6 +81,18 @@ def build_steps(
     duration_s = duration_s or settings.default_duration_s
     unit = unit or settings.display_unit
     watch = settings.watch
+    unknown = set(settings.escalation_per_step) - WATCHED
+    if unknown:
+        raise ValueError(f"escalation_per_step: no step {sorted(unknown)}")
+
+    def escalator(step_id: str) -> Escalator:
+        changes = settings.escalation_per_step.get(step_id, {})
+        base = WORDS.escalator(step_id, roles.reason, settings.escalation)
+        return base.but(**changes)
+
+    def watching(step: WatchStep) -> WatchStep:
+        return step.escalating(escalator(step.id))
+
     heat = WORDS.watch(
         "heat_water",
         roles,
@@ -81,11 +112,13 @@ def build_steps(
             interval_s=watch.interval_s,
             timeout_s=watch.timeout_s,
         ),
-        "fill_water": WORDS.watch("fill_water", roles, watch),
-        "heat_water": heat.format(
-            minimum=target(temperature_c, unit), temperature_c=temperature_c
-        ).knowing(DisplayFacts(unit=unit) if unit else None),
-        "start_steeping": WORDS.watch("start_steeping", roles, watch),
+        "fill_water": watching(WORDS.watch("fill_water", roles, watch)),
+        "heat_water": watching(
+            heat.format(
+                minimum=target(temperature_c, unit), temperature_c=temperature_c
+            ).knowing(DisplayFacts(unit=unit) if unit else None)
+        ),
+        "start_steeping": watching(WORDS.watch("start_steeping", roles, watch)),
         "steep": WORDS.wait("steep")
         .lasting(duration_s)
         .format(minutes=duration_s / 60),

@@ -14,12 +14,31 @@ from xr_ai_app import App
 from xr_ai_app._base.app import AppConfig
 from xr_ai_app.devkit import run_virtual
 from xr_ai_app.testing import FakeModels, solid_frame
-from xr_ai_kit.sop import Check, Criteria, Line, Roles, Run, SopRunner, StepTrace, WatchSettings, WatchStep, Wording
+from xr_ai_kit.sop import (
+    Check,
+    Criteria,
+    EscalationSettings,
+    Escalator,
+    Line,
+    Roles,
+    Run,
+    SopRunner,
+    StepTrace,
+    WatchSettings,
+    WatchStep,
+    Wording,
+)
 from xr_ai_kit.sop import eval as step_eval
 from xr_ai_kit.sop.steps import ReadStep, WaitStep, Window
 
 WATER = Criteria("Is there water?", "Water is visible.", "The kettle is empty.", "The kettle's inside cannot be seen.")
-FAST = WatchSettings(interval_s=0.01, review_every_s=0.01, required=2, window=4, max_lines=1)
+FAST = WatchSettings(interval_s=0.01, required=2, window=4)
+
+
+def _helper(models: FakeModels, guidance: str, **settings) -> Escalator:
+    return Escalator(
+        guidance, models.role("reason"), settings=EscalationSettings(**{"every_s": 0.01, "max_lines": 1, **settings})
+    )
 
 
 def _roles(models: FakeModels) -> Roles:
@@ -67,8 +86,8 @@ async def test_a_watch_step_completes_on_the_fast_check_and_a_failing_escalation
             "reason": [ValueError("the reasoning model is down")] * 5,
         }
     )
-    step = WatchStep(
-        "fill", Check("Water?", WATER, escalation="The kettle must be in view."), _roles(models), settings=FAST
+    step = WatchStep("fill", Check("Water?", WATER), _roles(models), settings=FAST).escalating(
+        _helper(models, "The kettle must be in view.")
     )
     run, results = await _run_alone(models, step)
     assert run.status == "completed" and run.steps[0].status == "done"
@@ -79,7 +98,9 @@ async def test_a_watch_step_completes_on_the_fast_check_and_a_failing_escalation
 async def test_skipping_a_watch_step_withdraws_its_pending_question() -> None:
     ask = {"missing": "whether there is water", "action": "ask", "words": "Is there water in the kettle?"}
     models = FakeModels({"observe": ["A kettle."] * 300, "decide": ["unknown"] * 300, "reason": [ask]})
-    step = WatchStep("fill", Check("Water?", WATER, escalation="The person knows."), _roles(models), settings=FAST)
+    step = WatchStep("fill", Check("Water?", WATER), _roles(models), settings=FAST).escalating(
+        _helper(models, "The person knows.")
+    )
 
     async def skip(runner, p) -> None:
         await runner.skip(p)
@@ -88,7 +109,7 @@ async def test_skipping_a_watch_step_withdraws_its_pending_question() -> None:
     assert run.steps[0].status == "skipped" and run.asking is None and results == [None]
 
 
-async def test_a_watch_step_without_guidance_never_reasons() -> None:
+async def test_a_watch_step_without_an_escalator_never_reasons() -> None:
     models = FakeModels({"observe": ["A kettle."] * 60, "decide": ["unknown"] * 8 + ["positive"] * 40, "reason": []})
     run, _ = await _run_alone(models, WatchStep("fill", Check("Water?", WATER), _roles(models), settings=FAST))
     assert run.status == "completed" and models.calls("reason") == []
@@ -148,7 +169,12 @@ lines:
     models = FakeModels()
     fill = words.watch("fill", _roles(models)).format(level="the line")
     assert (fill.say, fill.check.criteria.instructions) == ("Fill the kettle to the line.", "Water at the line?")
-    assert fill.check.escalation == "The person knows."
+    assert fill.escalator is None  # wired where the step is built
+    helper = words.escalator("fill", models.role("reason"), EscalationSettings(context=["dialogue"]))
+    assert (helper.guidance, helper.settings.context) == ("The person knows.", ["dialogue"])
+    assert helper.but(max_lines=5).settings.max_lines == 5 and helper.settings.max_lines == 2
+    with pytest.raises(ValueError, match="escalation words"):
+        words.escalator("steep", models.role("reason"))
     steep = words.wait("steep").lasting(120).format(minutes=2)
     assert (steep.duration_s, steep.say) == (120, "Steeping for 2 minutes.")
     assert words.plan() == [("fill", "fill the kettle"), ("steep", "wait")]
@@ -203,17 +229,20 @@ def test_a_case_runs_the_real_step_on_a_scene_and_a_scripted_person(tmp_path: Pa
     )
     step = WatchStep(
         "heat",
-        Check("Read the display.", WATER, escalation="The person knows the unit."),
+        Check("Read the display.", WATER),
         _roles(models),
-        settings=WatchSettings(interval_s=2.0, review_every_s=20.0),
-    )
+        settings=WatchSettings(interval_s=2.0),
+    ).escalating(_helper(models, "The person knows the unit.", every_s=20.0, max_lines=2, context=["dialogue"]))
     case = step_eval.Case(
         name="answered",
         scene=[0, 120],
         person={"answers": ["Fahrenheit"]},
+        context={"dialogue": "user: is it hot yet?", "run": "not read"},
         expect={"asks": ["unit"], "completes": {"after": 20, "before": 40}},
     )
     result = run_virtual(step_eval.run_case(step, case, _recording(tmp_path, 120)))
     assert result.ok, result.problems
     (line,) = result.trace.lines
     assert (line.kind, line.answer) == ("ask", "Fahrenheit")
+    prompt = models.calls("reason")[0].prompt
+    assert "is it hot yet?" in prompt and "not read" not in prompt  # only the context it is configured with

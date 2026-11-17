@@ -11,20 +11,22 @@ from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
-from xr_ai_app import App, Participant, Turn
+from xr_ai_app import App, Participant, Turn, clock
 from xr_ai_app._base.app import AppConfig
 from xr_ai_app.testing import FakeModels, solid_frame
 from xr_ai_kit import DestinationResult
 from xr_ai_kit.sop import (
     Check,
     Criteria,
+    EscalationSettings,
+    Escalator,
     Facts,
     Judgment,
     Run,
     SopRunner,
     StepContext,
+    Watched,
     escalation_for,
-    gather,
     identify,
     judge,
     timer,
@@ -170,7 +172,6 @@ def _escalating_check() -> Check:
     return Check(
         "Read the display.",
         WATER,
-        escalation="Some displays print no unit; the person knows which unit theirs uses.",
         needs=Display,
         observation_model=Reading,
         can_assess=lambda r, known: (r.unit or (known and known.unit)) is not None,
@@ -206,7 +207,36 @@ def _reports(*labels: str) -> list[Judgment]:
     return [Judgment(label, '{"value": 75}', i, i) for i, label in enumerate(labels)]  # type: ignore[arg-type]
 
 
-async def test_gather_reads_the_checks_reports_and_only_adds_to_its_context() -> None:
+UNIT_GUIDANCE = "Some displays print no unit; the person knows which unit theirs uses."
+
+
+class _IO:
+    """The part of a StepIO an escalator touches."""
+
+    def __init__(self, *, ask=None, say=None, context: dict[str, str] | None = None) -> None:
+        self._ask, self._say, self._context = ask, say, context or {}
+        self.sources: list[list[str]] = []
+
+    async def ask(self, question: str) -> str | None:
+        return await self._ask(question)
+
+    async def say(self, text: str) -> None:
+        await self._say(text)
+
+    async def situation(self, sources) -> str:
+        self.sources.append(list(sources))
+        return "\n\n".join(self._context[s] for s in sources if s in self._context)
+
+
+def _watched(context: StepContext, labels: tuple[str, ...]) -> Watched:
+    return Watched("heat", _escalating_check(), context, lambda: _reports(*labels), clock.now())
+
+
+def _escalator(role, *, reader=None, **settings) -> Escalator:
+    return Escalator(UNIT_GUIDANCE, role, reader, EscalationSettings(every_s=0.01, min_gap_s=0, **settings))
+
+
+async def test_an_escalator_reads_the_checks_reports_and_only_adds_to_its_context() -> None:
     models = FakeModels(
         {
             "reviewer": [
@@ -223,17 +253,9 @@ async def test_gather_reads_the_checks_reports_and_only_adds_to_its_context() ->
         asked.append(question)
         return "Fahrenheit"
 
+    escalator = _escalator(models.role("reviewer"), reader=models.role("reader"))
     side = asyncio.ensure_future(
-        gather(
-            context,
-            _escalating_check(),
-            lambda: _reports("negative", "unknown", "unknown", "unknown"),
-            role=models.role("reviewer"),
-            ask=ask,
-            reader=models.role("reader"),
-            every_s=0.01,
-            min_gap_s=0,
-        )
+        escalator.run(_watched(context, ("negative", "unknown", "unknown", "unknown")), _IO(ask=ask))
     )
     for _ in range(200):
         if len(models.calls("reviewer")) >= 2:
@@ -247,9 +269,10 @@ async def test_gather_reads_the_checks_reports_and_only_adds_to_its_context() ->
     assert all(call.thinking for call in calls)  # reasoning, off the fast loop
     assert all(call.frame is None for call in calls)  # it reads the reports, never frames
     assert "unknown" in calls[0].prompt and '{"value": 75}' in calls[0].prompt
+    assert UNIT_GUIDANCE in calls[0].prompt
 
 
-async def test_gather_tells_the_person_what_to_do_without_waiting_for_an_answer() -> None:
+async def test_an_escalator_tells_the_person_what_to_do_without_waiting_for_an_answer() -> None:
     models = FakeModels({"reviewer": [{"missing": "the kettle", "action": "tell", "words": "Show me the kettle."}]})
     said: list[str] = []
 
@@ -260,54 +283,46 @@ async def test_gather_tells_the_person_what_to_do_without_waiting_for_an_answer(
         raise AssertionError("an instruction is not a question")
 
     context = StepContext()
-    side = asyncio.ensure_future(
-        gather(
-            context,
-            _escalating_check(),
-            lambda: _reports("unknown", "unknown", "unknown", "unknown"),
-            role=models.role("reviewer"),
-            ask=ask,
-            say=say,
-            every_s=0.01,
-            min_gap_s=0,
-            max_questions=1,
-        )
-    )
-    await asyncio.wait_for(side, 2)
+    escalator = _escalator(models.role("reviewer"), max_lines=1)
+    labels = ("unknown", "unknown", "unknown", "unknown")
+    await asyncio.wait_for(escalator.run(_watched(context, labels), _IO(ask=ask, say=say)), 2)
     assert said == ["Show me the kettle."]
     assert context.facts.text() == ""
 
 
-async def test_gather_stays_quiet_while_the_check_still_decides() -> None:
+async def test_an_escalator_stays_quiet_while_the_check_still_decides() -> None:
     models = FakeModels({"reviewer": []})
+    escalator = _escalator(models.role("reviewer"))
     side = asyncio.ensure_future(
-        gather(
-            StepContext(),
-            _escalating_check(),
-            lambda: _reports("unknown", "negative", "negative", "unknown"),
-            role=models.role("reviewer"),
-            ask=None,  # type: ignore[arg-type]
-            every_s=0.01,
-        )
+        escalator.run(_watched(StepContext(), ("unknown", "negative", "negative", "unknown")), _IO())
     )
     await asyncio.sleep(0.1)
     side.cancel()
     assert models.calls("reviewer") == []  # a stray unknown is noise: no model call at all
 
 
+async def test_each_escalator_reads_only_the_context_it_is_configured_with() -> None:
+    labels = ("unknown", "unknown", "unknown", "unknown")
+    io_context = {"run": "Tea guidance (run 1): running.", "dialogue": "## dialogue\nuser: it's in Fahrenheit"}
+    prompts = {}
+    for sources in ([], ["dialogue"], ["run", "dialogue"]):
+        models = FakeModels({"reviewer": [{"action": "tell", "words": "Show me the kettle."}]})
+        escalator = _escalator(models.role("reviewer"), max_lines=1, context=sources)
+        io = _IO(say=lambda text: asyncio.sleep(0), context=io_context)
+        await asyncio.wait_for(escalator.run(_watched(StepContext(), labels), io), 2)
+        prompts[tuple(sources)] = models.calls("reviewer")[0].prompt
+        assert io.sources == ([list(sources)] if sources else [])
+    assert "Fahrenheit" not in prompts[()] and "run 1" not in prompts[()]
+    assert "Fahrenheit" in prompts[("dialogue",)] and "run 1" not in prompts[("dialogue",)]
+    both = prompts[("run", "dialogue")]
+    assert "The step 'heat' has been running for" in both
+    assert both.index("run 1") < both.index("Fahrenheit")  # in the order configured
+
+
 async def test_without_guidance_there_is_no_escalation() -> None:
     models = FakeModels({"reviewer": []})
-    assert (
-        await escalation_for(WATER_CHECK, models.role("reviewer"), _reports("unknown", "unknown", "unknown", "unknown"))
-        is None
-    )
-    await gather(
-        StepContext(),
-        WATER_CHECK,
-        lambda: _reports("unknown", "unknown", "unknown", "unknown"),
-        role=models.role("reviewer"),
-        ask=None,
-    )  # type: ignore[arg-type]
+    unknowns = _reports("unknown", "unknown", "unknown", "unknown")
+    assert await escalation_for(WATER_CHECK, models.role("reviewer"), unknowns, guidance="") is None
     assert models.calls("reviewer") == []
 
 

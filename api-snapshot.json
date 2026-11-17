@@ -229,6 +229,8 @@
         "Check",
         "Criteria",
         "Escalation",
+        "EscalationSettings",
+        "Escalator",
         "Facts",
         "Frames",
         "Identification",
@@ -252,11 +254,12 @@
         "WaitStep",
         "WatchSettings",
         "WatchStep",
+        "Watched",
         "Wording",
         "escalation_for",
-        "gather",
         "identify",
         "judge",
+        "stuck",
         "timer",
         "verify"
       ]

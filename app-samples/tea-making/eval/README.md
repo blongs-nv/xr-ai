@@ -56,6 +56,13 @@ part's start, so for one part it is the recording's own time.
 none), `answer_after_s`, `after_tell` (the scene parts shown once the
 step told the person to do something).
 
+**Context**: what the step's escalator reads besides the step, as the live
+runner would render it, by source: `context: {run: "...", dialogue:
+"user: it shows Fahrenheit"}`. The escalator reads only the sources its
+settings name (app.yaml's `settings.tea.escalation.context`), so a case
+tests the prompt that step ships with; a source the case leaves out is
+empty.
+
 **Expectations** belong to the step's type (`xr_ai_kit.sop.steps`), so
 each type is scored by its own rules:
 

@@ -55,8 +55,9 @@ class Case(BaseModel):
     scene: list[Any]
     build: dict[str, Any] = {}
     person: Person = Person()
-    situation: str = ""
-    """What the app would say is going on around the step (live: the run's summary and the dialogue)."""
+    context: dict[str, str] = {}
+    """The text of each context source the step's escalator may read (``run``: the run's summary, ``dialogue``:
+    the recent conversation), as the live runner would render it; the escalator reads only those it asks for."""
     expect: dict[str, Any] = {}
     """Validated against the step type's ``Expect``."""
     why: str = ""
@@ -109,7 +110,7 @@ async def run_case(step: Step[Any], case: Case, recording: Recording) -> CaseRes
     kind = type(step)
     expect = kind.Expect.model_validate(case.expect)  # type: ignore[attr-defined]
     scene = SceneFrames(recording, case.scene)
-    io = ScriptedIO(step.id, scene, case.person, case.situation)
+    io = ScriptedIO(step.id, scene, case.person, case.context)
     began = time.monotonic()
     scene.begin()
     task = asyncio.ensure_future(step.run(io))

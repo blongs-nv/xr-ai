@@ -70,8 +70,8 @@ tea = app.add(
         decide=decide,
         output=voice,
         plan=WORDS.plan(),
-        # A step's reasoning also reads the recent dialogue: the person may
-        # already have said what it would ask.
+        # Channels a step's escalator may read, by name ("dialogue"); each
+        # escalator picks its own (settings.tea.escalation.context).
         step_context=[voice.dialogue],
         description=(
             "Only explicit controls of the tea-making guide: start, stop, "

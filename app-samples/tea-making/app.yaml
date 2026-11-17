@@ -30,10 +30,22 @@ settings:
     # How the camera steps watch (xr_ai_kit.sop.WatchSettings): a step
     # completes on `required` positives among the last `window` decidable
     # frames, looking every `interval_s` seconds; `timeout_s` bounds one
-    # model call; the side escalation looks every `review_every_s` seconds.
+    # model call.
     watch:
       required: 2
       window: 4
       interval_s: 2.0
       timeout_s: 30.0
-      review_every_s: 20.0
+    # Each camera step's escalator (xr_ai_kit.sop.EscalationSettings): when
+    # the check is stuck it asks the person or tells them what to show.
+    # `context` is what it reads besides the step: `run` (the procedure's
+    # summary) and `dialogue` (the recent conversation); [] is the step
+    # alone. It looks every `every_s` seconds and says at most `max_lines`.
+    escalation:
+      context: [run, dialogue]
+      every_s: 20.0
+      max_lines: 2
+    # Per step, what differs from the above, for example:
+    # escalation_per_step:
+    #   heat_water: {context: [dialogue]}
+    escalation_per_step: {}

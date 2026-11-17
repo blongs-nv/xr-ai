@@ -1,29 +1,37 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Side escalation: gather what a check cannot establish by asking the person, outside the fast loop.
+"""The side escalation: an agent attached to one step, which helps when the step's fast check cannot decide.
 
-:func:`gather` runs beside a step's fast check (a :class:`~.steps.WatchStep` starts it as its own task). It reads
-the fast check's recent reports (each frame's observation and label); when most of its latest ones are ``unknown``,
-the check is missing something, and every ``every_s`` seconds a reasoning model reads those reports with the check's
-criteria and the facts so far and infers what is missing and whether the person can help: by telling it (a question,
-whose answer goes into the step's :class:`~.judge.StepContext`, which the check reads on every frame) or by doing
-something, such as bringing the kettle back into view (an instruction, spoken only). It sees no frames: the fast
-check already looked. It never completes, skips or slows the step, and it ends (withdrawing a pending question) when
-the step ends.
+An :class:`Escalator` is wired per step, where the step is built (``WatchStep.escalating(escalator)``); a step
+without one never reasons. It carries everything about the escalation: its guidance (how the person can help, from
+the step's words), its reasoning model, which context it reads (:class:`EscalationSettings` ``context``: nothing
+beyond the step, the recent dialogue, the run's summary, any of the runner's channels by name), how often it looks
+and how much it may say.
+
+While the step runs, the escalator reads the fast check's recent reports (each frame's observation and label); when
+most of the latest are ``unknown`` (:func:`stuck`), a reasoning model reads them with the check's criteria and the
+facts so far (:func:`escalation_for`) and infers what is missing and whether the person can help: by telling it (a
+question, whose answer goes into the step's :class:`~.judge.StepContext`, which the check reads on every frame) or
+by doing something, such as bringing the kettle back into view (an instruction, spoken only). It sees no frames:
+the fast check already looked. It never completes, skips or slows the step, and it ends (withdrawing a pending
+question) when the step ends.
 """
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
-from typing import Literal
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, Field
-from xr_ai_app import Role, StructuredOutputError
+from pydantic import BaseModel, ConfigDict, Field
+from xr_ai_app import Role, StructuredOutputError, clock
 
 from .judge import Check, Facts, Judgment, StepContext
+
+if TYPE_CHECKING:
+    from .step import StepIO
 
 
 class _Decision(BaseModel):
@@ -62,20 +70,22 @@ async def escalation_for(
     role: Role,
     reports: Sequence[Judgment],
     *,
+    guidance: str,
     facts: Facts | None = None,
     situation: str = "",
     asked: Sequence[str] = (),
+    rule: tuple[int, int] = STUCK,
     thinking: bool | None = True,
     timeout_s: float | None = None,
 ) -> Escalation | None:
     """One judgement over the check's recent ``reports``: what to say to the person now, or ``None``.
 
-    ``role`` is a reasoning text model. It reads what the check verifies and when it cannot decide, the check's
-    escalation guidance, its recent reports, ``situation`` (the app's account of what is going on), ``facts`` and the
-    lines already said (``asked``). ``None`` without guidance, while the check is not :func:`stuck`, on an
+    ``role`` is a reasoning text model. It reads what the check verifies and when it cannot decide, ``guidance``
+    (how the person can help), the check's recent reports, ``situation`` (what is going on), ``facts`` and the lines
+    already said (``asked``). ``None`` without guidance, while the check is not :func:`stuck`, on an
     unreadable reply, or for a line already said. Asks nobody: an evaluation calls it on recorded reports.
     """
-    if not check.escalation or not stuck(reports):
+    if not guidance or not stuck(reports, rule):
         return None
     facts = facts or Facts()
     lines = [
@@ -83,7 +93,7 @@ async def escalation_for(
         f"What it verifies: {check.criteria.instructions}",
         f"It completes when: {check.criteria.positive}",
         f"It cannot decide when: {check.criteria.unknown}",
-        f"How the person can help: {check.escalation}",
+        f"How the person can help: {guidance}",
         "Its recent reports, oldest first (what it observed in each frame, and its label):",
         *(f"- {r.label}: {r.description[:300]}" + (f" ({r.reason})" if r.reason else "") for r in reports),
     ]
@@ -112,66 +122,106 @@ async def escalation_for(
     return Escalation(decision.action, text)
 
 
-async def gather(
-    context: StepContext,
-    check: Check,
-    reports: Callable[[], Sequence[Judgment]],
-    *,
-    role: Role,
-    ask: Callable[[str], Awaitable[str | None]],
-    say: Callable[[str], Awaitable[None]] | None = None,
-    reader: Role | None = None,
-    situation: Callable[[], Awaitable[str]] | None = None,
-    every_s: float = 20.0,
-    max_questions: int = 2,
-    min_gap_s: float = 30.0,
-    thinking: bool | None = True,
-) -> None:
-    """Run until cancelled: every ``every_s`` seconds, if the check is stuck, judge what to say; add answers.
+class EscalationSettings(BaseModel):
+    """How one step's escalator works (an app's settings may embed this, per step or for all)."""
 
-    ``reports`` returns the check's recent judgments (for example the latest :class:`~.verify.Verification`'s). ``ask``
-    speaks a question and returns the person's answer, or ``None`` (``Run.ask``); ``say`` speaks an instruction
-    (``Run.say``; without it instructions are not given). ``reader`` (a text model) reads an
-    answer into the check's ``needs``; without it the answer is kept as text. ``situation`` returns what is going on
-    (for example the guide's state and the recent conversation). At most ``max_questions`` lines, never the same one
-    twice, at least ``min_gap_s`` apart. A check without escalation guidance makes this return at once.
+    model_config = ConfigDict(extra="forbid")
+    context: list[str] = []
+    """What it reads besides the step's own status, in order: ``run`` (the run's summary: plan, steps' states, noted
+    values) and the names of the runner's ``step_context`` channels (``dialogue``). Empty: the step alone."""
+    every_s: float = 20.0
+    """How often it looks at the check's reports."""
+    max_lines: int = 2
+    """How many things it may say during one step."""
+    min_gap_s: float = 30.0
+    """At least this long between two things it says."""
+    stuck: tuple[int, int] = STUCK
+    """When the check counts as stuck: this many ``unknown`` among its last so many reports."""
+    thinking: bool | None = True
+
+
+@dataclass(frozen=True, slots=True)
+class Watched:
+    """What a step offers its escalator: the check, its context, its latest reports, since when it runs."""
+
+    step_id: str
+    check: Check
+    context: StepContext
+    reports: Callable[[], Sequence[Judgment]]
+    started_s: float
+
+
+@dataclass(frozen=True, slots=True)
+class Escalator:
+    """One step's side escalation; see the module docstring.
+
+    ``guidance`` says how the person can help (the step's ``escalation`` words); ``role`` reasons over the check's
+    reports; ``reader`` (a text model; default ``role``) reads an answer into the check's ``needs``.
     """
-    if not check.escalation:
-        return
-    asked: list[str] = []
-    last_asked: float | None = None
-    loop = asyncio.get_running_loop()
-    while len(asked) < max_questions:
-        await asyncio.sleep(every_s)
-        if last_asked is not None and loop.time() - last_asked < min_gap_s:
-            continue
-        recent = list(reports())
-        if not stuck(recent):
-            continue  # the check is deciding: nothing is missing
-        text = await situation() if situation is not None else ""
-        said = await escalation_for(
-            check, role, recent, facts=context.facts, situation=text, asked=asked, thinking=thinking
-        )
-        if said is None or (said.kind == "tell" and say is None):
-            continue
-        asked.append(said.text)
-        last_asked = loop.time()
-        if said.kind == "tell":
-            await say(said.text)
-            continue
-        question = said.text
-        answer = await ask(question)
-        if answer is None:
-            context.add(f'Asked the person: "{question}" No answer came.')
-            continue
-        context.add(
-            f'Asked the person: "{question}" They answered: "{answer}"', await _read(check, reader, question, answer)
-        )
+
+    guidance: str
+    role: Role
+    reader: Role | None = None
+    settings: EscalationSettings = field(default_factory=EscalationSettings)
+
+    def but(self, **changes: object) -> Escalator:
+        """A copy with some settings changed (``escalator.but(context=["dialogue"])``)."""
+        settings = self.settings.model_validate({**self.settings.model_dump(), **changes})
+        return replace(self, settings=settings)
+
+    async def situation(self, watched: Watched, io: StepIO) -> str:
+        """What it reads about what is going on: the step's own status, then its ``context``."""
+        lines = [f"The step '{watched.step_id}' has been running for {clock.now() - watched.started_s:.0f} s."]
+        if self.settings.context and (around := await io.situation(self.settings.context)):
+            lines.append(around)
+        return "\n".join(lines)
+
+    async def run(self, watched: Watched, io: StepIO) -> None:
+        """Run until cancelled: every ``every_s`` seconds, if the check is stuck, judge what to say; add answers.
+
+        At most ``max_lines`` lines, never the same one twice, at least ``min_gap_s`` apart. A question is asked
+        with ``io.ask`` and its answer added to the step's context; an instruction is spoken with ``io.say``.
+        """
+        settings, context = self.settings, watched.context
+        asked: list[str] = []
+        last_said: float | None = None
+        while len(asked) < settings.max_lines:
+            await asyncio.sleep(settings.every_s)
+            if last_said is not None and clock.now() - last_said < settings.min_gap_s:
+                continue
+            recent = list(watched.reports())
+            if not stuck(recent, settings.stuck):
+                continue  # the check is deciding: nothing is missing
+            said = await escalation_for(
+                watched.check,
+                self.role,
+                recent,
+                guidance=self.guidance,
+                facts=context.facts,
+                situation=await self.situation(watched, io),
+                asked=asked,
+                rule=settings.stuck,
+                thinking=settings.thinking,
+            )
+            if said is None:
+                continue
+            asked.append(said.text)
+            last_said = clock.now()
+            if said.kind == "tell":
+                await io.say(said.text)
+                continue
+            question = said.text
+            answer = await io.ask(question)
+            if answer is None:
+                context.add(f'Asked the person: "{question}" No answer came.')
+                continue
+            known = await _read(watched.check, self.reader or self.role, question, answer)
+            context.add(f'Asked the person: "{question}" They answered: "{answer}"', known)
 
 
-async def _read(check: Check, reader: Role | None, question: str, answer: str) -> BaseModel | None:
-    """The answer read into the check's ``needs`` (``None`` without needs, a reader, or anything stated)."""
-    if check.needs is None or reader is None:
+async def _read(check: Check, reader: Role, question: str, answer: str) -> BaseModel | None:
+    """The answer read into the check's ``needs`` (``None`` without needs, or when it states nothing readable)."""
+    if check.needs is None:
         return None
     prompt = (
         f'The assistant asked: "{question}" The person answered: "{answer}". Fill in only what the answer states and '

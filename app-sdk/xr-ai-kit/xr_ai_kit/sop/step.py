@@ -16,7 +16,7 @@ that type) and ``score(trace, expect)``, next to its ``run``. The evaluation nev
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, TypeVar, runtime_checkable
 
@@ -51,8 +51,9 @@ class StepIO(Protocol):
         """An ``on_state`` callback for the step's progress."""
         ...
 
-    async def situation(self) -> str:
-        """What is going on around the step (the procedure's state, the recent conversation); may be empty."""
+    async def situation(self, sources: Sequence[str]) -> str:
+        """What is going on around the step, from ``sources`` in order: ``run`` (the run's summary) and context
+        channels by name (``dialogue``); empty when they have nothing."""
         ...
 
 
@@ -69,7 +70,7 @@ class Step(Protocol[T_co]):
 @dataclass(frozen=True, slots=True)
 class Roles:
     """The models the steps use: ``observe`` looks at a frame, ``decide`` picks a label (fast), ``reason`` reasons
-    in text (deriving settings, reading an answer, the side escalation)."""
+    in text (deriving settings, reading an answer)."""
 
     observe: Role
     decide: Role

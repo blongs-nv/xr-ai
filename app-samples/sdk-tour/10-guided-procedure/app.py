@@ -7,13 +7,14 @@ SHAPE: a PROCEDURE (xr_ai_kit.sop). The procedure is a plain async function
 that runs its steps in order; a SopRunner runs it for each participant who
 starts it, and the user can say start, stop, skip or restart, or ask about
 it. Each camera step judges a frame a second (observe, then decide) until two
-of the last three agree; when the camera cannot tell for a while, a side
-escalation tells the user what to show, or asks them.
+of the last three agree; when the camera cannot tell for a while, the step's
+own escalator (wired per step) tells the user what to show, or asks them.
 
   xr_ai_kit.sop                  this file
   ---------------------------    -------------------------------------------
   SopRunner (component)          preflight(run): the steps and their order
   WatchStep, WaitStep (steps)    sop.yaml: the words (Wording)
+  Escalator (per camera step)    what each escalator reads (HELP)
   controls: start | stop |       the roles each camera step uses
     skip | restart
 
@@ -25,7 +26,14 @@ from pathlib import Path
 
 from xr_ai_app import App, Hub, PerConnection, Voice
 from xr_ai_kit import Conversation, OneShotDestination, Router
-from xr_ai_kit.sop import Roles, Run, SopRunner, WatchSettings, Wording
+from xr_ai_kit.sop import (
+    EscalationSettings,
+    Roles,
+    Run,
+    SopRunner,
+    WatchSettings,
+    Wording,
+)
 
 HERE = Path(__file__).resolve().parent
 
@@ -40,13 +48,22 @@ WARM_UP_S = 90
 
 # ---- the steps: words from sop.yaml, types and settings here ----
 WORDS = Wording.load(HERE / "sop.yaml")
-# observe describes a frame, decide labels it, reason runs the escalation.
+# observe describes a frame, decide labels it, reason derives in text.
 ROLES = Roles(observe=perceive, decide=decide, reason=reasoning)
 # A look a second; done when two of the last three decided looks are yes.
 WATCH = WatchSettings(required=2, window=3, interval_s=1.0)
 
-bed_clear = WORDS.watch("bed_clear", ROLES, WATCH)
-door_closed = WORDS.watch("door_closed", ROLES, WATCH)
+# Each camera step gets its own escalator: when the camera cannot tell, it
+# tells the user what to show, or asks them. Each reads what it needs:
+# here the checklist's state ("run") and the recent dialogue.
+HELP = EscalationSettings(context=["run", "dialogue"])
+
+bed_clear = WORDS.watch("bed_clear", ROLES, WATCH).escalating(
+    WORDS.escalator("bed_clear", reasoning, HELP)
+)
+door_closed = WORDS.watch("door_closed", ROLES, WATCH).escalating(
+    WORDS.escalator("door_closed", reasoning, HELP)
+)
 warm_up = WORDS.wait("warm_up", WARM_UP_S)
 
 
@@ -68,7 +85,7 @@ procedure = app.add(
         decide=decide,
         output=voice,
         plan=WORDS.plan(),  # the steps ahead, for the conversation
-        step_context=[voice.dialogue],  # what the escalation also reads
+        step_context=[voice.dialogue],  # what escalators may read, by name
     )
 )
 # Spoken answers; the checklist's state (in the context) is the only source
