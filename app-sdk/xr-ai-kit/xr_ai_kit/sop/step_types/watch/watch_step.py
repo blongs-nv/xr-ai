@@ -8,8 +8,8 @@ The check (:func:`~.verify.verify`): a frame every ``interval_s``, observed and 
 (:class:`~.judge.StepContext`: the typed facts it started with, and anything added since) on every frame.
 
 It supports escalation (``..escalation``): linked to a run's :class:`~...escalation.Link`, it shows an escalator its
-task, its recent judgments and what it knows (outbound), and adds what the escalator sends to its context
-(inbound), which the next frame's decision reads. It knows nothing else about the escalator.
+task, its recent judgments, each with the frame it judged, and what it knows (outbound), and adds what the escalator
+sends to its context (inbound), which the next frame's decision reads. It knows nothing else about the escalator.
 
 Its definition in the procedure's YAML: the ``watch`` section (:class:`WatchWords`: ``question`` and ``criteria``),
 and ``done``, filled with the build-time values and ``observation`` (the observation that completed it, an instance
@@ -172,7 +172,7 @@ def outbound(
             f"It cannot decide when: {criteria.unknown}",
         ),
         reports=tuple(
-            Report(j.label, j.description[:300] + (f" ({j.reason})" if j.reason else ""), j.label != "unknown")
+            Report(j.label, j.description[:300] + (f" ({j.reason})" if j.reason else ""), j.label != "unknown", j.frame)
             for j in judgments
         ),
         known=facts.text(),

@@ -6,9 +6,11 @@
 =========================  ===========================================================================================
 ``link``                   :class:`Link`, the only thing a step and its escalator share: the step's outbound
                            context (:class:`Outbound`) and the escalator's inbound context (:class:`Inbound`);
-                           :class:`Escalatable`, what a step type implements to support it; :class:`EscalationIO`,
-                           how the escalator reaches the person
-``escalator``              :class:`Escalator`: when the step is stuck, ask the person or tell them what to do
+                           :class:`Escalatable`, what a step type implements to support it; :class:`Escalator`,
+                           what any escalator implements; :class:`EscalationIO`, how it reaches the person and
+                           the camera
+``escalator``              :class:`ReportEscalator`, the kit's :class:`Escalator`: when the step is stuck, reason
+                           over its reports and ask the person or tell them what to do; its prompt is per step
 ``escalated``              :class:`Escalated`: a step with an escalator beside it, itself a step
 ``escalation_scoring``     what an evaluation case may expect of an escalator (evaluation only; not imported here)
 =========================  ===========================================================================================
@@ -20,21 +22,35 @@ Optional: the core step contract does not mention it, and a step type supports i
 from __future__ import annotations
 
 from .escalated import Escalated
-from .escalator import STUCK, Escalation, EscalationSettings, Escalator, escalation_for, stuck
-from .link import Escalatable, EscalationIO, Inbound, Link, Outbound, Report
+from .escalator import (
+    INSTRUCTIONS,
+    PROMPT,
+    STUCK,
+    Escalation,
+    EscalationSettings,
+    EscalationWords,
+    ReportEscalator,
+    escalation_for,
+    stuck,
+)
+from .link import Escalatable, EscalationIO, Escalator, Inbound, Link, Outbound, Report
 
 __all__ = [
+    "INSTRUCTIONS",
+    "PROMPT",
     "STUCK",
     "Escalatable",
     "Escalated",
     "Escalation",
     "EscalationIO",
     "EscalationSettings",
+    "EscalationWords",
     "Escalator",
     "Inbound",
     "Link",
     "Outbound",
     "Report",
+    "ReportEscalator",
     "escalation_for",
     "stuck",
 ]

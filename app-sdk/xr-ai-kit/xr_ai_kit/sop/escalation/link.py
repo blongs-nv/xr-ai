@@ -15,7 +15,10 @@ Two contexts, one each way:
 A step type supports escalation by implementing :class:`Escalatable` (``linked(link)``: a copy of the step that
 attaches its two ends when it runs). A :class:`Link` is made for each run, never shared between runs.
 
-The escalator talks to the person on its own, through :class:`EscalationIO`; it never speaks through the step.
+An escalator is anything with ``run(link, io)`` (:class:`Escalator`): the kit's reasons in text over the step's
+reports (:class:`~.escalator.ReportEscalator`); another may look at the evidence itself, the frame behind a report
+(:attr:`Report.frame`) or the camera now (``io.frames``), with a model of its own. It talks to the person on its
+own, through :class:`EscalationIO`; it never speaks through the step.
 """
 
 from __future__ import annotations
@@ -25,8 +28,9 @@ from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
+from xr_ai_app import Frame
 
-from ..steps.step_api import Step
+from ..steps.step_api import Frames, Step
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +43,8 @@ class Report:
     """What the step observed, as text."""
     decided: bool
     """Whether the step could decide from it (an undecided one is what an escalator watches for)."""
+    frame: Frame | None = None
+    """The frame it was made from (the visual evidence), when the step keeps it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,9 +105,23 @@ class Escalatable(Protocol):
         ...
 
 
+@runtime_checkable
+class Escalator(Protocol):
+    """An agent beside one step: runs until cancelled, reading the step through ``link`` and the person through
+    ``io``. The kit's is :class:`~.escalator.ReportEscalator`; an app may bring its own."""
+
+    async def run(self, link: Link, io: EscalationIO) -> None: ...
+
+
+@runtime_checkable
 class EscalationIO(Protocol):
-    """What an escalator touches: the person, and what is going on around the step. Live it is the procedure's
-    :class:`~..runner.Run`; in an evaluation, the case's scripted person."""
+    """What an escalator touches: the person, the camera, and what is going on around the step. Live it is the
+    procedure's :class:`~..runner.Run`; in an evaluation, the case's scripted person and scene."""
+
+    @property
+    def frames(self) -> Frames:
+        """The camera now (the same frames the step sees)."""
+        ...
 
     async def say(self, text: str) -> None:
         """Tell the person something."""

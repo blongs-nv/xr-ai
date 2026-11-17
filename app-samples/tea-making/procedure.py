@@ -43,8 +43,8 @@ from xr_ai_app import Role
 from xr_ai_kit.sop import (
     Escalated,
     EscalationSettings,
-    Escalator,
     ReadStep,
+    ReportEscalator,
     Run,
     Step,
     StepDefinitions,
@@ -115,7 +115,7 @@ def build_steps(
         )
 
     def escalated(step: WatchStep) -> Escalated:
-        helper = Escalator.define(
+        helper = ReportEscalator.define(
             DEFINITIONS[step.id], models.reason, settings.escalation
         )
         changes = settings.escalation_per_step.get(step.id, {})

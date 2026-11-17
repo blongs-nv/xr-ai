@@ -1,7 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""The escalator: an agent of its own, beside one step, that helps the person when the step cannot decide.
+"""The kit's escalator (:class:`ReportEscalator`): an agent of its own, beside one step, that helps the person when
+the step cannot decide, by reasoning in text over the step's reports. (Any :class:`~.link.Escalator` can stand in
+its place: one that sends the frame behind a report to a model of its own, say.)
 
 It knows the step only through the run's :class:`~.link.Link`: it reads the step's outbound context (what it does,
 its recent reports, what it knows) and gives it inbound context (what the person said). It talks to the person
@@ -13,6 +15,9 @@ While the step runs it looks at the step's reports every ``every_s``; when most 
 is known (:func:`escalation_for`) and infers what is missing and whether the person can help: by telling it (a
 question, whose answer goes inbound) or by doing something, such as bringing the kettle back into view (an
 instruction, spoken only). It sees no frames: the step already looked.
+
+Its prompt is per step: the step's ``escalation`` section gives the guidance and may replace the closing
+``instructions`` or the whole ``prompt`` (:data:`PROMPT`, a template; see :class:`EscalationWords`).
 """
 
 from __future__ import annotations
@@ -22,7 +27,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from xr_ai_app import Role, StructuredOutputError, clock
 
 from ..steps.step_definitions import StepDefinition
@@ -60,6 +65,30 @@ def stuck(reports: Sequence[Report], rule: tuple[int, int] = STUCK) -> bool:
     return len(recent) >= of and sum(not r.decided for r in recent) >= undecided
 
 
+INSTRUCTIONS = (
+    "From the reports, what is the check missing that keeps it from deciding? Reports with nothing readable "
+    "(no reading, nothing of the item seen) mean the camera does not see what it checks: the person is looking "
+    "elsewhere or something is in the way, so tell them what to bring into view; the check then reads it "
+    "itself. Reports that see the item clearly but still cannot decide mean the check needs something the "
+    "person knows: ask for that, unless it is already known. Give one short spoken line, or none when the "
+    "person cannot help."
+)
+"""What the reasoning model is asked to do, last in the prompt (a step may give its own)."""
+
+PROMPT = (
+    "{task}\n"
+    "How the person can help: {guidance}\n"
+    "Its recent reports, oldest first (what it observed in each frame, and its label):\n"
+    "{reports}{situation}\n"
+    "{known}{asked}\n"
+    "{instructions}"
+)
+"""The whole prompt, as a template: ``{task}`` (the step's lines saying what it does), ``{guidance}``,
+``{reports}`` (one ``- label: text`` line each), ``{situation}`` (``\nWhat is going on:\n...`` or empty),
+``{known}`` (``Already known:\n...`` or that nothing has been learned), ``{asked}`` (``\nAlready said to the
+person: ...`` or empty) and ``{instructions}``. Literal braces in a step's own template are doubled."""
+
+
 async def escalation_for(
     step: Outbound,
     role: Role,
@@ -70,45 +99,53 @@ async def escalation_for(
     rule: tuple[int, int] = STUCK,
     thinking: bool | None = True,
     timeout_s: float | None = None,
+    instructions: str = INSTRUCTIONS,
+    prompt: str = PROMPT,
 ) -> Escalation | None:
     """One judgement over the step's outbound context: what to say to the person now, or ``None``.
 
-    ``role`` is a reasoning text model. It reads the step's task, ``guidance`` (how the person can help), the step's
-    recent reports, ``situation`` (what is going on), what the step knows and the lines already said (``asked``).
-    ``None`` without guidance, while the step is not :func:`stuck`, on an unreadable reply, or for a line already
-    said. Asks nobody: an evaluation calls it on recorded reports.
+    ``role`` is a reasoning text model. It reads ``prompt`` filled in: the step's task, ``guidance`` (how the person
+    can help), the step's recent reports, ``situation`` (what is going on), what the step knows, the lines already
+    said (``asked``) and ``instructions``. ``None`` without guidance, while the step is not :func:`stuck`, on an
+    unreadable reply, or for a line already said. Asks nobody: an evaluation calls it on recorded reports.
     """
     if not guidance or not stuck(step.reports, rule):
         return None
-    lines = [
-        *step.task,
-        f"How the person can help: {guidance}",
-        "Its recent reports, oldest first (what it observed in each frame, and its label):",
-        *(f"- {r.label}: {r.text}" for r in step.reports),
-    ]
-    if situation:
-        lines.append(f"What is going on:\n{situation}")
-    lines.append(f"Already known:\n{step.known}" if step.known else "Nothing has been learned from the person yet.")
-    if asked:
-        lines.append("Already said to the person: " + " | ".join(asked))
-    lines.append(
-        "From the reports, what is the check missing that keeps it from deciding? Reports with nothing readable "
-        "(no reading, nothing of the item seen) mean the camera does not see what it checks: the person is looking "
-        "elsewhere or something is in the way, so tell them what to bring into view; the check then reads it "
-        "itself. Reports that see the item clearly but still cannot decide mean the check needs something the "
-        "person knows: ask for that, unless it is already known. Give one short spoken line, or none when the "
-        "person cannot help."
+    text = prompt.format(
+        task="\n".join(step.task),
+        guidance=guidance,
+        reports="\n".join(f"- {r.label}: {r.text}" for r in step.reports),
+        situation=f"\nWhat is going on:\n{situation}" if situation else "",
+        known=f"Already known:\n{step.known}" if step.known else "Nothing has been learned from the person yet.",
+        asked=("\nAlready said to the person: " + " | ".join(asked)) if asked else "",
+        instructions=instructions,
     )
     try:
-        decision = await role.ask(
-            None, "\n".join(lines), response_format=_Decision, thinking=thinking, timeout_s=timeout_s
-        )
+        decision = await role.ask(None, text, response_format=_Decision, thinking=thinking, timeout_s=timeout_s)
     except (StructuredOutputError, TimeoutError):
         return None
-    text = (decision.words or "").strip()
-    if decision.action == "none" or not text or text in asked:
+    said = (decision.words or "").strip()
+    if decision.action == "none" or not said or said in asked:
         return None
-    return Escalation(decision.action, text)
+    return Escalation(decision.action, said)
+
+
+class EscalationWords(BaseModel):
+    """A step's ``escalation`` section: its guidance alone (a string), or a mapping that may also replace the closing
+    instructions or the whole prompt for this step."""
+
+    model_config = ConfigDict(extra="forbid")
+    guidance: str
+    """How the person can help when the step cannot decide."""
+    instructions: str = INSTRUCTIONS
+    """What the reasoning model is asked to do (default :data:`INSTRUCTIONS`)."""
+    prompt: str = PROMPT
+    """The whole prompt (default :data:`PROMPT`)."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _guidance_alone(cls, value: object) -> object:
+        return {"guidance": value} if isinstance(value, str) else value
 
 
 class EscalationSettings(BaseModel):
@@ -131,17 +168,20 @@ class EscalationSettings(BaseModel):
 
 
 @dataclass(frozen=True, slots=True)
-class Escalator:
-    """One step's escalator; see the module docstring.
+class ReportEscalator:
+    """The kit's escalator for one step; see the module docstring.
 
     ``guidance`` says how the person can help (the step's ``escalation`` words); ``role`` reasons over the step's
     reports; ``reader`` (a text model; default ``role``) reads an answer into the typed facts the step accepts.
+    ``instructions`` and ``prompt`` are this step's (defaults :data:`INSTRUCTIONS`, :data:`PROMPT`).
     """
 
     guidance: str
     role: Role
     reader: Role | None = None
     settings: EscalationSettings = field(default_factory=EscalationSettings)
+    instructions: str = INSTRUCTIONS
+    prompt: str = PROMPT
 
     @classmethod
     def define(
@@ -151,12 +191,19 @@ class Escalator:
         settings: EscalationSettings | None = None,
         *,
         reader: Role | None = None,
-    ) -> Escalator:
-        """The escalator for a step, its guidance the ``escalation`` section of the step's definition."""
-        guidance = definition.section("escalation", str)
-        return cls(guidance, role, reader, settings or EscalationSettings())
+    ) -> ReportEscalator:
+        """The escalator for a step, from the ``escalation`` section of its definition (:class:`EscalationWords`)."""
+        words = definition.section("escalation", EscalationWords)
+        return cls(
+            words.guidance,
+            role,
+            reader,
+            settings or EscalationSettings(),
+            instructions=words.instructions,
+            prompt=words.prompt,
+        )
 
-    def but(self, **changes: object) -> Escalator:
+    def but(self, **changes: object) -> ReportEscalator:
         """A copy with some settings changed (``escalator.but(context=["dialogue"])``)."""
         settings = self.settings.model_validate({**self.settings.model_dump(), **changes})
         return replace(self, settings=settings)
@@ -192,6 +239,8 @@ class Escalator:
                 asked=asked,
                 rule=settings.stuck,
                 thinking=settings.thinking,
+                instructions=self.instructions,
+                prompt=self.prompt,
             )
             if said is None:
                 continue

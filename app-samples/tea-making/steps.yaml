@@ -11,7 +11,8 @@
 #   watch       a watch step's question (to the observing model) and
 #               criteria (for the deciding model)
 #   escalation  how the person can help when the camera alone cannot (read
-#               by the step's escalator)
+#               by the step's escalator); a mapping instead may also give the
+#               step's own escalation prompt: {guidance, instructions, prompt}
 # Which type each step is, its models, schemas and escalator are in
 # procedure.py. {placeholders} are filled in at run time; in heat_water's
 # done, observation is the display reading that completed the step. The

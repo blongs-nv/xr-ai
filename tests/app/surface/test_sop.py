@@ -19,10 +19,10 @@ from xr_ai_kit.sop import (
     Check,
     Criteria,
     EscalationSettings,
-    Escalator,
     Facts,
     Judgment,
     Link,
+    ReportEscalator,
     Run,
     SopRunner,
     StepContext,
@@ -240,8 +240,8 @@ def _linked(context: StepContext, labels: tuple[str, ...]) -> Link:
     return link
 
 
-def _escalator(role, *, reader=None, **settings) -> Escalator:
-    return Escalator(UNIT_GUIDANCE, role, reader, EscalationSettings(every_s=0.01, min_gap_s=0, **settings))
+def _escalator(role, *, reader=None, **settings) -> ReportEscalator:
+    return ReportEscalator(UNIT_GUIDANCE, role, reader, EscalationSettings(every_s=0.01, min_gap_s=0, **settings))
 
 
 async def test_an_escalator_reads_the_steps_outbound_context_and_answers_only_inbound() -> None:

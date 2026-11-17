@@ -78,6 +78,9 @@ class Judgment:
     reason: str = ""
     """Why the label is ``unknown`` without a decision (an unreadable observation, a failed precondition)."""
 
+    frame: Frame | None = field(default=None, repr=False, compare=False)
+    """The frame it judged (its visual evidence; a watch step keeps only its recent judgments)."""
+
 
 @dataclass(frozen=True, slots=True)
 class Check:
@@ -175,12 +178,14 @@ async def judge(
                 frame, check.question, response_format=check.observation_model, timeout_s=timeout_s
             )
         except StructuredOutputError:
-            return Judgment("unknown", "", frame.timestamp_us, frame.sequence, reason="unreadable")
+            return Judgment("unknown", "", frame.timestamp_us, frame.sequence, reason="unreadable", frame=frame)
         if check.reconcile is not None:
             parsed = check.reconcile(parsed, facts.known)
         description = parsed.model_dump_json(exclude_none=True)
         if check.can_assess is not None and not check.can_assess(parsed, facts.known):
-            return Judgment("unknown", description, frame.timestamp_us, frame.sequence, parsed, reason="not assessable")
+            return Judgment(
+                "unknown", description, frame.timestamp_us, frame.sequence, parsed, reason="not assessable", frame=frame
+            )
     else:
         description = str(await observe.ask(frame, check.question, timeout_s=timeout_s)).strip()
     context = f"Observation of the current camera frame:\n{description}"
@@ -189,4 +194,4 @@ async def judge(
     criteria = check.criteria
     decision = await decide.decide(criteria.instructions, choices=criteria.choices(), context=context)
     label: Label = str(decision) if str(decision) in LABELS else "unknown"  # type: ignore[assignment]
-    return Judgment(label, description, frame.timestamp_us, frame.sequence, parsed, decision.confidence)
+    return Judgment(label, description, frame.timestamp_us, frame.sequence, parsed, decision.confidence, frame=frame)

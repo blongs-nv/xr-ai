@@ -15,7 +15,7 @@ tells the user what to show, or asks them. Each step says its own lines.
   ---------------------------    -------------------------------------------
   SopRunner (component)          preflight(run): the steps and their order
   WatchStep, WaitStep (steps)    sop.yaml: the steps' words (StepDefinitions)
-  Escalated, Escalator           what each escalator reads (HELP)
+  Escalated, ReportEscalator     what each escalator reads (HELP)
   controls: start | stop |       the models each step uses
     skip | restart
 
@@ -30,7 +30,7 @@ from xr_ai_kit import Conversation, OneShotDestination, Router
 from xr_ai_kit.sop import (
     Escalated,
     EscalationSettings,
-    Escalator,
+    ReportEscalator,
     Run,
     SopRunner,
     StepDefinitions,
@@ -68,7 +68,7 @@ def camera_step(step_id: str) -> Escalated:
     step = WatchStep.define(
         definition, observe=perceive, decide=decide, settings=WATCH
     )
-    return Escalated(step, Escalator.define(definition, reasoning, HELP))
+    return Escalated(step, ReportEscalator.define(definition, reasoning, HELP))
 
 
 bed_clear = camera_step("bed_clear")

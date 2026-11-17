@@ -29,7 +29,7 @@ A procedure::
     STEPS = StepDefinitions.load("steps.yaml")
     fill = Escalated(
         WatchStep.define(STEPS["fill_water"], observe=vlm, decide=classifier),
-        Escalator.define(STEPS["fill_water"], reasoning),
+        ReportEscalator.define(STEPS["fill_water"], reasoning),
     )
     steep = WaitStep.define(STEPS["steep"])
 
@@ -50,11 +50,13 @@ from .escalation import (
     Escalation,
     EscalationIO,
     EscalationSettings,
+    EscalationWords,
     Escalator,
     Inbound,
     Link,
     Outbound,
     Report,
+    ReportEscalator,
     escalation_for,
     stuck,
 )
@@ -88,6 +90,7 @@ __all__ = [
     "EscalationIO",
     "EscalationSettings",
     "Escalator",
+    "EscalationWords",
     "Facts",
     "Frames",
     "Identification",
@@ -101,6 +104,7 @@ __all__ = [
     "ReadStep",
     "ReadWords",
     "Report",
+    "ReportEscalator",
     "Run",
     "STUCK",
     "SopRunner",

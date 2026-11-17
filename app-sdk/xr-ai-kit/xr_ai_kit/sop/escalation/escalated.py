@@ -19,8 +19,7 @@ from typing import Any
 from xr_ai_app import trace
 
 from ..steps.step_api import StepIO, closing_line
-from .escalator import Escalator
-from .link import Escalatable, EscalationIO, Link
+from .link import Escalatable, EscalationIO, Escalator, Link
 
 SCORING = f"{__package__}.escalation_scoring"
 """What an evaluation case may expect of the escalator (``asks``, ``says``, ``quiet``)."""
@@ -28,7 +27,8 @@ SCORING = f"{__package__}.escalation_scoring"
 
 @dataclass(frozen=True, slots=True)
 class Escalated:
-    """``step`` (a step type that supports escalation, :class:`~.link.Escalatable`) with ``escalator`` beside it."""
+    """``step`` (a step type that supports escalation, :class:`~.link.Escalatable`) with ``escalator`` (any
+    :class:`~.link.Escalator`) beside it."""
 
     step: Any
     escalator: Escalator
@@ -36,6 +36,8 @@ class Escalated:
     def __post_init__(self) -> None:
         if not isinstance(self.step, Escalatable):
             raise TypeError(f"{type(self.step).__name__} does not support escalation (it has no linked(link))")
+        if not isinstance(self.escalator, Escalator):
+            raise TypeError(f"{type(self.escalator).__name__} is not an escalator (it has no run(link, io))")
 
     @property
     def id(self) -> str:
@@ -57,8 +59,10 @@ class Escalated:
     async def run(self, io: StepIO) -> Any:
         """Run the step and, beside it, the escalator, which talks to the person through ``io`` (it must also be an
         :class:`~.link.EscalationIO`, as the runner's and the evaluation's are)."""
+        if not isinstance(io, EscalationIO):
+            raise TypeError(f"an escalator talks to the person; {type(io).__name__} is not an EscalationIO")
         link = Link()
-        side = asyncio.create_task(self._escalate(link, io))  # type: ignore[arg-type]
+        side = asyncio.create_task(self._escalate(link, io))
         try:
             return await self.step.linked(link).run(io)
         finally:

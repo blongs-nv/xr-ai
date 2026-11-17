@@ -20,8 +20,10 @@ from xr_ai_kit.sop import (
     Criteria,
     Escalated,
     EscalationSettings,
-    Escalator,
+    Inbound,
+    Link,
     ReadStep,
+    ReportEscalator,
     Run,
     SopRunner,
     StepDefinition,
@@ -29,21 +31,22 @@ from xr_ai_kit.sop import (
     WaitStep,
     WatchSettings,
     WatchStep,
+    escalation_for,
     evaluation,
 )
-from xr_ai_kit.sop.escalation import escalation_scoring
+from xr_ai_kit.sop.escalation import PROMPT, EscalationIO, escalation_scoring
 from xr_ai_kit.sop.evaluation import Line, StepTrace
 from xr_ai_kit.sop.step_types.read import read_scoring
 from xr_ai_kit.sop.step_types.wait import wait_scoring
-from xr_ai_kit.sop.step_types.watch import watch_scoring
+from xr_ai_kit.sop.step_types.watch import Facts, Judgment, outbound, watch_scoring
 from xr_ai_kit.sop.step_types.watch.watch_scoring import Window
 
 WATER = Criteria("Is there water?", "Water is visible.", "The kettle is empty.", "The kettle's inside cannot be seen.")
 FAST = WatchSettings(interval_s=0.01, required=2, window=4)
 
 
-def _helper(models: FakeModels, guidance: str, **settings) -> Escalator:
-    return Escalator(
+def _helper(models: FakeModels, guidance: str, **settings) -> ReportEscalator:
+    return ReportEscalator(
         guidance, models.role("reason"), settings=EscalationSettings(**{"every_s": 0.01, "max_lines": 1, **settings})
     )
 
@@ -260,6 +263,94 @@ def test_the_core_and_escalation_import_no_step_type() -> None:
     assert "xr_ai_kit.sop.escalation.link" in _imports("xr_ai_kit.sop.step_types.watch")
 
 
+async def test_another_escalator_can_send_the_frame_behind_a_report_to_a_model_of_its_own() -> None:
+    """Escalation is any run(link, io): this one looks at the evidence itself, with a model the step never uses."""
+
+    class FrameEscalator:
+        def __init__(self, model) -> None:
+            self.model = model
+
+        async def run(self, link: Link, io: EscalationIO) -> None:
+            while True:
+                await asyncio.sleep(0.01)
+                step = link.outbound()
+                if step and step.reports and step.reports[-1].frame is not None:
+                    seen = await self.model.ask(step.reports[-1].frame, "Is there water in the kettle?")
+                    link.inbound(Inbound(f"A closer look at the frame: {seen}"))
+                    return
+
+    models = FakeModels(
+        {
+            "observe": ["A kettle."] * 60,
+            "decide": [lambda call: "positive" if "closer look" in call.context else "unknown"] * 60,
+            "frontier": ["The kettle is full."],
+        }
+    )
+    step = Escalated(
+        WatchStep("fill", Check("Water?", WATER), **_eyes(models), settings=FAST),
+        FrameEscalator(models.role("frontier")),
+    )
+    run, _ = await _run_alone(models, step)
+    assert run.status == "completed"
+    (call,) = models.calls("frontier")
+    assert call.frame is not None  # the frame the step judged, not a description of it
+
+
+def test_escalated_checks_its_parts_and_its_io_up_front() -> None:
+    models = FakeModels()
+    watch = WatchStep("fill", Check("Water?", WATER), **_eyes(models))
+    with pytest.raises(TypeError, match="is not an escalator"):
+        Escalated(watch, object())
+    paired = Escalated(watch, _helper(models, "The person knows."))
+
+    class Mute:
+        frames = None
+
+        def report(self, step_id=None):
+            return None
+
+    with pytest.raises(TypeError, match="Mute is not an EscalationIO"):
+        run_virtual(paired.run(Mute()))  # type: ignore[arg-type]
+
+
+async def test_each_steps_escalation_may_carry_its_own_prompt(tmp_path: Path) -> None:
+    (tmp_path / "steps.yaml").write_text(
+        """
+fill:
+  watch:
+    question: Is there water?
+    criteria: {instructions: "Water?", positive: "yes", negative: "no", unknown: unclear}
+  escalation: The person knows.
+seal:
+  watch:
+    question: Is the lid sealed?
+    criteria: {instructions: "Sealed?", positive: "yes", negative: "no", unknown: unclear}
+  escalation:
+    guidance: The person can press the lid.
+    instructions: Ask the person to press the lid and say whether it clicks.
+""",
+        encoding="utf-8",
+    )
+    steps = StepDefinitions.load(tmp_path / "steps.yaml")
+    reason = FakeModels().role("reason")
+    fill, seal = (ReportEscalator.define(steps[i], reason) for i in ("fill", "seal"))
+    assert (fill.guidance, fill.prompt) == ("The person knows.", PROMPT)  # a plain string: the guidance
+    assert seal.instructions == "Ask the person to press the lid and say whether it clicks."
+    models = FakeModels({"reason": [{"action": "ask", "words": "Does it click?"}]})
+    unknowns = [Judgment("unknown", "a lid", i, i) for i in range(4)]
+    said = await escalation_for(
+        outbound("seal", Check("Sealed?", WATER), unknowns, Facts(), 0.0),
+        models.role("reason"),
+        guidance=seal.guidance,
+        instructions=seal.instructions,
+    )
+    assert said is not None and models.calls("reason")[0].prompt.endswith(seal.instructions)
+    with pytest.raises(ValueError, match="instruction"):
+        ReportEscalator.define(
+            StepDefinition("x", sections={"escalation": {"guidance": "g", "instruction": "typo"}}), reason
+        )
+
+
 # ---------------------------------------------------------------------------------- the step definitions
 
 
@@ -288,12 +379,12 @@ lines:
     fill = WatchStep.define(steps["fill"], **_eyes(models)).format(level="the line")
     assert (fill.say, fill.check.criteria.instructions) == ("Fill the kettle to the line.", "Water at the line?")
     assert steps.unread() == ["fill.escalation"]  # nothing has wired its escalator yet
-    helper = Escalator.define(steps["fill"], models.role("reason"), EscalationSettings(context=["dialogue"]))
+    helper = ReportEscalator.define(steps["fill"], models.role("reason"), EscalationSettings(context=["dialogue"]))
     assert (helper.guidance, helper.settings.context) == ("The person knows.", ["dialogue"])
     assert helper.but(max_lines=5).settings.max_lines == 5 and helper.settings.max_lines == 2
     steps.check_read()
     with pytest.raises(ValueError, match="'steep' has no 'escalation' section"):
-        Escalator.define(steps["steep"], models.role("reason"))
+        ReportEscalator.define(steps["steep"], models.role("reason"))
     steep = WaitStep.define(steps["steep"]).lasting(120).format(minutes=2)
     assert (steep.duration_s, steep.say, steep.closing(None)) == (
         120,

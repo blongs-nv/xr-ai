@@ -43,12 +43,12 @@ steep:
 ```
 
 ```python
-from xr_ai_kit.sop import Escalated, Escalator, Run, SopRunner, StepDefinitions, WaitStep, WatchStep
+from xr_ai_kit.sop import Escalated, ReportEscalator, Run, SopRunner, StepDefinitions, WaitStep, WatchStep
 
 STEPS = StepDefinitions.load("steps.yaml")
 fill = Escalated(
     WatchStep.define(STEPS["fill_water"], observe=vlm, decide=classifier),
-    Escalator.define(STEPS["fill_water"], reasoning),
+    ReportEscalator.define(STEPS["fill_water"], reasoning),
 )
 steep = WaitStep.define(STEPS["steep"]).lasting(180).format(minutes=3)
 STEPS.check_read()  # every section of the file has a reader
@@ -70,13 +70,18 @@ tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier
   frame every few seconds (observe, then decide) until N of the last M
   decidable frames are positive; `ReadStep` reads into a schema and derives a
   result; `WaitStep` counts down. An app's own step type works the same way.
-- **Escalation** is optional and separate from the steps. An `Escalator`
+- **Escalation** is optional and separate from the steps. An escalator
   runs beside one step (`Escalated(step, escalator)`) and shares only a
   `Link` with it: it reads the step's **outbound** context (what the step
-  does, its recent reports, what it knows) and gives it **inbound** context
-  (what the person said). It talks to the person itself: when the step is
-  stuck, it asks for what is missing or tells them what to bring into view.
-  A step type supports it by implementing `linked(link)`; the watch step does.
+  does, its recent reports, each with the frame behind it, what it knows)
+  and gives it **inbound** context (what it learned). It talks to the person
+  itself, and can look at the camera (`io.frames`). An escalator is anything
+  with `run(link, io)`: the kit's `ReportEscalator` reasons in text over the
+  reports and asks the person or tells them what to bring into view, with a
+  prompt each step may replace (its `escalation` section: `guidance`, and
+  optionally `instructions` or the whole `prompt`); another could send the
+  frame behind a report to a model of its own. A step type supports
+  escalation by implementing `linked(link)`; the watch step does.
 - `SopRunner` owns the run: each step is its own task, so skip cancels only
   the step and stop cancels the run; a new turn never cancels either. Every
   change is traced, written to the participant's artifacts (`sop-<name>.jsonl`)
