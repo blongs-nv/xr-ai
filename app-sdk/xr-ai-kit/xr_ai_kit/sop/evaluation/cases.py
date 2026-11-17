@@ -11,7 +11,7 @@ A case file is about one step::
       - name: unit_unknown_then_answered
         scene: [26, 346]              # parts of the recording (see .scene)
         person: {answers: [Fahrenheit]}
-        expect: {asks: [unit], completes: {after: 330}}   # the step type's scoring's Expect
+        expect: {asks: [unit], completes: {after: 330}}   # completes: the step's; asks: its escalator's
       - name: looked_away
         scene: [[26, 36], [5, 12], [5, 12], [5, 12]]
         build: {unit: fahrenheit}     # this case's own factory values

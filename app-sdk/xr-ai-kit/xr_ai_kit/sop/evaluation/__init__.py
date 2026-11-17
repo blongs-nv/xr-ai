@@ -6,12 +6,13 @@
 ================  ==========================================================================================
 ``cases``         case files, :func:`run_case`, the command line (:func:`main`); finds each step type's scoring
 ``scene``         a recording, and a scene from it played as the step's camera frames
-``scripted_io``   the scripted person (:class:`ScriptedIO`, a :class:`~..steps.step_api.StepIO`)
+``scripted_io``   the scripted person (:class:`ScriptedIO`: a step's and an escalator's io)
 ``step_trace``    what a case records of the step (:class:`StepTrace`), which the scoring reads
 ================  ==========================================================================================
 
-What every step shares lives here; how a case of a given step type is scored lives with that type, in its own
-scoring module (``watch/watch_scoring.py``, ...). Nothing here looks inside a step. Imported only to evaluate;
+What every step shares lives here; how a case is scored lives with what is scored, in its own scoring module
+(``step_types/watch/watch_scoring.py``, ..., and ``escalation/escalation_scoring.py`` for an escalator beside a
+step). Nothing here looks inside a step. Imported only to evaluate;
 an app running a procedure never imports it.
 
 An app's evaluation script::

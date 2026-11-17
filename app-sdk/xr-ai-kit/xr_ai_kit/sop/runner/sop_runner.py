@@ -4,10 +4,10 @@
 """Run a procedure written as ordinary Python, one run per participant, with start/stop/skip/restart controls.
 
 The procedure is an ``async def procedure(run)`` that runs its steps in order, each as ``await run.step(step)``
-(a :mod:`..steps` object: a watch, a read, a wait) or ``await run.step(step_id, work)`` around any coroutine of the
-app's own. There is no step language and no workflow engine: the order, the branches and the data passed between
-steps are the function's own code. :class:`~.run.Run` is what a step touches (it is a
-:class:`~..steps.step_api.StepIO`).
+(a step object: a kit step type from :mod:`..step_types`, an app's own, or one with an escalator beside it) or
+``await run.step(step_id, work)`` around any coroutine of the app's own. There is no step language and no workflow
+engine: the order, the branches and the data passed between steps are the function's own code. :class:`~.run.Run`
+is what a step touches (a :class:`~..steps.step_api.StepIO`) and what an escalator touches.
 
 What the runner adds:
 
