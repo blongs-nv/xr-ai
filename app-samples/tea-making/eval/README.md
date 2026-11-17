@@ -45,7 +45,11 @@ utterances:                  # what the user may say during this step
     expect: {route: conversation, answer: {mentions: ["80", "176"]}}
 ```
 
-**Frames** are times in the recording. The step's check (exactly the live
+**Frames** are times in the recording: `at: [start, end]` plays one part
+as recorded; a list of parts (`at: [[26, 36], [5, 12], [5, 12]]`) plays
+them back to back on the harness's clock, in any order and repeated, to
+build a scene the recording never had (the person looking away for a
+minute while the kettle heats). The step's check (exactly the live
 one: `judge` with `steps.yaml`'s wording) is run on a frame every 2 s of
 the group, and the live rule (2 positive among the last 4 decidable
 frames) is replayed over them:

@@ -18,6 +18,16 @@ frames:
     about: [unit, celsius, fahrenheit]
   # After the person said Fahrenheit: decidable, so nothing to say.
   - {name: rising, at: [26, 321], expect: not_done, facts: {unit: fahrenheit}, escalates: none}
+  # Spliced: heating in view, then the person looks away from the kettle
+  # (the tea packet close up, then opening the tea bag) for about 40 s. The
+  # check stops deciding; the escalation should tell them to bring the
+  # kettle's display back into view, not ask about the unit (known).
+  - name: looked_away
+    at: [[26, 36], [5, 12], [5, 12], [5, 12], [346, 351], [346, 351]]
+    expect: not_done
+    facts: {unit: fahrenheit}
+    escalates: tell
+    about: [kettle, display, view]
   - {name: at_target, at: [339, 346], expect: done, facts: {unit: fahrenheit}}
   - name: setpoint_flash
     at: [22.5, 25.5]

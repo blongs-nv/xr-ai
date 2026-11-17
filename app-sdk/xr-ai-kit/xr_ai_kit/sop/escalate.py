@@ -88,9 +88,12 @@ async def escalation_for(
     if asked:
         lines.append("Already said to the person: " + " | ".join(asked))
     lines.append(
-        "From the reports, what is the check missing that keeps it from deciding? If the person can provide it, give "
-        "one short spoken line: ask, a question, when they can tell it and it is not already known; tell, an "
-        "instruction, when they need to do something, such as bringing the item back into the camera's view."
+        "From the reports, what is the check missing that keeps it from deciding? Reports with nothing readable "
+        "(no reading, nothing of the item seen) mean the camera does not see what it checks: the person is looking "
+        "elsewhere or something is in the way, so tell them what to bring into view; the check then reads it "
+        "itself. Reports that see the item clearly but still cannot decide mean the check needs something the "
+        "person knows: ask for that, unless it is already known. Give one short spoken line, or none when the "
+        "person cannot help."
     )
     try:
         decision = await role.ask(

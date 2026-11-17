@@ -149,6 +149,24 @@ def on_grid(
     return picked
 
 
+def played(
+    index: list[tuple[float, Path]], at: list[Any], every_s: float
+) -> list[tuple[float, float, Path]]:
+    """A group's frames as (play time, recording time, image).
+
+    ``at`` is one segment ``[start, end]`` of the recording, played as
+    recorded, or a list of segments played back to back (in any order, a
+    segment may repeat) on a clock that starts at the first segment's start
+    and advances ``every_s`` per frame: a scene the recording never had,
+    such as the person looking away for a minute.
+    """
+    if not isinstance(at[0], list):
+        return [(t, t, p) for t, p in on_grid(index, at, every_s)]
+    frames = [item for seg in at for item in on_grid(index, seg, every_s)]
+    start = float(at[0][0])
+    return [(start + i * every_s, t, p) for i, (t, p) in enumerate(frames)]
+
+
 def frame_of(t: float, path: Path) -> Frame:
     data = path.read_bytes()
     width, height = Image.open(io.BytesIO(data)).size
@@ -322,7 +340,7 @@ async def run_frames(
     settings = models.settings
 
     async def one(
-        t: float, path: Path, facts: Facts | None
+        t: float, src: float, path: Path, facts: Facts | None
     ) -> tuple[Judgment | None, dict[str, Any]]:
         async with gate:
             began = time.monotonic()
@@ -333,17 +351,21 @@ async def run_frames(
             except Exception as exc:  # noqa: BLE001 - scored as unknown
                 j, out = None, {"label": "unknown", "reason": f"error: {exc!r}"}
             out.update(t=round(t, 2), s=round(time.monotonic() - began, 2))
+            if src != t:
+                out["src"] = round(src, 2)  # the recording time it came from
             return j, out
 
     groups = []
     for group in packet.frames:
-        grid = on_grid(index, group["at"], settings.interval_s)
+        grid = played(index, group["at"], settings.interval_s)
         facts = None
         if packet.step != "identify":
             facts = group_facts(
                 step_check(packet.step, models, recording), group
             )
-        done = await asyncio.gather(*(one(t, p, facts) for t, p in grid))
+        done = await asyncio.gather(
+            *(one(t, src, p, facts) for t, src, p in grid)
+        )
         frames = [out for _, out in done]
         labels = [f["label"] for f in frames]
         fired = fires(labels, settings.required, settings.window)

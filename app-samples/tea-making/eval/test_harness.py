@@ -153,3 +153,12 @@ def test_a_plumbing_run_writes_a_report(tmp_path: Path) -> None:
     said = {u["say"] for u in result["utterances"]}
     assert "What's the next step?" in said  # common.yaml was added
     assert "| Frame groups |" in (out / "report.md").read_text()
+
+
+def test_segments_play_back_to_back_on_the_harness_clock() -> None:
+    index = [(float(t), Path(f"f{t}.jpg")) for t in range(60)]
+    one = harness.played(index, [10, 16], 2.0)
+    assert [(t, src) for t, src, _ in one] == [(10, 10), (12, 12), (14, 14)]
+    spliced = harness.played(index, [[40, 44], [10, 14], [10, 14]], 2.0)
+    assert [t for t, _, _ in spliced] == [40, 42, 44, 46, 48, 50]
+    assert [src for _, src, _ in spliced] == [40, 42, 10, 12, 10, 12]
