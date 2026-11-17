@@ -68,8 +68,9 @@ class Thermometer(BaseModel):
     unit_text: str | None = Field(
         default=None,
         max_length=40,
-        description="The unit exactly as printed next to the number (°C, °F,"
-        " C, F); null when no unit can be read.",
+        description="The unit letter printed beside the number, copied"
+        " exactly (°C, °F, C, F); null when the display shows no C or F"
+        " letter (a bare number, or only a degree sign).",
     )
     role: Literal["current", "setpoint", "unknown"] = Field(
         default="unknown",

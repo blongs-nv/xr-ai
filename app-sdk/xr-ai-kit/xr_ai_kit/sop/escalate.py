@@ -56,7 +56,10 @@ async def question_for(
         f"What the camera may not establish, which the person can tell: {check.escalation}",
     ]
     if frame is not None:
-        lines.append("The image is the latest camera frame.")
+        lines.append(
+            "The image is the latest camera frame. Read it yourself: the check's reports below come from a fast "
+            "vision model, which can misread or fill in what is not shown."
+        )
     if situation:
         lines.append(f"What is going on:\n{situation}")
     if facts.text():
@@ -64,8 +67,9 @@ async def question_for(
     if asked:
         lines.append("Questions already asked: " + " | ".join(asked))
     lines.append(
-        "Should the assistant ask the person one short question now, to learn something the check needs and the "
-        "camera cannot establish? If so, give the question."
+        "Each question interrupts the person while they work, so one is worth asking only when the check needs "
+        "something that neither the image nor what is already known establishes. Should the assistant ask the "
+        "person one short question now? If so, give the question."
     )
     try:
         decision = await role.ask(

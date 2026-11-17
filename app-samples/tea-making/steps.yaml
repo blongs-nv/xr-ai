@@ -51,13 +51,19 @@ fill_water:
 
 heat_water:
   question: |-
-    Transcribe the number and the exact legible unit text on the actual
-    instrument display (a kettle's or thermometer's). unit_text is the copied
-    glyph or word; if no unit can be read, it is null. Keep a readable number
-    even when its unit is unknown. role is current only when a visible label or
-    indicator shows a measured temperature and setpoint only when it shows a
-    target setting; a number alone is unknown. Do not infer a unit or role from
-    the number, the appliance or familiarity.
+    Transcribe the temperature shown on the kettle's or thermometer's display.
+    value is the number, only when all of its digits are fully in view and
+    legible; a display cut off by the edge of the image or blurred gives null.
+    unit_text is the unit letter printed beside the number, copied exactly: a
+    Celsius display shows a clear letter C right after the number or its degree
+    sign (75°C, 75 C), a Fahrenheit display a clear letter F (167°F, 167 F).
+    Many kettle displays show only the number, or the number and a degree sign
+    or dot with no letter; then there is no unit to read and unit_text is null.
+    Write C or F only when that letter is visible on the display in this
+    image; never infer it from the number, the kettle's model or what is
+    usual. role is current only when a visible label or indicator marks the
+    number as the water's temperature, setpoint only when one marks it as a
+    target setting; a number alone is unknown.
   criteria:
     instructions: >-
       Has the water reached the target? The observation is a display reading:
