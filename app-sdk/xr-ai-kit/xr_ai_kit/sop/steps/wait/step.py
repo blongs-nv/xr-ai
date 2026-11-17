@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""A wait step: a countdown on the core clock (:func:`~..timer.timer`); no camera, no models."""
+"""A wait step: a countdown on the core clock (:func:`~.timer.timer`); no camera, no models."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from dataclasses import dataclass, replace
 
 from pydantic import BaseModel, ConfigDict
 
-from ..step import StepIO, StepTrace
-from ..timer import TimerState, timer
+from ...step import StepIO, StepTrace
+from .timer import TimerState, timer
 
 
 class WaitExpect(BaseModel):

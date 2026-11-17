@@ -3,26 +3,25 @@
 
 """Standard operating procedures: steps, a procedure that runs them in order, and a runner that runs it with a person.
 
-Three layers, each with one job:
+The package, by layer::
 
-======================  =================================================================
-Steps                   WatchStep (the camera confirms something; the person helps when
-(:mod:`.steps`)         it cannot), ReadStep (read a label, derive settings), WaitStep (a
-                        countdown). Each is ``run(io)`` over a narrow StepIO (frames, say,
-                        ask, report, situation), plus how an evaluation case of it is
-                        scored (``Expect``, ``score``)
-The procedure           the app's ``async def procedure(run)``: which steps, in what
-                        order, what passes between them (``await run.step(heat)``);
-                        Wording loads its words from YAML and builds the steps
-The runner              SopRunner (a component: one run per participant, controls as a
-                        router destination, the run's summary for the conversation); Run
-                        (what the procedure receives, and what a step touches)
-======================  =================================================================
+    step.py         what a step is: the Step contract, the StepIO it touches, the roles it uses, what an evaluation
+                    records of it (shared by every layer below)
+    steps/          the step types, one package each, with everything the type uses inside it
+      watch/          WatchStep: the fast check (judge, verify) and its optional per-step Escalator (escalate)
+      read/           ReadStep: read the camera into a schema, derive a result (identify)
+      wait/           WaitStep: a countdown (timer)
+    procedure/      writing a procedure: its words in YAML (Wording) and the steps built from them; the procedure
+                    itself is the app's ``async def procedure(run)``: which steps, in what order, what passes between
+    runner/         SopRunner (a component: one run per participant, controls as a router destination, the run's
+                    summary for the conversation), Run (what the procedure receives and what a step touches), the
+                    controls' default wording
+    eval/           one step at a time on a recorded scene and a scripted person, scored by the step type's own
+                    ``score``; imported only to evaluate
+    capture/        record a procedure being done (frames, captions, a packet) to write or evaluate one from
 
-Under the steps: :func:`judge` (one frame against a :class:`Check`), :func:`verify` (the fast check),
-:class:`Escalator` (a watch step's side escalation, attached and configured per step), :func:`identify`,
-:func:`timer`. :mod:`.eval` runs one step on recorded frames and a scripted person, on the devkit's virtual clock,
-and scores it with the step's own ``score``; it is imported only to evaluate.
+Everything a procedure needs is importable from here (``from xr_ai_kit.sop import WatchStep, Wording, SopRunner``);
+the subpackages hold the parts underneath.
 
 A procedure::
 
@@ -38,15 +37,31 @@ A procedure::
 
 from __future__ import annotations
 
-from .escalate import Escalation, EscalationSettings, Escalator, Watched, escalation_for, stuck
-from .identify import Identification, identify
-from .judge import LABELS, Check, Criteria, Facts, Judgment, Label, StepContext, judge
+from .procedure import StepWords, Wording
 from .runner import CONTROLS, MESSAGES, Run, SopRunner, StepRecord
 from .step import Frames, Line, Roles, Step, StepIO, StepTrace
-from .steps import ReadStep, WaitStep, WatchSettings, WatchStep
-from .timer import TimerState, timer
-from .verify import Verification, verify
-from .wording import StepWords, Wording
+from .steps.read import Identification, ReadStep, identify
+from .steps.wait import TimerState, WaitStep, timer
+from .steps.watch import (
+    LABELS,
+    Check,
+    Criteria,
+    Escalation,
+    EscalationSettings,
+    Escalator,
+    Facts,
+    Judgment,
+    Label,
+    StepContext,
+    Verification,
+    Watched,
+    WatchSettings,
+    WatchStep,
+    escalation_for,
+    judge,
+    stuck,
+    verify,
+)
 
 __all__ = [
     "CONTROLS",

@@ -293,6 +293,26 @@
         "segments"
       ]
     },
+    "xr_ai_kit.sop.procedure": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/procedure/__init__.py",
+      "all": [
+        "StepWords",
+        "Wording"
+      ]
+    },
+    "xr_ai_kit.sop.runner": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/runner/__init__.py",
+      "all": [
+        "CONTROLS",
+        "CONTROL_QUESTION",
+        "MESSAGES",
+        "Run",
+        "RunStatus",
+        "SopRunner",
+        "StepRecord",
+        "StepStatus"
+      ]
+    },
     "xr_ai_kit.sop.steps": {
       "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/__init__.py",
       "all": [
@@ -304,6 +324,50 @@
         "WatchSettings",
         "WatchStep",
         "Window"
+      ]
+    },
+    "xr_ai_kit.sop.steps.read": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/read/__init__.py",
+      "all": [
+        "Identification",
+        "ReadExpect",
+        "ReadStep",
+        "identify"
+      ]
+    },
+    "xr_ai_kit.sop.steps.wait": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/wait/__init__.py",
+      "all": [
+        "TimerState",
+        "WaitExpect",
+        "WaitStep",
+        "timer"
+      ]
+    },
+    "xr_ai_kit.sop.steps.watch": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/watch/__init__.py",
+      "all": [
+        "Check",
+        "Criteria",
+        "Escalation",
+        "EscalationSettings",
+        "Escalator",
+        "Facts",
+        "Judgment",
+        "LABELS",
+        "Label",
+        "STUCK",
+        "StepContext",
+        "Verification",
+        "WatchExpect",
+        "WatchSettings",
+        "WatchStep",
+        "Watched",
+        "Window",
+        "escalation_for",
+        "judge",
+        "stuck",
+        "verify"
       ]
     },
     "xr_ai_launcher": {

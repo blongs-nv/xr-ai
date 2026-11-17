@@ -34,10 +34,10 @@ import yaml
 from pydantic import BaseModel, ConfigDict
 from xr_ai_app import Role
 
-from .escalate import EscalationSettings, Escalator
-from .judge import Check, Criteria
-from .step import Roles
-from .steps import ReadStep, WaitStep, WatchSettings, WatchStep
+from ..step import Roles
+from ..steps.read import ReadStep
+from ..steps.wait import WaitStep
+from ..steps.watch import Check, Criteria, EscalationSettings, Escalator, WatchSettings, WatchStep
 
 
 class _Criteria(BaseModel):

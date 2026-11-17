@@ -31,7 +31,7 @@ from xr_ai_app import Role, StructuredOutputError, clock
 from .judge import Check, Facts, Judgment, StepContext
 
 if TYPE_CHECKING:
-    from .step import StepIO
+    from ...step import StepIO
 
 
 class _Decision(BaseModel):

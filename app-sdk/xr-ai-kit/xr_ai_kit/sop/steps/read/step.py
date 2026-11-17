@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""A read step: read something from the camera into a schema, then derive a result from it (:func:`~..identify.
+"""A read step: read something from the camera into a schema, then derive a result from it (:func:`~.identify.
 identify`), for example a tea's label and its brewing settings. ``Expect`` and :meth:`ReadStep.score` say how an
 evaluation case of a read step is scored."""
 
@@ -13,8 +13,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from ..identify import Identification, identify
-from ..step import Roles, StepIO, StepTrace, mentions
+from ...step import Roles, StepIO, StepTrace, mentions
+from .identify import Identification, identify
 
 
 class ReadExpect(BaseModel):

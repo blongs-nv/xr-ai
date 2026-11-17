@@ -3,12 +3,12 @@
 
 """A watch step: the camera confirms something, and the person helps when the camera alone cannot.
 
-Two parts, sharing the step's context (:class:`~..judge.StepContext`):
+Two parts, sharing the step's context (:class:`~.judge.StepContext`):
 
-- the fast check (:func:`~..verify.verify`): a frame every ``interval_s``, observed and labelled by fast models,
+- the fast check (:func:`~.verify.verify`): a frame every ``interval_s``, observed and labelled by fast models,
   done when ``required`` of the last ``window`` decidable frames are positive. No reasoning, never asks; it reads the
   context on every frame.
-- the step's escalator (:class:`~..escalate.Escalator`), only when one is attached (:meth:`WatchStep.escalating`):
+- the step's escalator (:class:`~.escalate.Escalator`), only when one is attached (:meth:`WatchStep.escalating`):
   a separate agent, configured per step, that reads the check's reports and, when they are mostly unknown, asks the
   person (the answer goes into the context) or tells them what to do (bring the kettle into view). It never decides
   the step.
@@ -26,10 +26,10 @@ from dataclasses import dataclass, field, replace
 from pydantic import BaseModel, ConfigDict
 from xr_ai_app import clock, trace
 
-from ..escalate import Escalator, Watched
-from ..judge import Check, Judgment, StepContext
-from ..step import Roles, StepIO, StepTrace, mentions
-from ..verify import Verification, verify
+from ...step import Roles, StepIO, StepTrace, mentions
+from .escalate import Escalator, Watched
+from .judge import Check, Judgment, StepContext
+from .verify import Verification, verify
 
 
 class WatchSettings(BaseModel):
