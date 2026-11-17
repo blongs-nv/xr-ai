@@ -13,7 +13,7 @@ own escalator (wired per step) tells the user what to show, or asks them.
   xr_ai_kit.sop                  this file
   ---------------------------    -------------------------------------------
   SopRunner (component)          preflight(run): the steps and their order
-  WatchStep, WaitStep (steps)    sop.yaml: the words (Wording)
+  WatchStep, WaitStep (steps)    sop.yaml: the steps' words (StepDefinitions)
   Escalator (per camera step)    what each escalator reads (HELP)
   controls: start | stop |       the roles each camera step uses
     skip | restart
@@ -31,8 +31,8 @@ from xr_ai_kit.sop import (
     Roles,
     Run,
     SopRunner,
+    StepDefinitions,
     WatchSettings,
-    Wording,
 )
 
 HERE = Path(__file__).resolve().parent
@@ -47,7 +47,7 @@ voice = app.add(Voice(summarize=app.role("answer_lightweight")))
 WARM_UP_S = 90
 
 # ---- the steps: words from sop.yaml, types and settings here ----
-WORDS = Wording.load(HERE / "sop.yaml")
+DEFINITIONS = StepDefinitions.load(HERE / "sop.yaml")
 # observe describes a frame, decide labels it, reason derives in text.
 ROLES = Roles(observe=perceive, decide=decide, reason=reasoning)
 # A look a second; done when two of the last three decided looks are yes.
@@ -58,23 +58,23 @@ WATCH = WatchSettings(required=2, window=3, interval_s=1.0)
 # here the checklist's state ("run") and the recent dialogue.
 HELP = EscalationSettings(context=["run", "dialogue"])
 
-bed_clear = WORDS.watch("bed_clear", ROLES, WATCH).escalating(
-    WORDS.escalator("bed_clear", reasoning, HELP)
+bed_clear = DEFINITIONS.watch("bed_clear", ROLES, WATCH).escalating(
+    DEFINITIONS.escalator("bed_clear", reasoning, HELP)
 )
-door_closed = WORDS.watch("door_closed", ROLES, WATCH).escalating(
-    WORDS.escalator("door_closed", reasoning, HELP)
+door_closed = DEFINITIONS.watch("door_closed", ROLES, WATCH).escalating(
+    DEFINITIONS.escalator("door_closed", reasoning, HELP)
 )
-warm_up = WORDS.wait("warm_up", WARM_UP_S)
+warm_up = DEFINITIONS.wait("warm_up", WARM_UP_S)
 
 
 async def preflight(run: Run) -> None:
     """The procedure: ordinary code. A skipped step returns None."""
     if await run.step(bed_clear):
-        await run.say(WORDS.line("bed_clear"))
+        await run.say(DEFINITIONS.line("bed_clear"))
     if await run.step(door_closed):
-        await run.say(WORDS.line("door_closed"))
+        await run.say(DEFINITIONS.line("door_closed"))
     if await run.step(warm_up):
-        await run.say(WORDS.line("warmed_up"))
+        await run.say(DEFINITIONS.line("warmed_up"))
 
 
 procedure = app.add(
@@ -84,7 +84,7 @@ procedure = app.add(
         title="Printer pre-flight",
         decide=decide,
         output=voice,
-        plan=WORDS.plan(),  # the steps ahead, for the conversation
+        plan=DEFINITIONS.plan(),  # the steps ahead, for the conversation
         step_context=[voice.dialogue],  # what escalators may read, by name
     )
 )

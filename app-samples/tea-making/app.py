@@ -25,7 +25,7 @@ every frame's verdict) and speech_out (Pocket TTS).
 
 from pathlib import Path
 
-from procedure import WORDS, TeaSettings, make_tea
+from procedure import DEFINITIONS, TeaSettings, make_tea
 from pydantic import BaseModel, Field
 from xr_ai_app import App, Hub, Participant, PerConnection, Turn, Voice
 from xr_ai_kit import Ack, Conversation, OneShotDestination, Router
@@ -69,7 +69,7 @@ tea = app.add(
         title="Tea guidance",
         decide=decide,
         output=voice,
-        plan=WORDS.plan(),
+        plan=DEFINITIONS.plan(),
         # Channels a step's escalator may read, by name ("dialogue"); each
         # escalator picks its own (settings.tea.escalation.context).
         step_context=[voice.dialogue],

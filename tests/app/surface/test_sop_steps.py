@@ -19,17 +19,20 @@ from xr_ai_kit.sop import (
     Criteria,
     EscalationSettings,
     Escalator,
-    Line,
     Roles,
     Run,
     SopRunner,
-    StepTrace,
+    StepDefinitions,
+    WaitStep,
     WatchSettings,
     WatchStep,
-    Wording,
+    evaluation,
 )
-from xr_ai_kit.sop import eval as step_eval
-from xr_ai_kit.sop.steps import ReadStep, WaitStep, Window
+from xr_ai_kit.sop.evaluation import Line, StepTrace
+from xr_ai_kit.sop.steps.read import read_scoring
+from xr_ai_kit.sop.steps.wait import wait_scoring
+from xr_ai_kit.sop.steps.watch import watch_scoring
+from xr_ai_kit.sop.steps.watch.watch_scoring import Window
 
 WATER = Criteria("Is there water?", "Water is visible.", "The kettle is empty.", "The kettle's inside cannot be seen.")
 FAST = WatchSettings(interval_s=0.01, required=2, window=4)
@@ -116,17 +119,17 @@ async def test_a_watch_step_without_an_escalator_never_reasons() -> None:
 
 
 def test_watch_step_scoring() -> None:
-    expect = WatchStep.Expect
+    expect = watch_scoring.Expect
     done = StepTrace("s", completed=True, completed_at_s=341.0)
-    assert WatchStep.score(done, expect(completes=True)) == []
-    assert WatchStep.score(done, expect(completes=Window(after=330, before=350))) == []
-    assert WatchStep.score(done, expect(completes=Window(before=300))) == [
+    assert watch_scoring.score(done, expect(completes=True)) == []
+    assert watch_scoring.score(done, expect(completes=Window(after=330, before=350))) == []
+    assert watch_scoring.score(done, expect(completes=Window(before=300))) == [
         "completed at 341 s, expected within [None, 300.0]"
     ]
     asked = StepTrace("s", lines=[Line(48, "ask", "What unit is the display showing?", "F")])
-    assert WatchStep.score(asked, expect(asks=["unit"])) == []
-    assert WatchStep.score(asked, expect(says=["kettle"]))[0].startswith("said nothing")
-    assert WatchStep.score(asked, expect(quiet=True))[0].endswith("expected nothing")
+    assert watch_scoring.score(asked, expect(asks=["unit"])) == []
+    assert watch_scoring.score(asked, expect(says=["kettle"]))[0].startswith("said nothing")
+    assert watch_scoring.score(asked, expect(quiet=True))[0].endswith("expected nothing")
     with pytest.raises(ValueError):
         expect.model_validate({"complete": True})  # a misspelled key is an error, not a silent pass
 
@@ -137,18 +140,41 @@ def test_read_and_wait_step_scoring() -> None:
         result = type("R", (), {"temperature_c": 80})()
 
     trace = StepTrace("identify", completed=True, result=Read())
-    expect = ReadStep.Expect(completes=True, reads={"tea_type": ["green"]}, derives={"temperature_c": []})
-    assert ReadStep.score(trace, expect) == []
-    assert ReadStep.score(trace, ReadStep.Expect(reads={"tea_type": ["black"]})) == [
+    expect = read_scoring.Expect(completes=True, reads={"tea_type": ["green"]}, derives={"temperature_c": []})
+    assert read_scoring.score(trace, expect) == []
+    assert read_scoring.score(trace, read_scoring.Expect(reads={"tea_type": ["black"]})) == [
         "read tea_type='green tea', expected one of ['black']"
     ]
-    assert WaitStep.score(StepTrace("w"), WaitStep.Expect(completes=True)) == ["did not complete"]
+    assert wait_scoring.score(StepTrace("w"), wait_scoring.Expect(completes=True)) == ["did not complete"]
 
 
-# ---------------------------------------------------------------------------------- the wording
+def test_evaluation_finds_each_step_types_scoring_and_an_apps_own() -> None:
+    models = FakeModels()
+    watch = WatchStep("fill", Check("Water?", WATER), _roles(models))
+    assert evaluation.scoring_for(watch) is watch_scoring
+    assert evaluation.scoring_for(WaitStep("w", 1.0)) is wait_scoring
+
+    class Mine:
+        id, say = "mine", None
+
+    with pytest.raises(TypeError, match="no scoring for Mine"):
+        evaluation.scoring_for(Mine())  # type: ignore[arg-type]
+    assert evaluation.scoring_for(Mine(), {Mine: read_scoring}) is read_scoring  # type: ignore[arg-type]
 
 
-def test_wording_builds_steps_from_words_and_code(tmp_path: Path) -> None:
+def test_running_code_never_imports_evaluation() -> None:
+    import subprocess  # noqa: PLC0415
+    import sys  # noqa: PLC0415
+
+    probe = "import sys, xr_ai_kit.sop; print(any(m.startswith('xr_ai_kit.sop.evaluation') for m in sys.modules))"
+    out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, check=True).stdout
+    assert out.strip() == "False"
+
+
+# ---------------------------------------------------------------------------------- the step definitions
+
+
+def test_step_definitions_build_steps_from_yaml_and_code(tmp_path: Path) -> None:
     (tmp_path / "steps.yaml").write_text(
         """
 fill:
@@ -165,7 +191,7 @@ lines:
 """,
         encoding="utf-8",
     )
-    words = Wording.load(tmp_path / "steps.yaml")
+    words = StepDefinitions.load(tmp_path / "steps.yaml")
     models = FakeModels()
     fill = words.watch("fill", _roles(models)).format(level="the line")
     assert (fill.say, fill.check.criteria.instructions) == ("Fill the kettle to the line.", "Water at the line?")
@@ -186,9 +212,9 @@ lines:
 # ---------------------------------------------------------------------------------- the evaluation
 
 
-def _recording(tmp_path: Path, seconds: int) -> step_eval.Recording:
+def _recording(tmp_path: Path, seconds: int) -> evaluation.Recording:
     Image.new("RGB", (8, 8), "gray").save(tmp_path / "f.jpg")
-    return step_eval.Recording([(float(t), tmp_path / "f.jpg") for t in range(seconds)])
+    return evaluation.Recording([(float(t), tmp_path / "f.jpg") for t in range(seconds)])
 
 
 def test_a_scene_plays_parts_back_to_back_on_its_own_clock(tmp_path: Path) -> None:
@@ -201,7 +227,7 @@ def test_a_scene_plays_parts_back_to_back_on_its_own_clock(tmp_path: Path) -> No
 
 
 def test_scene_frames_stream_like_a_camera_and_numbers_repeats_as_new_frames(tmp_path: Path) -> None:
-    scene = step_eval.SceneFrames(_recording(tmp_path, 60), [[0, 3], [0, 3]])
+    scene = evaluation.SceneFrames(_recording(tmp_path, 60), [[0, 3], [0, 3]])
 
     async def take() -> list[tuple[float, int]]:
         scene.begin()
@@ -233,14 +259,14 @@ def test_a_case_runs_the_real_step_on_a_scene_and_a_scripted_person(tmp_path: Pa
         _roles(models),
         settings=WatchSettings(interval_s=2.0),
     ).escalating(_helper(models, "The person knows the unit.", every_s=20.0, max_lines=2, context=["dialogue"]))
-    case = step_eval.Case(
+    case = evaluation.Case(
         name="answered",
         scene=[0, 120],
         person={"answers": ["Fahrenheit"]},
         context={"dialogue": "user: is it hot yet?", "run": "not read"},
         expect={"asks": ["unit"], "completes": {"after": 20, "before": 40}},
     )
-    result = run_virtual(step_eval.run_case(step, case, _recording(tmp_path, 120)))
+    result = run_virtual(evaluation.run_case(step, case, _recording(tmp_path, 120)))
     assert result.ok, result.problems
     (line,) = result.trace.lines
     assert (line.kind, line.answer) == ("ask", "Fahrenheit")

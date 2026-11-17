@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""A scripted :class:`~..step.StepIO`: a scene for the camera, a scripted person, and a record of what happened."""
+"""A scripted :class:`~..steps.step_api.StepIO`: a scene for the camera, a scripted person, a record of it."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from ..step import Line, StepTrace
 from .scene import SceneFrames
+from .step_trace import Line, StepTrace
 
 
 class Person(BaseModel):

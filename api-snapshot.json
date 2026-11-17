@@ -237,7 +237,6 @@
         "Judgment",
         "LABELS",
         "Label",
-        "Line",
         "MESSAGES",
         "ReadStep",
         "Roles",
@@ -245,17 +244,16 @@
         "SopRunner",
         "Step",
         "StepContext",
+        "StepDefinition",
+        "StepDefinitions",
         "StepIO",
         "StepRecord",
-        "StepTrace",
-        "StepWords",
         "TimerState",
         "Verification",
         "WaitStep",
         "WatchSettings",
         "WatchStep",
         "Watched",
-        "Wording",
         "escalation_for",
         "identify",
         "judge",
@@ -274,30 +272,29 @@
         "caption_prompt"
       ]
     },
-    "xr_ai_kit.sop.eval": {
-      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/eval/__init__.py",
+    "xr_ai_kit.sop.evaluation": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/evaluation/__init__.py",
       "all": [
         "Build",
         "Case",
         "CaseFile",
         "CaseResult",
+        "Line",
         "Person",
         "Recording",
         "SceneFrames",
+        "Scoring",
+        "Scorings",
         "ScriptedIO",
         "Shot",
+        "StepTrace",
         "main",
+        "mentions",
         "report",
         "run_case",
         "run_files",
+        "scoring_for",
         "segments"
-      ]
-    },
-    "xr_ai_kit.sop.procedure": {
-      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/procedure/__init__.py",
-      "all": [
-        "StepWords",
-        "Wording"
       ]
     },
     "xr_ai_kit.sop.runner": {
@@ -316,21 +313,22 @@
     "xr_ai_kit.sop.steps": {
       "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/__init__.py",
       "all": [
-        "ReadExpect",
+        "Frames",
         "ReadStep",
-        "WaitExpect",
+        "Roles",
+        "Step",
+        "StepDefinition",
+        "StepDefinitions",
+        "StepIO",
         "WaitStep",
-        "WatchExpect",
         "WatchSettings",
-        "WatchStep",
-        "Window"
+        "WatchStep"
       ]
     },
     "xr_ai_kit.sop.steps.read": {
       "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/read/__init__.py",
       "all": [
         "Identification",
-        "ReadExpect",
         "ReadStep",
         "identify"
       ]
@@ -339,7 +337,6 @@
       "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/wait/__init__.py",
       "all": [
         "TimerState",
-        "WaitExpect",
         "WaitStep",
         "timer"
       ]
@@ -359,11 +356,9 @@
         "STUCK",
         "StepContext",
         "Verification",
-        "WatchExpect",
         "WatchSettings",
         "WatchStep",
         "Watched",
-        "Window",
         "escalation_for",
         "judge",
         "stuck",

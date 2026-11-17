@@ -1,14 +1,15 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# The words of the printer pre-flight (xr_ai_kit.sop.Wording). One entry per
-# step, keyed by its id; app.py chooses each step's type and their order.
+# The printer pre-flight's step definitions (xr_ai_kit.sop.StepDefinitions).
+# One entry per step, keyed by its id; app.py chooses each step's type, its
+# escalator and their order.
 #   does        what the person does, for the plan the conversation reads
 #   say         spoken as the step starts
 #   question    a camera step: what the observing model describes per frame
 #   criteria    a camera step: how the deciding model labels a description
 #   escalation  a camera step: when the camera cannot tell, what the person
-#               can be told or asked (without it the step never speaks up)
+#               can be told or asked (read by the step's escalator)
 # `lines:` holds everything else the procedure says.
 
 bed_clear:

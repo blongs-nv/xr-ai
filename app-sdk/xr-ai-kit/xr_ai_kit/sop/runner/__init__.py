@@ -11,6 +11,6 @@ from __future__ import annotations
 
 from .controls import CONTROL_QUESTION, CONTROLS, MESSAGES
 from .run import Run, RunStatus, StepRecord, StepStatus
-from .runner import SopRunner
+from .sop_runner import SopRunner
 
 __all__ = ["CONTROLS", "CONTROL_QUESTION", "MESSAGES", "Run", "RunStatus", "SopRunner", "StepRecord", "StepStatus"]

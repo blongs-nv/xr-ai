@@ -1,12 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# The tea procedure's words (xr_ai_kit.sop.Wording): per step, what the
-# person does (the plan the conversation reads), what the assistant says as
-# it starts, and the check's words: its question to the observing model, its
-# criteria for the deciding model, and its escalation guidance (how the
-# person can help when the camera alone cannot; without it the step never
-# asks). Which type each step is, and its schemas, are in procedure.py.
+# The tea procedure's step definitions (xr_ai_kit.sop.StepDefinitions): per
+# step, what the person does (the plan the conversation reads), what the
+# assistant says as it starts, and the check's words: its question to the
+# observing model, its criteria for the deciding model, and its escalation
+# guidance (how the person can help when the camera alone cannot), which the
+# step's escalator reads. Which type each step is, its schemas and its
+# escalator are in procedure.py.
 # {placeholders} are filled in at run time. The questions and criteria follow
 # the tea sample's (NVIDIA/xr-ai PR 711).
 

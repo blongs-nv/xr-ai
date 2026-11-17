@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Run a step's cases: the real step, on a recorded scene and a scripted person, scored by the step's own ``score``.
+"""Run a step's cases: the real step, on a recorded scene and a scripted person, scored by its type's scoring.
 
 A case file is about one step::
 
@@ -11,7 +11,7 @@ A case file is about one step::
       - name: unit_unknown_then_answered
         scene: [26, 346]              # parts of the recording (see .scene)
         person: {answers: [Fahrenheit]}
-        expect: {asks: [unit], completes: {after: 330}}   # the step type's Expect
+        expect: {asks: [unit], completes: {after: 330}}   # the step type's scoring's Expect
       - name: looked_away
         scene: [[26, 36], [5, 12], [5, 12], [5, 12]]
         build: {unit: fahrenheit}     # this case's own factory values
@@ -22,6 +22,10 @@ The app gives a factory, ``build(values, fakes) -> {step id: step}``, the same o
 with, so the step evaluated is the step that ships. Each case runs on the devkit's virtual-time loop: idle waits are
 skipped and model calls take their real time, so a five-minute scene costs what its model calls cost, and their
 latency counts as it would live. A case ends when the step finishes or the scene does.
+
+Each step type's scoring is a module next to it (``watch_scoring``, ``read_scoring``, ``wait_scoring``) with
+``Expect`` (what a case may expect) and ``score(trace, expect)``. :func:`scoring_for` finds it by the step's type; an
+app with step types of its own passes their scoring (``scorings={MyStep: my_scoring}``).
 """
 
 from __future__ import annotations
@@ -34,14 +38,44 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from types import ModuleType
+from typing import Any, Protocol
 
 import yaml
 from pydantic import BaseModel, ConfigDict
 
-from ..step import Step, StepTrace
-from .io import Person, ScriptedIO
+from ..steps.step_api import Step
 from .scene import Recording, SceneFrames
+from .scripted_io import Person, ScriptedIO
+from .step_trace import StepTrace
+
+
+class Scoring(Protocol):
+    """How a case of one step type is scored (a step type's scoring module is one)."""
+
+    Expect: type[BaseModel]
+
+    def score(self, trace: StepTrace, expect: Any) -> list[str]: ...
+
+
+Scorings = Mapping[type, Scoring | ModuleType]
+
+
+def scoring_for(step: Step[Any], scorings: Scorings | None = None) -> Scoring:
+    """The scoring of ``step``'s type: from ``scorings`` (an app's own step types), else the kit's."""
+    kind = type(step)
+    if scorings and kind in scorings:
+        return scorings[kind]  # type: ignore[return-value]
+    # The kit's scoring modules import this package; they are loaded here, when first needed.
+    from ..steps.read import ReadStep, read_scoring  # noqa: PLC0415
+    from ..steps.wait import WaitStep, wait_scoring  # noqa: PLC0415
+    from ..steps.watch import WatchStep, watch_scoring  # noqa: PLC0415
+
+    kit: dict[type, ModuleType] = {WatchStep: watch_scoring, ReadStep: read_scoring, WaitStep: wait_scoring}
+    if kind not in kit:
+        raise TypeError(f"no scoring for {kind.__name__}; pass it in scorings={{{kind.__name__}: ...}}")
+    return kit[kind]  # type: ignore[return-value]
+
 
 Build = Callable[[Mapping[str, Any], Any], Mapping[str, Step[Any]]]
 """``build(values, fakes)``: the app's steps for these factory values (``fakes``: scripted roles, or ``None``)."""
@@ -105,10 +139,12 @@ class CaseResult:
         }
 
 
-async def run_case(step: Step[Any], case: Case, recording: Recording) -> CaseResult:
+async def run_case(
+    step: Step[Any], case: Case, recording: Recording, *, scorings: Scorings | None = None
+) -> CaseResult:
     """Run ``step`` on the case's scene and person until it finishes or the scene ends; score it."""
-    kind = type(step)
-    expect = kind.Expect.model_validate(case.expect)  # type: ignore[attr-defined]
+    scoring = scoring_for(step, scorings)
+    expect = scoring.Expect.model_validate(case.expect)
     scene = SceneFrames(recording, case.scene)
     io = ScriptedIO(step.id, scene, case.person, case.context)
     began = time.monotonic()
@@ -128,7 +164,7 @@ async def run_case(step: Step[Any], case: Case, recording: Recording) -> CaseRes
         task.cancel()
         with contextlib.suppress(BaseException):
             await task
-    problems = [] if trace.error else kind.score(trace, expect)  # type: ignore[attr-defined]
+    problems = [] if trace.error else scoring.score(trace, expect)
     return CaseResult(step.id, case, trace, problems, time.monotonic() - began)
 
 
@@ -140,6 +176,7 @@ async def run_files(
     fakes: Any = None,
     only: Sequence[str] = (),
     concurrency: int = 4,
+    scorings: Scorings | None = None,
 ) -> list[CaseResult]:
     """Run every case of ``files`` (``only``: step ids or case names), ``concurrency`` at a time."""
     gate = asyncio.Semaphore(concurrency)
@@ -153,7 +190,7 @@ async def run_files(
 
             async def one(step: Step[Any] = step, case: Case = case) -> CaseResult:
                 async with gate:
-                    return await run_case(step, case, recording)
+                    return await run_case(step, case, recording, scorings=scorings)
 
             jobs.append(one())
     return list(await asyncio.gather(*jobs))
@@ -178,10 +215,18 @@ def report(results: Sequence[CaseResult]) -> str:
     return "\n".join(lines)
 
 
-def main(argv: Sequence[str] | None, *, build: Build, cases: Path, fakes_from: Callable[[Path], Any]) -> int:
+def main(
+    argv: Sequence[str] | None,
+    *,
+    build: Build,
+    cases: Path,
+    fakes_from: Callable[[Path], Any],
+    scorings: Scorings | None = None,
+) -> int:
     """The command line an app's evaluation script calls; the exit code is 0 when every case passed.
 
-    ``cases`` is the folder of case files (one per step); ``fakes_from`` loads scripted roles for ``--fakes``.
+    ``cases`` is the folder of case files (one per step); ``fakes_from`` loads scripted roles for ``--fakes``;
+    ``scorings`` scores the app's own step types.
     """
     parser = argparse.ArgumentParser(description="Run step cases on a recording.")
     parser.add_argument("--frames-index", type=Path, required=True, help="the recording's frame index CSV")
@@ -195,7 +240,9 @@ def main(argv: Sequence[str] | None, *, build: Build, cases: Path, fakes_from: C
     files = sorted(cases.glob("*.yaml"))
     fakes = fakes_from(args.fakes) if args.fakes else None
     recording = Recording.load(args.frames_index)
-    results = run_virtual(run_files(files, build, recording, fakes=fakes, only=args.only, concurrency=args.concurrency))
+    results = run_virtual(
+        run_files(files, build, recording, fakes=fakes, only=args.only, concurrency=args.concurrency, scorings=scorings)
+    )
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "results.json").write_text(json.dumps([r.as_json() for r in results], indent=2), encoding="utf-8")
     text = report(results)

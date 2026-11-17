@@ -102,7 +102,7 @@ one file per step) run the real step, built by `procedure.build_steps`, on
 scenes from a recording (its own scene, other steps' scenes, look-alikes
 such as the kettle's target setting, and spliced scenes such as the person
 looking away) with a scripted person, scored by the step type's own rules
-(`xr_ai_kit.sop.eval`). **Dialogue cases** (`eval/dialogue/`) put the guide
+(`xr_ai_kit.sop.evaluation`). **Dialogue cases** (`eval/dialogue/`) put the guide
 in a state and check what it does with what the user says (questions such
 as "what's the next step?", controls, chatter, negated or quoted
 controls). See `eval/README.md`.

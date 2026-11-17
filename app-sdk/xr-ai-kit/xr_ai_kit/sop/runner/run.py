@@ -3,7 +3,7 @@
 
 """One run of a procedure for one participant: what the procedure function receives and what a step touches.
 
-A :class:`Run` is a :class:`~..step.StepIO`; :class:`~.runner.SopRunner` creates one per start.
+A :class:`Run` is a :class:`~..steps.step_api.StepIO`; :class:`~.sop_runner.SopRunner` creates one per start.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from typing import Any, Literal, TypeVar
 
 from xr_ai_app import Participant, Sink
 
-from ..step import Frames, Step
+from ..steps.step_api import Frames, Step
 
 T = TypeVar("T")
 

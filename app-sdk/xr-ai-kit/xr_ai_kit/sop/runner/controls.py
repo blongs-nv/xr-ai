@@ -3,7 +3,7 @@
 
 """What a person can say to a running procedure (start, stop, skip, restart), and what the runner says back.
 
-An app may pass its own wording for any of them (:class:`~.runner.SopRunner` ``controls``, ``messages``).
+An app may pass its own wording for any of them (:class:`~.sop_runner.SopRunner` ``controls``, ``messages``).
 """
 
 from __future__ import annotations

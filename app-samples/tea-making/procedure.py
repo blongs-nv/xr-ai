@@ -42,12 +42,14 @@ from xr_ai_kit.sop import (
     Roles,
     Run,
     Step,
+    StepDefinitions,
     WatchSettings,
     WatchStep,
-    Wording,
 )
 
-WORDS = Wording.load(Path(__file__).resolve().parent / "steps.yaml")
+DEFINITIONS = StepDefinitions.load(
+    Path(__file__).resolve().parent / "steps.yaml"
+)
 WATCHED = {"fill_water", "heat_water", "start_steeping"}
 """The camera steps, each with its own escalator."""
 
@@ -87,13 +89,13 @@ def build_steps(
 
     def escalator(step_id: str) -> Escalator:
         changes = settings.escalation_per_step.get(step_id, {})
-        base = WORDS.escalator(step_id, roles.reason, settings.escalation)
+        base = DEFINITIONS.escalator(step_id, roles.reason, settings.escalation)
         return base.but(**changes)
 
     def watching(step: WatchStep) -> WatchStep:
         return step.escalating(escalator(step.id))
 
-    heat = WORDS.watch(
+    heat = DEFINITIONS.watch(
         "heat_water",
         roles,
         watch,
@@ -103,7 +105,7 @@ def build_steps(
         can_assess=assessable,
     )
     return {
-        "identify": WORDS.read(
+        "identify": DEFINITIONS.read(
             "identify",
             roles,
             visual_model=TeaLabel,
@@ -112,14 +114,16 @@ def build_steps(
             interval_s=watch.interval_s,
             timeout_s=watch.timeout_s,
         ),
-        "fill_water": watching(WORDS.watch("fill_water", roles, watch)),
+        "fill_water": watching(DEFINITIONS.watch("fill_water", roles, watch)),
         "heat_water": watching(
             heat.format(
                 minimum=target(temperature_c, unit), temperature_c=temperature_c
             ).knowing(DisplayFacts(unit=unit) if unit else None)
         ),
-        "start_steeping": watching(WORDS.watch("start_steeping", roles, watch)),
-        "steep": WORDS.wait("steep")
+        "start_steeping": watching(
+            DEFINITIONS.watch("start_steeping", roles, watch)
+        ),
+        "steep": DEFINITIONS.wait("steep")
         .lasting(duration_s)
         .format(minutes=duration_s / 60),
     }
@@ -146,7 +150,7 @@ def make_tea(
         if tea is not None:
             name = " ".join(filter(None, (tea.tea_name, tea.tea_type)))
             await run.say(
-                WORDS.line(
+                DEFINITIONS.line(
                     "identified",
                     tea=name,
                     temperature_c=temperature_c,
@@ -154,19 +158,19 @@ def make_tea(
                 )
             )
         else:
-            await run.say(WORDS.line("not_identified"))
+            await run.say(DEFINITIONS.line("not_identified"))
 
         # 2-5, for this tea's settings.
         steps = build_steps(
             roles, settings, temperature_c=temperature_c, duration_s=duration_s
         )
         if await run.step(steps["fill_water"]):
-            await run.say(WORDS.line("water_seen"))
+            await run.say(DEFINITIONS.line("water_seen"))
         if heated := await run.step(steps["heat_water"]):
             reading = reading_of(heated)
-            await run.say(WORDS.line("hot_enough", reading=reading))
+            await run.say(DEFINITIONS.line("hot_enough", reading=reading))
         await run.step(steps["start_steeping"])
         if await run.step(steps["steep"]):
-            await run.say(WORDS.line("steeped"))
+            await run.say(DEFINITIONS.line("steeped"))
 
     return procedure

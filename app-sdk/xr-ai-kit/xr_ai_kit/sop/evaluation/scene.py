@@ -94,7 +94,7 @@ class Recording:
 
 
 class SceneFrames:
-    """A scene as a step's :class:`~..step.Frames`; see the module docstring."""
+    """A scene as a step's :class:`~..steps.step_api.Frames`; see the module docstring."""
 
     def __init__(self, recording: Recording, at: Sequence[Any]) -> None:
         self.recording = recording

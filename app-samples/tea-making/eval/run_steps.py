@@ -5,8 +5,8 @@
 
 Each case runs the real step, built by procedure.build_steps exactly as the
 procedure builds it, on recorded frames and a scripted person, and is scored
-by the step type's own rules (xr_ai_kit.sop.eval). From the sample's folder,
-with the models in yaml/models.json running:
+by the step type's own scoring (xr_ai_kit.sop.evaluation). From the sample's
+folder, with the models in yaml/models.json running:
 
     uv --config-file ../../uv.toml run python eval/run_steps.py \\
         --frames-index /path/to/frames/index.csv --out runs/steps/
@@ -27,8 +27,11 @@ sys.path.insert(0, str(HERE.parent))
 
 from procedure import build_steps  # noqa: E402
 from xr_ai_app.devkit import fakes_from_file  # noqa: E402
-from xr_ai_kit.sop import Roles, Step  # noqa: E402
-from xr_ai_kit.sop import eval as step_eval  # noqa: E402
+from xr_ai_kit.sop import (  # noqa: E402
+    Roles,
+    Step,
+    evaluation,  # noqa: E402
+)
 
 
 def build(values: Mapping[str, Any], fakes: Any) -> Mapping[str, Step[Any]]:
@@ -46,7 +49,7 @@ def build(values: Mapping[str, Any], fakes: Any) -> Mapping[str, Step[Any]]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    return step_eval.main(
+    return evaluation.main(
         argv, build=build, cases=HERE / "steps", fakes_from=fakes_from_file
     )
 

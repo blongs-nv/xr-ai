@@ -1,32 +1,39 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""The step types, one package each, with everything the type uses inside it.
+"""Everything about steps: what a step is, the step types, and building steps from a YAML file.
 
-=========  ==========================================================================================
-watch      the camera confirms something (the fast check), the person helps when it cannot (an optional
-           escalator, attached per step: asks for what is missing, or tells them what to bring into view)
-read       read something from the camera into a schema, then derive a result (a label, its settings)
-wait       a countdown
-=========  ==========================================================================================
+=======================  ====================================================================================
+``step_api``             what every step is and touches: :class:`Step`, :class:`StepIO`, :class:`Frames`,
+                         :class:`Roles` (the runner and the evaluation use it too)
+``step_definitions``     :class:`StepDefinitions`: a procedure's steps written in YAML (what is said, the
+                         camera's question and criteria, escalation guidance), and the steps built from them
+``watch/``               the camera confirms something; an optional per-step escalator helps when it cannot
+``read/``                read something from the camera into a schema, then derive a result
+``wait/``                a countdown
+=======================  ====================================================================================
 
-Each type owns ``run(io)`` and how an evaluation case of it is scored (``Expect``, ``score``). What every step
-shares (the :class:`~..step.Step` contract, :class:`~..step.StepIO`) is in :mod:`..step`.
+Each step type is a package with everything it uses inside it, and its scoring for evaluation in a module of its
+own (``watch_scoring``, ...), which the running code never imports.
 """
 
 from __future__ import annotations
 
-from .read import ReadExpect, ReadStep
-from .wait import WaitExpect, WaitStep
-from .watch import WatchExpect, WatchSettings, WatchStep, Window
+from .read import ReadStep
+from .step_api import Frames, Roles, Step, StepIO
+from .step_definitions import StepDefinition, StepDefinitions
+from .wait import WaitStep
+from .watch import WatchSettings, WatchStep
 
 __all__ = [
-    "ReadExpect",
+    "Frames",
     "ReadStep",
-    "WaitExpect",
+    "Roles",
+    "Step",
+    "StepDefinition",
+    "StepDefinitions",
+    "StepIO",
     "WaitStep",
-    "WatchExpect",
     "WatchSettings",
     "WatchStep",
-    "Window",
 ]

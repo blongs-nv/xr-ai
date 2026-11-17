@@ -18,7 +18,7 @@ dialogue/            one packet per step state: utterances and expectations
   common.yaml        utterances asked during every step; step words
 recordings/
   green-tea-04.yaml  what the recording shows, when, and where the times came from
-run_steps.py         builds the steps with procedure.build_steps; xr_ai_kit.sop.eval runs them
+run_steps.py         builds the steps with procedure.build_steps; xr_ai_kit.sop.evaluation runs them
 run_dialogue.py      the Router, the guide's controls and the Conversation, in a given state
 ```
 
@@ -63,8 +63,9 @@ settings name (app.yaml's `settings.tea.escalation.context`), so a case
 tests the prompt that step ships with; a source the case leaves out is
 empty.
 
-**Expectations** belong to the step's type (`xr_ai_kit.sop.steps`), so
-each type is scored by its own rules:
+**Expectations** belong to the step's type (its scoring module, next to
+the step: `xr_ai_kit.sop.steps.watch.watch_scoring` and so on), so each
+type is scored by its own rules:
 
 | Step type | `expect` keys |
 |---|---|

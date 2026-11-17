@@ -3,43 +3,39 @@
 
 """Standard operating procedures: steps, a procedure that runs them in order, and a runner that runs it with a person.
 
-The package, by layer::
+The package::
 
-    step.py         what a step is: the Step contract, the StepIO it touches, the roles it uses, what an evaluation
-                    records of it (shared by every layer below)
-    steps/          the step types, one package each, with everything the type uses inside it
-      watch/          WatchStep: the fast check (judge, verify) and its optional per-step Escalator (escalate)
-      read/           ReadStep: read the camera into a schema, derive a result (identify)
-      wait/           WaitStep: a countdown (timer)
-    procedure/      writing a procedure: its words in YAML (Wording) and the steps built from them; the procedure
-                    itself is the app's ``async def procedure(run)``: which steps, in what order, what passes between
-    runner/         SopRunner (a component: one run per participant, controls as a router destination, the run's
-                    summary for the conversation), Run (what the procedure receives and what a step touches), the
-                    controls' default wording
-    eval/           one step at a time on a recorded scene and a scripted person, scored by the step type's own
-                    ``score``; imported only to evaluate
-    capture/        record a procedure being done (frames, captions, a packet) to write or evaluate one from
+    steps/            everything about steps
+      step_api.py         what every step is and touches (Step, StepIO, Frames, Roles)
+      step_definitions.py StepDefinitions: a procedure's steps written in YAML, and the steps built from them
+      watch/              WatchStep: the fast camera check (judge, verify) and its per-step Escalator
+      read/               ReadStep: read the camera into a schema, derive a result (identify)
+      wait/               WaitStep: a countdown (timer)
+                          (each type also has a *_scoring.py module, used only by the evaluation)
+    runner/           SopRunner (one run per participant, controls, the run's summary), Run (what the procedure
+                      receives), the controls' default wording
+    evaluation/       one step at a time on a recorded scene and a scripted person; imported only to evaluate
+    capture/          record a procedure being done, to write or evaluate one from
 
-Everything a procedure needs is importable from here (``from xr_ai_kit.sop import WatchStep, Wording, SopRunner``);
-the subpackages hold the parts underneath.
+The procedure itself is the app's own ``async def procedure(run)``: which steps, in what order, what passes
+between them. Everything it needs is importable from here.
 
 A procedure::
 
-    WORDS = Wording.load("steps.yaml")
-    fill = WORDS.watch("fill_water", roles).escalating(WORDS.escalator("fill_water", reasoning))
-    steep = WORDS.wait("steep")
+    STEPS = StepDefinitions.load("steps.yaml")
+    fill = STEPS.watch("fill_water", roles).escalating(STEPS.escalator("fill_water", reasoning))
+    steep = STEPS.wait("steep")
 
     async def make_tea(run: Run) -> None:
         if await run.step(fill):
-            await run.say(WORDS.line("water_seen"))
+            await run.say(STEPS.line("water_seen"))
         await run.step(steep.lasting(120))
 """
 
 from __future__ import annotations
 
-from .procedure import StepWords, Wording
 from .runner import CONTROLS, MESSAGES, Run, SopRunner, StepRecord
-from .step import Frames, Line, Roles, Step, StepIO, StepTrace
+from .steps import Frames, Roles, Step, StepDefinition, StepDefinitions, StepIO
 from .steps.read import Identification, ReadStep, identify
 from .steps.wait import TimerState, WaitStep, timer
 from .steps.watch import (
@@ -76,7 +72,6 @@ __all__ = [
     "Judgment",
     "LABELS",
     "Label",
-    "Line",
     "MESSAGES",
     "ReadStep",
     "Roles",
@@ -84,17 +79,16 @@ __all__ = [
     "SopRunner",
     "Step",
     "StepContext",
+    "StepDefinition",
+    "StepDefinitions",
     "StepIO",
     "StepRecord",
-    "StepTrace",
-    "StepWords",
     "TimerState",
     "Verification",
     "WaitStep",
     "WatchSettings",
     "WatchStep",
     "Watched",
-    "Wording",
     "escalation_for",
     "identify",
     "judge",
