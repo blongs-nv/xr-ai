@@ -13,9 +13,7 @@ perceive:
     - ["Read only clearly legible text", {tea_name: Bigelow, tea_type: green tea}]
     - ["Transcribe the temperature", {value: 150, role: current}]
   otherwise: A kettle and a mug on a desk.
-perceive_with_reasoning:
-  by_prompt:
-    - ["camera may not establish", {ask: true, question: "Does the display show Celsius or Fahrenheit?", reason: no unit}]
-  otherwise: {ask: false, reason: nothing to ask}
 answer_with_reasoning:
+  by_prompt:
+    - ["what is the check missing", {missing: the unit, action: ask, words: "Does the display show Celsius or Fahrenheit?"}]
   otherwise: You're on reading the label; next, fill the kettle with water.

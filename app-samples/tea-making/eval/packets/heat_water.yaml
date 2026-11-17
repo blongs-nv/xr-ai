@@ -8,16 +8,16 @@ state:
   detail: "running: 0 of 2 confirmations in the last 4. Latest: negative: {\"value\":131.0,\"unit_text\":\"°\"}"
   noted: {tea: {tea_name: Bigelow, tea_type: green tea}, temperature_c: 80, duration_s: 120, settings_from: recommended}
 frames:
-  # The display prints no unit. The side escalation, reviewing every 20 s
-  # beside the check, should ask the person which unit it uses within the
-  # first couple of minutes of heating (the water is far from the target).
+  # The display prints no unit, so the check reports unknown. The side
+  # escalation, reading those reports every 20 s, should ask the person
+  # which unit the kettle uses within the first couple of minutes.
   - name: rising_unit_unknown
     at: [26, 130]
     expect: not_done
-    asks: true
-    asks_about: [unit, celsius, fahrenheit]
-  # After the person said Fahrenheit: decidable, so no question.
-  - {name: rising, at: [26, 321], expect: not_done, facts: {unit: fahrenheit}, asks: false}
+    escalates: ask
+    about: [unit, celsius, fahrenheit]
+  # After the person said Fahrenheit: decidable, so nothing to say.
+  - {name: rising, at: [26, 321], expect: not_done, facts: {unit: fahrenheit}, escalates: none}
   - {name: at_target, at: [339, 346], expect: done, facts: {unit: fahrenheit}}
   - name: setpoint_flash
     at: [22.5, 25.5]

@@ -74,15 +74,18 @@ def test_the_live_rule_decides_a_frame_group(labels, expect, ok) -> None:
     assert harness.group_verdict(expect, fired, labels) is ok
 
 
-def test_asking_is_scored_against_the_group() -> None:
-    must = {"asks": True, "asks_about": ["unit"]}
-    assert harness.ask_verdict(must, "Which unit is the display in?") == []
-    assert harness.ask_verdict(must, None) == ["did not ask when stuck"]
-    assert harness.ask_verdict(must, "Is the water hot?") == [
-        "question is not about any of ['unit']"
-    ]
-    assert harness.ask_verdict({"asks": False}, "Which unit?") == [
-        "asked: 'Which unit?'"
+def test_the_escalation_is_scored_against_the_group() -> None:
+    verdict = harness.escalation_verdict
+    ask, tell = harness.Escalation("ask", "Which unit is it in?"), None
+    must = {"escalates": "ask", "about": ["unit"]}
+    assert verdict(must, ask) == []
+    assert verdict(must, tell) == ["said nothing, expected ask"]
+    hot = harness.Escalation("ask", "Is the water hot?")
+    assert verdict(must, hot) == ["not about any of ['unit']"]
+    show = harness.Escalation("tell", "Show me the kettle.")
+    assert verdict({"escalates": "tell", "about": ["kettle"]}, show) == []
+    assert verdict({"escalates": "none"}, ask) == [
+        "ask: 'Which unit is it in?', expected none"
     ]
 
 

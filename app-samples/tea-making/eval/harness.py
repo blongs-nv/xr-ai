@@ -65,12 +65,13 @@ from xr_ai_app import (  # noqa: E402
 from xr_ai_kit import Conversation  # noqa: E402
 from xr_ai_kit.sop import (  # noqa: E402
     Check,
+    Escalation,
     Facts,
     Judgment,
     Run,
     StepRecord,
+    escalation_for,
     judge,
-    question_for,
 )
 
 CONTROLS = ("start", "stop", "skip", "restart", "none")
@@ -215,67 +216,54 @@ async def check(
 
 async def would_ask(
     packet: Packet,
-    done: list[tuple[float, Frame, Judgment | None]],
+    judged: list[Judgment],
     models: Models,
     recording: dict[str, Any],
     facts: Facts | None,
-) -> tuple[float | None, str | None]:
-    """The first question the side escalation would ask over this group.
+) -> tuple[float | None, Escalation | None]:
+    """The first thing the side escalation would say over this group.
 
-    Replays gather's pacing on the recording's clock: every review_every_s
-    seconds, the reasoning model gets the latest frame, what is going on
-    (the step's state and the fast check's latest report, as live) and the
-    facts, and decides whether to ask. Nobody is asked anything.
-    (None, None) when it never asks.
+    Replays gather on the recording's clock: every review_every_s seconds,
+    when some of the check's last `history` reports are unknown, the
+    reasoning model reads those reports, the step's state and the facts,
+    and decides whether to ask or tell the person something. It sees no
+    frames, as live. Nothing is said to anyone. (None, None) when it stays
+    quiet.
     """
-    if not done:
+    if not judged:
         return None, None
     check = step_check(packet.step, models, recording)
     pace = models.settings.review_every_s
-    started = done[0][0]
+    started = judged[0].frame_us / 1_000_000
     next_review = started + pace
-    judged: list[Judgment] = []
-    for t, frame, j in done:
-        if j is not None:
-            judged.append(j)
+    for i, j in enumerate(judged):
+        t = j.frame_us / 1_000_000
         if t < next_review:
             continue
         next_review = t + pace
-        question = await question_for(
+        said = await escalation_for(
             check,
-            models.review,
-            frame,
+            models.answer,
+            judged[max(0, i + 1 - HISTORY) : i + 1],
             facts=facts,
-            situation=situation_at(
-                packet, models.settings.window, judged, t - started
-            ),
+            situation=situation_at(packet, t - started),
             timeout_s=max(models.settings.timeout_s, 60.0),
         )
-        if question is not None:
-            return t, question
+        if said is not None:
+            return t, said
     return None, None
 
 
-def situation_at(
-    packet: Packet, window: int, judged: list[Judgment], elapsed_s: float
-) -> str:
-    """What is going on, as the live app tells the side escalation: the
-    guide's steps and the running check's latest report."""
+HISTORY = 8  # verify's default: the reports a Verification carries
+
+
+def situation_at(packet: Packet, elapsed_s: float) -> str:
+    """What is going on, as the live app tells the side escalation."""
     steps = ", ".join(
         f"{k}: {v}" for k, v in (packet.state.get("steps") or {}).items()
     )
-    recent = judged[-window:]
-    positives = sum(1 for j in recent if j.label == "positive")
-    latest = (
-        f" Latest: {judged[-1].label}: {judged[-1].description[:300]}"
-        if judged
-        else " No frame judged yet."
-    )
     return (
-        f"Steps: {steps}\n"
-        f"Current step: {packet.step}, for {elapsed_s:.0f} s. Its camera "
-        f"check: {positives} positive in the last {len(recent)} judged "
-        f"frames.{latest}"
+        f"Steps: {steps}\nCurrent step: {packet.step}, for {elapsed_s:.0f} s."
     )
 
 
@@ -299,20 +287,26 @@ def group_verdict(expect: str, fired: int | None, labels: list[str]) -> bool:
     return fired is None
 
 
-def ask_verdict(group: dict[str, Any], question: str | None) -> list[str]:
-    """What is wrong with the asking in this group (asks, asks_about)."""
+def escalation_verdict(
+    group: dict[str, Any], said: Escalation | None
+) -> list[str]:
+    """What is wrong with the escalation in this group (escalates, about)."""
     problems = []
-    if "asks" in group and bool(question) != bool(group["asks"]):
+    want = group.get("escalates")
+    got = said.kind if said else "none"
+    if want is not None and got != want:
         problems.append(
-            f"asked: {question!r}" if question else "did not ask when stuck"
+            f"{said.kind}: {said.text!r}, expected {want}"
+            if said
+            else f"said nothing, expected {want}"
         )
-    about = group.get("asks_about")
+    about = group.get("about")
     if (
-        question
+        said
         and about
-        and not any(w.lower() in question.lower() for w in about)
+        and not any(w.lower() in said.text.lower() for w in about)
     ):
-        problems.append(f"question is not about any of {about}")
+        problems.append(f"not about any of {about}")
     return problems
 
 
@@ -353,16 +347,13 @@ async def run_frames(
         frames = [out for _, out in done]
         labels = [f["label"] for f in frames]
         fired = fires(labels, settings.required, settings.window)
-        asked_at, question = None, None
-        if "asks" in group or "asks_about" in group:
-            seen = [
-                (t, frame_of(t, p), j)
-                for (t, p), (j, _) in zip(grid, done, strict=True)
-            ]
-            asked_at, question = await would_ask(
-                packet, seen, models, recording, facts
+        asked_at, said = None, None
+        if "escalates" in group or "about" in group:
+            judged = [j for j, _ in done if j is not None]
+            asked_at, said = await would_ask(
+                packet, judged, models, recording, facts
             )
-        problems = ask_verdict(group, question)
+        problems = escalation_verdict(group, said)
         groups.append(
             {
                 "name": group["name"],
@@ -373,7 +364,8 @@ async def run_frames(
                 "counts": {k: labels.count(k) for k in set(labels)},
                 "fired_at": None if fired is None else frames[fired]["t"],
                 "asked_at": asked_at,
-                "question": question,
+                "escalation": said.kind if said else None,
+                "question": said.text if said else None,
                 "problems": problems,
                 "ok": group_verdict(group["expect"], fired, labels)
                 and not problems,
@@ -392,7 +384,6 @@ class Models:
     perceive: Role
     decide: Role
     answer: Role
-    review: Role  # the side escalation's reasoning model
     routing: Any  # the app's Router
     tea: Any  # the app's SopRunner
     steps: Steps
@@ -630,11 +621,7 @@ def load_models(fakes: Path | None) -> tuple[Models, str]:
 
     steps = Steps.load(SAMPLE / "steps.yaml")
     perceive, decide, answer = sample.perceive, sample.decide, sample.answer
-    review = sample.review
-    label = (
-        "yaml/models.json (perceive, decide, answer_with_reasoning, "
-        "perceive_with_reasoning)"
-    )
+    label = "yaml/models.json (perceive, decide, answer_with_reasoning)"
     routing, tea = sample.routing, sample.tea
     if fakes is not None:
         from xr_ai_app.devkit import fakes_from_file
@@ -644,7 +631,6 @@ def load_models(fakes: Path | None) -> tuple[Models, str]:
         scripted = fakes_from_file(fakes)
         perceive, decide = scripted.role("perceive"), scripted.role("decide")
         answer = scripted.role("answer_with_reasoning")
-        review = scripted.role("perceive_with_reasoning")
 
         async def never(run: Any) -> None:  # classified, never run
             raise AssertionError("the harness runs no procedure")
@@ -660,7 +646,6 @@ def load_models(fakes: Path | None) -> tuple[Models, str]:
         perceive=perceive,
         decide=decide,
         answer=answer,
-        review=review,
         routing=routing,
         tea=tea,
         steps=steps,

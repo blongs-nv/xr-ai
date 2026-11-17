@@ -1,95 +1,117 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Side escalation: gather what a check cannot see by asking the person, outside the fast loop.
+"""Side escalation: gather what a check cannot establish by asking the person, outside the fast loop.
 
-:func:`gather` runs beside a step (``run.step(..., alongside=[...])``). Every ``every_s`` seconds a reasoning model
-looks at the latest frame and what is going on (the app's account of the situation, which includes the check's
-latest report, the facts so far, the questions already asked) and judges, following the check's escalation
-guidance, whether to ask the person one question. The answer goes into the step's :class:`~.judge.StepContext`,
-which the check reads on every frame. That is its only effect: it never completes, skips or slows the step, and it
-ends (withdrawing a pending question) when the step ends.
+:func:`gather` runs beside a step (``run.step(..., alongside=[...])``). It reads the fast check's recent reports (each
+frame's observation and label); when its latest ones are all ``unknown``, the check is missing something, and every
+``every_s`` seconds a reasoning model reads those reports with the check's criteria and the facts so far and infers
+what is missing and whether the person can help: by telling it (a question, whose answer goes into the step's
+:class:`~.judge.StepContext`, which the check reads on every frame) or by doing something, such as bringing the
+kettle back into view (an instruction, spoken only). It sees no frames: the fast check already looked. It never
+completes, skips or slows the step, and it ends (withdrawing a pending question) when the step ends.
 """
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
+from typing import Literal
 
 from pydantic import BaseModel, Field
-from xr_ai_app import Frame, FrameStream, Role, StructuredOutputError
+from xr_ai_app import Role, StructuredOutputError
 
-from .judge import Check, Facts, StepContext
+from .judge import Check, Facts, Judgment, StepContext
 
 
 class _Decision(BaseModel):
-    ask: bool = Field(description="whether to ask the person now")
-    question: str | None = Field(default=None, description="when ask is true: one short spoken question")
-    reason: str = ""
+    missing: str = Field(default="", description="what the check is missing, in a few words; empty when nothing")
+    action: Literal["none", "ask", "tell"] = Field(
+        description="ask: a question the person answers; tell: something for the person to do; none: nothing now"
+    )
+    words: str | None = Field(default=None, description="for ask or tell: one short spoken line")
 
 
-async def question_for(
+@dataclass(frozen=True, slots=True)
+class Escalation:
+    """What the side escalation says to the person: a question to answer, or an instruction to follow."""
+
+    kind: Literal["ask", "tell"]
+    text: str
+
+
+STUCK_AFTER = 3
+
+
+def stuck(reports: Sequence[Judgment], after: int = STUCK_AFTER) -> bool:
+    """Whether the check has stopped deciding: its last ``after`` reports are all ``unknown``.
+
+    One unreadable frame among decisions is noise; a run of them means the check is missing something.
+    """
+    return len(reports) >= after and all(r.label == "unknown" for r in reports[-after:])
+
+
+async def escalation_for(
     check: Check,
     role: Role,
-    frame: Frame | None,
+    reports: Sequence[Judgment],
     *,
     facts: Facts | None = None,
     situation: str = "",
     asked: Sequence[str] = (),
     thinking: bool | None = True,
     timeout_s: float | None = None,
-) -> str | None:
-    """One judgement: the question to ask the person now, or ``None``; asks nothing.
+) -> Escalation | None:
+    """One judgement over the check's recent ``reports``: what to say to the person now, or ``None``.
 
-    ``role`` is a reasoning model (one that takes images when ``frame`` is given). It reads the check (what it
-    verifies, its escalation guidance), the latest frame, ``situation`` (the app's account of what is going on),
-    ``facts`` and the questions already ``asked``. ``None`` also without guidance, on an unreadable reply, or for a
-    question already asked. Usable alone: an evaluation calls it on recorded frames.
+    ``role`` is a reasoning text model. It reads what the check verifies and when it cannot decide, the check's
+    escalation guidance, its recent reports, ``situation`` (the app's account of what is going on), ``facts`` and the
+    lines already said (``asked``). ``None`` without guidance, while the check is not :func:`stuck`, on an
+    unreadable reply, or for a line already said. Asks nobody: an evaluation calls it on recorded reports.
     """
-    if not check.escalation:
+    if not check.escalation or not stuck(reports):
         return None
     facts = facts or Facts()
     lines = [
-        "A camera check is verifying one step of a guided procedure, from the person's first-person view.",
+        "A fast camera check is verifying one step of a guided procedure, from the person's first-person view.",
         f"What it verifies: {check.criteria.instructions}",
-        f"Done when: {check.criteria.positive}",
-        f"What the camera may not establish, which the person can tell: {check.escalation}",
+        f"It completes when: {check.criteria.positive}",
+        f"It cannot decide when: {check.criteria.unknown}",
+        f"How the person can help: {check.escalation}",
+        "Its recent reports, oldest first (what it observed in each frame, and its label):",
+        *(f"- {r.label}: {r.description[:300]}" + (f" ({r.reason})" if r.reason else "") for r in reports),
     ]
-    if frame is not None:
-        lines.append(
-            "The image is the latest camera frame. Read it yourself: the check's reports below come from a fast "
-            "vision model, which can misread or fill in what is not shown."
-        )
     if situation:
         lines.append(f"What is going on:\n{situation}")
-    if facts.text():
-        lines.append(f"Already known:\n{facts.text()}")
+    lines.append(f"Already known:\n{facts.text()}" if facts.text() else "Nothing has been learned from the person yet.")
     if asked:
-        lines.append("Questions already asked: " + " | ".join(asked))
+        lines.append("Already said to the person: " + " | ".join(asked))
     lines.append(
-        "Each question interrupts the person while they work, so one is worth asking only when the check needs "
-        "something that neither the image nor what is already known establishes. Should the assistant ask the "
-        "person one short question now? If so, give the question."
+        "From the reports, what is the check missing that keeps it from deciding? If the person can provide it, give "
+        "one short spoken line: ask, a question, when they can tell it and it is not already known; tell, an "
+        "instruction, when they need to do something, such as bringing the item back into the camera's view."
     )
     try:
         decision = await role.ask(
-            frame, "\n".join(lines), response_format=_Decision, thinking=thinking, timeout_s=timeout_s
+            None, "\n".join(lines), response_format=_Decision, thinking=thinking, timeout_s=timeout_s
         )
     except (StructuredOutputError, TimeoutError):
         return None
-    question = (decision.question or "").strip()
-    if not decision.ask or not question or question in asked:
+    text = (decision.words or "").strip()
+    if decision.action == "none" or not text or text in asked:
         return None
-    return question
+    return Escalation(decision.action, text)
 
 
 async def gather(
     context: StepContext,
     check: Check,
-    frames: FrameStream,
+    reports: Callable[[], Sequence[Judgment]],
     *,
     role: Role,
     ask: Callable[[str], Awaitable[str | None]],
+    say: Callable[[str], Awaitable[None]] | None = None,
     reader: Role | None = None,
     situation: Callable[[], Awaitable[str]] | None = None,
     every_s: float = 20.0,
@@ -97,13 +119,14 @@ async def gather(
     min_gap_s: float = 30.0,
     thinking: bool | None = True,
 ) -> None:
-    """Run until cancelled: judge every ``every_s`` seconds whether to ask, ask, and add the answer to ``context``.
+    """Run until cancelled: every ``every_s`` seconds, if the check is stuck, judge what to say; add answers.
 
-    ``ask`` speaks a question and returns the person's answer, or ``None`` (``Run.ask``). ``reader`` (a text model)
-    reads an answer into the check's ``needs``; without it the answer is kept as text. ``situation`` returns what is
-    going on (for example the guide's summary, which includes the check's latest report, and the recent
-    conversation). At most ``max_questions`` questions, never the same one twice, at least ``min_gap_s`` apart. A
-    check without escalation guidance makes this return at once.
+    ``reports`` returns the check's recent judgments (for example the latest :class:`~.verify.Verification`'s). ``ask``
+    speaks a question and returns the person's answer, or ``None`` (``Run.ask``); ``say`` speaks an instruction
+    (``Run.say``; without it instructions are not given). ``reader`` (a text model) reads an
+    answer into the check's ``needs``; without it the answer is kept as text. ``situation`` returns what is going on
+    (for example the guide's state and the recent conversation). At most ``max_questions`` lines, never the same one
+    twice, at least ``min_gap_s`` apart. A check without escalation guidance makes this return at once.
     """
     if not check.escalation:
         return
@@ -114,15 +137,21 @@ async def gather(
         await asyncio.sleep(every_s)
         if last_asked is not None and loop.time() - last_asked < min_gap_s:
             continue
-        frame = await frames.current(timeout_s=5.0)
+        recent = list(reports())
+        if not stuck(recent):
+            continue  # the check is deciding: nothing is missing
         text = await situation() if situation is not None else ""
-        question = await question_for(
-            check, role, frame, facts=context.facts, situation=text, asked=asked, thinking=thinking
+        said = await escalation_for(
+            check, role, recent, facts=context.facts, situation=text, asked=asked, thinking=thinking
         )
-        if question is None:
+        if said is None or (said.kind == "tell" and say is None):
             continue
-        asked.append(question)
+        asked.append(said.text)
         last_asked = loop.time()
+        if said.kind == "tell":
+            await say(said.text)
+            continue
+        question = said.text
         answer = await ask(question)
         if answer is None:
             context.add(f'Asked the person: "{question}" No answer came.')

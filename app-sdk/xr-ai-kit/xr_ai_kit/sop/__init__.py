@@ -12,9 +12,11 @@ Steps                   verify (the fast loop: judge frames until N of the last 
                         confirm; reads the step's StepContext, never asks), timer,
                         identify (read into a schema, then derive a result, optionally
                         from retrieved text); each reports its state through ``on_state``
-Escalation              gather (a side task beside a step: a reasoning model judges
-                        periodically whether to ask the person, and adds answers to
-                        the step's StepContext), question_for (one such judgement)
+Escalation              gather (a side task beside a step: while the check's reports
+                        show it cannot decide, a reasoning model reads them and asks
+                        the person for what is missing, adding answers to the step's
+                        StepContext, or tells them what to do, e.g. show the kettle),
+                        escalation_for (one such judgement)
 Runs                    SopRunner (a component: one run per participant, controls as a
                         router destination, a summary for the conversation), Run (what
                         the procedure function receives: ``await run.step(...,
@@ -34,7 +36,7 @@ each can be used, tested and evaluated on its own (an evaluation calls :func:`ju
 
 from __future__ import annotations
 
-from .escalate import gather, question_for
+from .escalate import Escalation, escalation_for, gather
 from .identify import Identification, identify
 from .judge import LABELS, Check, Criteria, Facts, Judgment, Label, StepContext, judge
 from .runner import CONTROLS, MESSAGES, Run, SopRunner, StepRecord
@@ -45,6 +47,7 @@ __all__ = [
     "CONTROLS",
     "Check",
     "Criteria",
+    "Escalation",
     "Facts",
     "Identification",
     "Judgment",
@@ -57,10 +60,10 @@ __all__ = [
     "StepRecord",
     "TimerState",
     "Verification",
+    "escalation_for",
     "gather",
     "identify",
     "judge",
-    "question_for",
     "timer",
     "verify",
 ]

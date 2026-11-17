@@ -14,13 +14,13 @@ Each step is a call of an xr_ai_kit.sop function with its inputs; the
 runner (SopRunner in app.py) owns the run, skips and stops. A skipped
 identification falls back to the default settings here, in the procedure,
 never inside a step. Each visual step is a fast check (verify: no
-reasoning, never asks) and, beside it, a side escalation (gather): every
-review_every_s a reasoning model looks at the latest frame and the guide's
-state and, following steps.yaml's escalation guidance, may ask the person
-something the camera cannot establish. Answers go into the step's context,
-which the fast check reads on every frame; the heating check declares the
-typed fact it may need (DisplayFacts), seeded from app.yaml when the
-kettle's unit is configured.
+reasoning, never asks) and, beside it, a side escalation (gather): while
+the check's recent reports include unknowns, every review_every_s a
+reasoning model reads them and, following steps.yaml's escalation
+guidance, may ask the person for what is missing. Answers go into the
+step's context, which the fast check reads on every frame; the heating
+check declares the typed fact it may need (DisplayFacts), seeded from
+app.yaml when the kettle's unit is configured.
 """
 
 from __future__ import annotations
@@ -44,8 +44,10 @@ from xr_ai_app import Participant, Role
 from xr_ai_kit.sop import (
     Check,
     Criteria,
+    Judgment,
     Run,
     StepContext,
+    Verification,
     gather,
     identify,
     timer,
@@ -152,15 +154,14 @@ def make_tea(
     observe: Role,
     answer: Role,
     decide: Role,
-    review: Role,
     steps: Steps,
     settings: TeaSettings,
     situation: Callable[[Participant], Awaitable[str]] | None = None,
 ) -> Callable[[Run], Awaitable[None]]:
     """The procedure for SopRunner, bound to its roles, wording and settings.
 
-    observe and decide run the fast checks; review (a reasoning model that
-    takes images) and answer (reasoning, text) run the side escalation;
+    observe and decide run the fast checks; answer (reasoning, text) runs
+    the side escalation, which reads the checks' reports, never frames;
     situation tells it what is going on (the guide's state, the dialogue).
     """
     say = steps.say
@@ -170,6 +171,15 @@ def make_tea(
             """A step's fast check and its side escalation, sharing one
             context: the check reads it, the escalation adds to it."""
             context = StepContext(known)
+            latest: list[Verification] = []  # the check's latest report
+            report = run.report(step_id)
+
+            async def on_state(state: Verification) -> None:
+                latest[:] = [state]
+                await report(state)
+
+            def reports() -> tuple[Judgment, ...]:
+                return latest[0].judgments if latest else ()
 
             async def what_is_going_on() -> str:
                 return await situation(run.p) if situation else ""
@@ -185,16 +195,17 @@ def make_tea(
                     window=settings.window,
                     interval_s=settings.interval_s,
                     timeout_s=settings.timeout_s,
-                    on_state=run.report(step_id),
+                    on_state=on_state,
                 )
 
             def side():
                 return gather(
                     context,
                     check,
-                    run.p.frames,
-                    role=review,
+                    reports,
+                    role=answer,
                     ask=run.ask,
+                    say=run.say,
                     reader=answer,
                     situation=what_is_going_on,
                     every_s=settings.review_every_s,

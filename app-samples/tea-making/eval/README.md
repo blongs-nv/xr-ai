@@ -58,14 +58,16 @@ frames) is replayed over them:
 
 A group may also give `facts` (what the person already said, typed as the
 check's `needs`, for example `{unit: fahrenheit}`), and test the side
-escalation that runs beside the check: `asks: true` means it should ask
-the person something during this group (`asks_about` lists words its
-question must include), `asks: false` that it must not. The harness replays
-its pacing (one judgement every `review_every_s` seconds of the recording,
-with the latest frame, the step's state and the check's latest report, and
-the facts) on the same reasoning model as live (`question_for`); nothing
-is asked of anyone. The escalation never decides the step, so `expect`
-scores the fast check alone.
+escalation that runs beside the check: `escalates: ask` means it should
+ask the person something during this group, `escalates: tell` that it
+should tell them to do something (bring the kettle back into view),
+`escalates: none` that it should say nothing; `about` lists words of which
+its line must include one. The harness replays it as live: every
+`review_every_s` seconds of the recording, when some of the check's recent
+reports are unknown, the reasoning model reads those reports, the step's
+state and the facts (`escalation_for`; it sees no frames). Nothing is said
+to anyone. The escalation never decides the step, so `expect` scores the
+fast check alone.
 
 Groups from other steps' parts of the recording test what happens when a
 step sees the wrong scene: frames of the label while the guide waits for

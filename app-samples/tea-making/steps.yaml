@@ -47,7 +47,8 @@ fill_water:
       only vessel is packaging artwork or a decorative illustration.
   escalation: >-
     Many kettles are opaque, so the camera may not show whether there is
-    water inside; the person knows.
+    water inside; the person knows. The kettle has to be in the camera's
+    view.
 
 heat_water:
   question: |-
@@ -76,9 +77,10 @@ heat_water:
       No numeric reading or unit is available, a setpoint or a
       non-temperature unit is shown, or the units conflict.
   escalation: >-
-    Some displays print no unit, and some show a target setting as well as the
-    water's temperature. The person knows which unit their kettle uses and
-    what its display is showing.
+    The display has to be in the camera's view to be read. Some displays print
+    no unit, and some show a target setting as well as the water's
+    temperature; the person knows which unit their kettle uses and what its
+    display is showing.
 
 start_steeping:
   question: |-
@@ -102,8 +104,8 @@ start_steeping:
       The relationship is in a depiction, or the water or the contact is
       unclear, unconfirmed, occluded or missing.
   escalation: >-
-    The inside of a mug may be out of view or hard to see; the person knows
-    whether the tea is in the water.
+    The mug has to be in the camera's view. Its inside may still be hard to
+    see; the person knows whether the tea is in the water.
 
 say:
   identify: Show the tea's label clearly so I can read its name and type.

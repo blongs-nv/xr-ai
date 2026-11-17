@@ -54,7 +54,6 @@ app.add(Hub())  # the device connection: who is here, and their camera
 perceive = app.role("perceive")
 answer = app.role("answer_with_reasoning")
 decide = app.role("decide")
-review = app.role("perceive_with_reasoning")  # the side escalation, reasoning
 voice = app.add(
     Voice(
         tts=app.role("speech_out"),
@@ -70,7 +69,6 @@ tea = app.add(
             observe=perceive,
             answer=answer,
             decide=decide,
-            review=review,
             steps=Steps.load(HERE / "steps.yaml"),
             settings=SETTINGS.tea,
             situation=lambda p: situation(p),  # defined below

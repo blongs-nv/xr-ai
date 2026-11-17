@@ -228,6 +228,7 @@
         "CONTROLS",
         "Check",
         "Criteria",
+        "Escalation",
         "Facts",
         "Identification",
         "Judgment",
@@ -240,10 +241,10 @@
         "StepRecord",
         "TimerState",
         "Verification",
+        "escalation_for",
         "gather",
         "identify",
         "judge",
-        "question_for",
         "timer",
         "verify"
       ]
