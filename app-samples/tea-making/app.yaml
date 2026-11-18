@@ -21,10 +21,11 @@ settings:
   # Dialogue the router sends with each routing decision.
   routing_history_budget_bytes: 6000
   tea:
-    # How the package is read (xr_ai_kit.sop.ReadSettings): a frame every
-    # `interval_s` seconds; `timeout_s` bounds one model call.
+    # How the package is read (xr_ai_kit.sop.ReadSettings): frame after frame
+    # (`interval_s` 0: the next new frame as soon as the last is read);
+    # `timeout_s` bounds one model call.
     read:
-      interval_s: 2.0
+      interval_s: 0.0
       timeout_s: 30.0
     # How the camera steps watch (xr_ai_kit.sop.WatchSettings): a step
     # completes on `required` positives among the last `window` decidable

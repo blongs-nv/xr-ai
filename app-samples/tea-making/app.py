@@ -14,13 +14,14 @@ Router asks Clef (`decide`) where each turn goes:
 
 Starting the guide starts a run that outlives the turn: a question, or an
 interruption, never cancels it. Each step watches the camera on its own
-clock (a read step, watch steps, a wait step); the runner speaks each step's
-lines, and the conversation answers from the same state. Roles are the
-jobs, as in the teaching samples: perceive (the omni model on images, no
-reasoning: the per-frame loop), answer_with_reasoning (the same model,
-reasoning: answers, recommendations, escalation), answer_lightweight (no
-reasoning: quick acknowledgements), decide (Clef: routing, controls and
-every frame's verdict) and speech_out (Pocket TTS).
+clock (a read step, a transform step, watch steps, a wait step); the runner
+speaks each step's lines, and the conversation answers from the same state.
+Roles are the jobs, as in the teaching samples: perceive (the omni model on
+images, no reasoning: reading the package, the watch steps' per-frame loop),
+answer_with_reasoning (the same model on text, reasoning: answers, the
+brewing settings, escalation), answer_lightweight (no reasoning: quick
+acknowledgements), decide (Clef: routing, controls and every frame's
+verdict) and speech_out (Pocket TTS).
 """
 
 from pathlib import Path

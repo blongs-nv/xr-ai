@@ -9,7 +9,7 @@ temperature checks are what procedure.py gives them.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import (
     BaseModel,
@@ -20,6 +20,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from pydantic.json_schema import SkipJsonSchema
 
 _UNREADABLE = {
     "",
@@ -154,6 +155,84 @@ class Tea(BaseModel):
         """The tea as said aloud ("Bigelow Premium Green Tea")."""
         what = self.name or (f"{self.tea_type} tea" if self.tea_type else None)
         return " ".join(filter(None, (self.brand, what))) or "an unnamed tea"
+
+
+# How the package is read: each field says where its value comes from, and
+# the schema allows a value only when the source is the package's own text.
+# Constrained decoding then leaves the model two shapes per field,
+# {source: tea_package_text, value: ...} or {source: other_text |
+# own_knowledge | not_visible, value: null}: deciding the source is a small
+# chain of thought the schema forces (thinking is off), and a number on the
+# kettle's display cannot be written as a printed brewing temperature.
+# No class docstrings: they would become schema descriptions (see above).
+V = TypeVar("V")
+
+
+class OnPackage(BaseModel, Generic[V]):
+    source: Literal["tea_package_text"] = Field(
+        description="the value is legibly printed on the tea's own box, bag"
+        " or tag"
+    )
+    value: V
+
+
+class NotOnPackage(BaseModel):
+    source: Literal["other_text", "own_knowledge", "not_visible"] = Field(
+        description="other_text: printed on something else (a kettle's"
+        " display or label, another object); own_knowledge: known, not read;"
+        " not_visible: not shown"
+    )
+    value: None = None
+
+
+_PRINTED_FIELDS = (
+    "brand",
+    "name",
+    "tea_type",
+    "water_temperature",
+    "steep_time",
+)
+
+
+class TeaPackageReading(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    brand: OnPackage[str] | NotOnPackage | SkipJsonSchema[None] = Field(
+        description="the brand, e.g. Bigelow"
+    )
+    name: OnPackage[str] | NotOnPackage | SkipJsonSchema[None] = Field(
+        description="the product name, e.g. Premium Green Tea"
+    )
+    tea_type: OnPackage[TeaType] | NotOnPackage | SkipJsonSchema[None] = Field(
+        description="the kind of tea"
+    )
+    water_temperature: (
+        OnPackage[WaterTemperature] | NotOnPackage | SkipJsonSchema[None]
+    ) = Field(description="the water temperature to brew at")
+    steep_time: OnPackage[SteepTime] | NotOnPackage | SkipJsonSchema[None] = (
+        Field(description="how long to steep")
+    )
+
+    @field_validator(*_PRINTED_FIELDS, mode="wrap")
+    @classmethod
+    def _nothing_read_is_none(
+        cls, value: Any, handler: ValidatorFunctionWrapHandler
+    ) -> Any:
+        # A field with no value (not on the package, or not plausible) is
+        # None, so merging frames keeps what an earlier frame read.
+        try:
+            read = handler(value)
+        except ValidationError:
+            return None
+        return read if isinstance(read, OnPackage) else None
+
+    @property
+    def tea(self) -> Tea:
+        """What was read, as a Tea."""
+        values: dict[str, Any] = {}
+        for field in _PRINTED_FIELDS:
+            read = getattr(self, field)
+            values[field] = read.value if read is not None else None
+        return Tea(**values)
 
 
 class Thermometer(BaseModel):

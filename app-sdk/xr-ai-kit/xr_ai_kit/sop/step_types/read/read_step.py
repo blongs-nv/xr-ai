@@ -34,8 +34,8 @@ class ReadSettings(BaseModel):
     """How a read step looks (an app's settings may embed this)."""
 
     model_config = ConfigDict(extra="forbid")
-    interval_s: float = 2.0
-    """How often a frame is read."""
+    interval_s: float = 0.0
+    """At least this long between two frames read (0: the next new frame as soon as the last one is read)."""
     timeout_s: float = 30.0
     """Bound on one model call."""
 
@@ -43,8 +43,11 @@ class ReadSettings(BaseModel):
 class ReadStep:
     """Read ``reading_schema`` from the camera until ``is_enough(reading)``; the result is the reading.
 
-    ``perceive`` reads each frame (a vision model). ``is_enough`` decides in code whether what has been read is enough
-    to go on (fields read in different frames are merged). ``inputs_schema`` is what each run starts with (``None``:
+    ``perceive`` reads each frame (a vision model). Reading a frame into a schema means judging what each field may
+    take (what is printed on the package, not a display behind it): either a model that reasons, or a schema that
+    makes it state where each value comes from before the value, without reasoning (the tea sample's). ``is_enough``
+    decides in code whether what has been read is enough to go on
+    (fields read in different frames are merged). ``inputs_schema`` is what each run starts with (``None``:
     nothing).
     """
 

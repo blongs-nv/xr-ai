@@ -27,21 +27,23 @@ identify:
   start_line: >-
     Show me the tea's package, so I can read its name and its brewing
     directions.
-  done_line: I read {reading.spoken_name}.
+  done_line: I read {reading.tea.spoken_name}.
   read:
     question: |-
       Read only clearly legible text on a tea package or tag, including a photo
-      or screen showing it. brand and name: copy only a clearly readable brand
-      or product name; if it is blurred, obscured, partly readable or uncertain,
-      return null. Never guess a brand or complete a name from memory, packaging
-      appearance, color or artwork. tea_type: only the kind of tea explicitly
-      readable on the package; a brand name is not a kind of tea.
-      water_temperature: only a brewing temperature printed on the package,
-      with the unit printed beside it. steep_time: only a steeping time printed
-      on the package, in minutes; a range such as 2-3 minutes gives both ends,
-      a single time gives the same for both. A kettle number, sticker, cup or
-      unrelated object does not describe the tea. Return null for anything not
-      legibly printed.
+      or screen showing it. Before each value, say where it is printed: on the
+      tea's own package, on a kettle or other appliance (its label or
+      display), on some other object, or not visible. brand and name: copy
+      only a clearly readable brand or product name; if it is blurred,
+      obscured, partly readable or uncertain, return null. Never guess a brand
+      or complete a name from memory, packaging appearance, color or artwork.
+      tea_type: only the kind of tea explicitly readable on the package; a
+      brand name is not a kind of tea. water_temperature: only a brewing
+      temperature printed on the tea's package, with the unit printed beside
+      it; a kettle's display shows the water now, not a brewing direction.
+      steep_time: only a steeping time printed on the package, in minutes; a
+      range such as 2-3 minutes gives both ends, a single time gives the same
+      for both. Return null for anything not legibly printed.
 
 choose_settings:
   does: work out the brewing settings

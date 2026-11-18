@@ -11,7 +11,7 @@ decide:
   otherwise: negative
 perceive:
   by_prompt:
-    - ["Read only clearly legible text", {brand: Bigelow, tea_type: green tea}]
+    - ["Read only clearly legible text", {brand: {source: tea_package_text, value: Bigelow}, name: {source: not_visible}, tea_type: {source: tea_package_text, value: green}, water_temperature: {source: not_visible}, steep_time: {source: not_visible}}]
     - ["Transcribe the temperature", {value: 150, role: current}]
   otherwise: A kettle and a mug on a desk.
 answer_with_reasoning:

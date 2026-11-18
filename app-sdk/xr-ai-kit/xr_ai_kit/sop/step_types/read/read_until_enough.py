@@ -61,12 +61,13 @@ async def read_until_enough(
     question: str,
     reading_schema: type[R],
     is_enough: Callable[[R], bool] = lambda _reading: True,
-    interval_s: float = 2.0,
+    interval_s: float = 0.0,
     timeout_s: float | None = 15.0,
     on_state: Callable[[ReadState[R]], Awaitable[None]] | None = None,
 ) -> R:
-    """Read a frame every ``interval_s`` into ``reading_schema`` with ``perceive`` (asked ``question``), merging what
-    each frame shows (:func:`merge`), until ``is_enough`` says it is; return what was read. ``on_state`` is awaited in
+    """Read frame after frame into ``reading_schema`` with ``perceive`` (asked ``question``), merging what each frame
+    shows (:func:`merge`), until ``is_enough`` says it is; return what was read. Each read takes the newest frame not
+    read yet, at least ``interval_s`` after the last (0: as soon as the last read is done). ``on_state`` is awaited in
     this task after every frame."""
     started = clock.now()
     count = 0

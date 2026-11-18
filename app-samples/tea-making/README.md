@@ -29,7 +29,7 @@ Voice -> Router (Clef)
 
 | Step | Kit step type | Done when |
 |---|---|---|
-| identify | `ReadStep`: read the package into a `Tea` (brand, name, kind, and brewing directions when printed), merging what each frame shows | a kind of tea is read |
+| identify | `ReadStep`: read the package frame after frame into a `TeaPackageReading` (each field's source, then its value only when the package prints it), merging what each frame shows | a kind of tea is read |
 | choose_settings | `TransformStep`: fill in the brewing settings the package does not print, keeping what it does; asks the person what tea it is when nothing was read | both settings are set; it cannot be skipped |
 | fill_water | `WatchStep` | water is seen in the kettle in 2 of the last 4 decidable frames |
 | heat_water | `WatchStep` on a `Thermometer` reading | the display reads at least the target, with a unit (printed, or said by the person when its escalator asks); a setpoint is not judged |
