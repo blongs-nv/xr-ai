@@ -87,8 +87,8 @@ fill_water:
 heat_water:
   does: heat the water to the recommended temperature
   start_line: >-
-    Heat the water to {temperature_c:g} degrees Celsius, and keep the
-    kettle's display in view.
+    Heat the water to {target.spoken}, and keep the kettle's display in
+    view.
   done_line: >-
     The display reads {observation.reading}; the water is hot enough.
   watch:

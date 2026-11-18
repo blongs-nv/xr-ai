@@ -30,6 +30,7 @@ from tea import (
     DisplayFacts,
     Tea,
     Thermometer,
+    WaterTemperature,
     can_judge_reading,
     fahrenheit,
     use_known_unit,
@@ -71,19 +72,20 @@ class TeaSettings(BaseModel):
 
 
 class HeatInputs(BaseModel):
-    """What heat_water runs with."""
+    """What heat_water runs with: the target, in the unit it was given in."""
 
-    temperature_c: float
+    target: WaterTemperature
 
     @property
     def minimum(self) -> str:
-        """{minimum} in heat_water's criteria: the target in either unit,
+        """{minimum} in heat_water's criteria: the target in both units,
         since the display may print none."""
-        return (
-            f"{self.temperature_c:g} degrees Celsius or "
-            f"{fahrenheit(self.temperature_c):g} degrees Fahrenheit, matching"
-            " the reading's unit"
-        )
+        target = self.target
+        if target.unit == "celsius":
+            other = f"{fahrenheit(target.value):g} degrees Fahrenheit"
+        else:
+            other = f"{target.celsius:g} degrees Celsius"
+        return f"{target.spoken} or {other}, matching the reading's unit"
 
 
 class SteepInputs(WaitInputs):
@@ -180,17 +182,18 @@ class TeaProcedure:
         # choose_settings cannot be skipped, and it always sets both.
         assert tea is not None
         assert tea.water_temperature is not None and tea.steep_time is not None
-        temperature_c = tea.water_temperature.celsius
         duration_s = tea.steep_time.minutes * 60
         # For the conversation, until the runner records each step's inputs
         # and result itself.
         await run.note(
             tea=tea.spoken_name,
-            temperature_c=temperature_c,
+            temperature_c=tea.water_temperature.celsius,
             duration_s=duration_s,
         )
 
         await run.step(self.fill_water)
-        await run.step(self.heat_water, HeatInputs(temperature_c=temperature_c))
+        await run.step(
+            self.heat_water, HeatInputs(target=tea.water_temperature)
+        )
         await run.step(self.start_steeping)
         await run.step(self.steep, SteepInputs(duration_s=duration_s))

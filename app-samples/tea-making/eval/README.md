@@ -26,7 +26,7 @@ run_dialogue.py      the Router, the guide's controls and the Conversation, in a
 
 ```yaml
 step: heat_water
-inputs: {temperature_c: 80}         # what the step runs with (its inputs_schema)
+inputs: {target: {value: 80, unit: celsius}}   # what the step runs with (its inputs_schema)
 cases:
   - name: unit_unknown_then_answered
     scene: [26, 346]                # seconds of the recording

@@ -6,7 +6,7 @@
 # has said the unit (its escalator asks). Scenes are times in
 # recordings/green-tea-04.yaml.
 step: heat_water
-inputs: {temperature_c: 80}
+inputs: {target: {value: 80, unit: celsius}}
 cases:
   # The person answers the unit question; the check then completes at 176.
   - name: unit_unknown_then_answered
