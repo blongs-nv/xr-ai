@@ -3,30 +3,25 @@
 
 """What a step is and what it may touch: the contract every step type, the runner and the evaluation share.
 
-A step (:class:`Step`) is an object with an ``id``, the line spoken as it starts (``say``) and ``run(io)``. It
-touches the world only through ``io`` (:class:`StepIO`): the camera frames, speaking, and reporting its progress.
-Live, ``io`` is the procedure's :class:`~..runner.Run`; in an evaluation it is a scripted one (:mod:`..evaluation`)
-that plays recorded frames, so the evaluation runs exactly the code that ships.
+A step (:class:`Step`) has an ``id``, the line spoken as it starts (``start_line``), the line spoken when it finishes
+(``done_line(result)``) and ``run(environment)``. It touches the world only through its
+:class:`StepEnvironment`: the camera, speaking to the person, asking them something, and reporting its progress.
+Live, the environment is the procedure's :class:`~..runner.Run`; in an evaluation it is a scripted one
+(:mod:`..evaluation`) that plays recorded frames, so the evaluation runs exactly the code that ships.
 
-A step type (the kit's ``watch``, ``read``, ``wait``, or an app's own) is any class with that shape. Optionally it
-also has:
+A step type (the kit's ``watch``, ``read``, ``wait``, or an app's own) is any class with that shape. The kit's types
+are built in one call from the step's definition (:class:`~.step_definitions.StepDefinition`, its words from the
+procedure's YAML), the models it uses, and ``values`` for the ``{placeholders}`` in its words (targets known only at
+run time); :func:`fill_placeholders` fills them. A step type may also have ``scoring``, naming the module that scores
+its evaluation cases (``Expect`` and ``score(trace, expect)``), imported only by the evaluation.
 
-- ``closing(result) -> str | None``: what is spoken when it finishes, from its result (the runner speaks it, as it
-  speaks ``say`` when the step starts; a skipped step says nothing);
-- its models as fields of its own, named for what each does (``WatchStep(observe=..., decide=...)``): every type
-  needs different ones, so nothing here names a model;
-- ``define(definition, ...)``, building the step from its entry in the procedure's YAML
-  (:class:`~.step_definitions.StepDefinition`), reading its own section of it;
-- ``scoring``, naming the module that scores its evaluation cases (``Expect`` and ``score(trace, expect)``),
-  imported only by the evaluation.
-
-Anything else a step type supports is its own: escalation, for one, is a separate package (``..escalation``) that a
-step type opts into.
+Escalation (an agent beside the step that helps the person when the step cannot decide) is not part of this
+contract: a step type opts into it separately (``..escalation``).
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Mapping
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
 from xr_ai_app import Frame
@@ -42,18 +37,24 @@ class Frames(Protocol):
     async def current(self, *, max_age_s: float = 2.0, timeout_s: float = 5.0) -> Frame | None: ...
 
 
-class StepIO(Protocol):
+class StepEnvironment(Protocol):
     """Everything a step may touch. :class:`~..runner.Run` is one; :mod:`..evaluation` has a scripted one."""
 
     @property
-    def frames(self) -> Frames: ...
-
-    async def say(self, text: str) -> None:
-        """Speak on the assistant's own initiative."""
+    def frames(self) -> Frames:
+        """The person's camera."""
         ...
 
-    def report(self, step_id: str | None = None) -> Callable[[Any], Awaitable[None]]:
-        """An ``on_state`` callback for the step's progress."""
+    async def say(self, text: str) -> None:
+        """Tell the person something."""
+        ...
+
+    async def ask(self, question: str) -> str | None:
+        """Ask the person something and wait for the answer; ``None`` when none came."""
+        ...
+
+    async def report_progress(self, step_id: str, state: Any) -> None:
+        """Record the step's latest state (its ``summary()``, if it has one), for the conversation and the record."""
         ...
 
 
@@ -62,12 +63,16 @@ class Step(Protocol[T_co]):
     """One step of a procedure: ``await run.step(step)`` live, a case file in an evaluation."""
 
     id: str
-    say: str | None
+    start_line: str | None
+    """Spoken as the step starts (``None``: nothing)."""
 
-    async def run(self, io: StepIO) -> T_co: ...
+    def done_line(self, result: Any) -> str | None:
+        """Spoken when the step finishes with ``result`` (``None``: nothing); a skipped step says nothing."""
+        ...
+
+    async def run(self, environment: StepEnvironment) -> T_co: ...
 
 
-def closing_line(step: object, result: Any) -> str | None:
-    """What ``step`` says when it finishes with ``result`` (its ``closing``, if it has one)."""
-    closing = getattr(step, "closing", None)
-    return closing(result) if callable(closing) else None
+def fill_placeholders(template: str | None, values: Mapping[str, object]) -> str | None:
+    """``template`` with its ``{name}`` placeholders filled from ``values`` (``None`` stays ``None``)."""
+    return None if template is None else template.format(**values)

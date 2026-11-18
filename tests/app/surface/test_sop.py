@@ -18,21 +18,24 @@ from xr_ai_kit import DestinationResult
 from xr_ai_kit.sop import (
     Check,
     Criteria,
+    EscalationChannel,
     EscalationSettings,
     Facts,
     Judgment,
-    Link,
-    ReportEscalator,
+    ReasoningEscalator,
     Run,
     SopRunner,
     StepContext,
-    escalation_for,
-    identify,
+    StepDefinition,
+    StructuredObservation,
+    WatchModels,
+    decide_escalation,
     judge,
+    read_and_derive,
     timer,
     verify,
 )
-from xr_ai_kit.sop.step_types.watch import outbound
+from xr_ai_kit.sop.step_types.watch import watch_step_snapshot
 
 WATER = Criteria(
     "Is there water in the kettle?",
@@ -67,6 +70,22 @@ def _app() -> App:
     return App(AppConfig(config_dir=Path(".")))
 
 
+def _models(app: App) -> WatchModels:
+    return WatchModels(perceive=app.role("observe"), decide=app.role("decide"))
+
+
+def _display_check() -> Check:
+    """A check on a display's reading, which cannot be judged without a unit (read, or known)."""
+    return Check(
+        "Read the display.",
+        WATER,
+        facts_schema=Display,
+        observation=StructuredObservation(
+            Reading, can_judge=lambda r, known: (r.unit or (known and known.unit)) is not None
+        ),
+    )
+
+
 async def _until(s, condition, *, frames: bool = False, timeout_s: float = 3.0) -> None:
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout_s
@@ -87,7 +106,7 @@ async def test_judge_describes_the_frame_then_decides_against_the_criteria() -> 
     async with app.test_session(models=models) as s:
         await s.join()
         frame = solid_frame("white")
-        j = await judge(frame, WATER_CHECK, observe=app.role("observe"), decide=app.role("decide"))
+        j = await judge(frame, WATER_CHECK, _models(app))
     assert (j.label, j.description) == ("positive", "The kettle is half full of water.")
     assert "half full" in models.calls("decide")[0].context
 
@@ -98,15 +117,7 @@ async def test_judge_with_a_schema_skips_the_decision_when_the_reading_cannot_be
     async with app.test_session(models=models) as s:
         await s.join()
         frame = solid_frame("white")
-        check = Check(
-            "Read it.",
-            WATER,
-            needs=Display,
-            observation_model=Reading,
-            can_assess=lambda r, known: (r.unit or (known and known.unit)) is not None,
-        )
-        args = dict(observe=app.role("observe"), decide=app.role("decide"))
-        no_unit = await judge(frame, check, **args)
+        no_unit = await judge(frame, _display_check(), _models(app))
     assert (no_unit.label, no_unit.reason, no_unit.parsed) == ("unknown", "not assessable", Reading(value=68))
     assert models.calls("decide") == []
 
@@ -114,17 +125,10 @@ async def test_judge_with_a_schema_skips_the_decision_when_the_reading_cannot_be
 async def test_facts_reach_the_check_in_code_and_the_decision_not_the_observation() -> None:
     models = FakeModels({"observe": [{"value": 176}], "decide": ["positive"]})
     app = _app()
-    check = Check(
-        "Read it.",
-        WATER,
-        needs=Display,
-        observation_model=Reading,
-        can_assess=lambda r, known: (r.unit or (known and known.unit)) is not None,
-    )
     facts = Facts(Display(unit="fahrenheit"), ('Asked the person: "Unit?" They answered: "Fahrenheit"',))
     async with app.test_session(models=models) as s:
         await s.join()
-        j = await judge(solid_frame(), check, observe=app.role("observe"), decide=app.role("decide"), facts=facts)
+        j = await judge(solid_frame(), _display_check(), _models(app), facts=facts)
     assert j.label == "positive"
     assert "fahrenheit" in models.calls("decide")[0].context
     assert "Fahrenheit" not in models.calls("observe")[0].prompt
@@ -153,8 +157,7 @@ async def test_verify_completes_on_n_of_the_last_m_decidable_frames_and_unknowns
             verify(
                 p.frames,
                 WATER_CHECK,
-                observe=app.role("observe"),
-                decide=app.role("decide"),
+                _models(app),
                 required=2,
                 window=3,
                 interval_s=0.01,
@@ -169,16 +172,6 @@ async def test_verify_completes_on_n_of_the_last_m_decidable_frames_and_unknowns
     assert len({j.frame_us for j in result.judgments}) == 4  # never the same frame twice
 
 
-def _escalating_check() -> Check:
-    return Check(
-        "Read the display.",
-        WATER,
-        needs=Display,
-        observation_model=Reading,
-        can_assess=lambda r, known: (r.unit or (known and known.unit)) is not None,
-    )
-
-
 async def test_the_fast_loop_reads_context_added_while_it_runs() -> None:
     models = FakeModels({"observe": [{"value": 176}] * 8, "decide": ["positive", "positive"]})
     app = _app()
@@ -189,9 +182,8 @@ async def test_the_fast_loop_reads_context_added_while_it_runs() -> None:
         job = asyncio.ensure_future(
             verify(
                 p.frames,
-                _escalating_check(),
-                observe=app.role("observe"),
-                decide=app.role("decide"),
+                _display_check(),
+                _models(app),
                 context=context,
                 interval_s=0.01,
             )
@@ -211,8 +203,8 @@ def _reports(*labels: str) -> list[Judgment]:
 UNIT_GUIDANCE = "Some displays print no unit; the person knows which unit theirs uses."
 
 
-class _IO:
-    """An escalator's EscalationIO: the person, and what is going on."""
+class _Environment:
+    """An escalator's EscalatorEnvironment: the person, and what is going on."""
 
     def __init__(self, *, ask=None, say=None, context: dict[str, str] | None = None) -> None:
         self._ask, self._say, self._context = ask, say, context or {}
@@ -224,27 +216,32 @@ class _IO:
     async def say(self, text: str) -> None:
         await self._say(text)
 
-    async def situation(self, sources) -> str:
+    async def read_context(self, sources) -> str:
         self.sources.append(list(sources))
         return "\n\n".join(self._context[s] for s in sources if s in self._context)
 
 
-def _linked(context: StepContext, labels: tuple[str, ...]) -> Link:
-    """A link as a running watch step attaches it: its outbound context from ``context`` and ``labels``, inbound
-    context into ``context``."""
-    started, link = clock.now(), Link()
-    link.attach(
-        lambda: outbound("heat", _escalating_check(), _reports(*labels), context.facts, started),
-        lambda inbound: context.add(inbound.note, inbound.known),
+def _channel(context: StepContext, labels: tuple[str, ...]) -> EscalationChannel:
+    """A channel as a running watch step connects it: its snapshot from ``context`` and ``labels``, added context
+    into ``context``."""
+    started, channel = clock.now(), EscalationChannel()
+    channel.connect_step(
+        snapshot=lambda: watch_step_snapshot("heat", _display_check(), _reports(*labels), context.facts, started),
+        add_context=lambda added: context.add(added.note, added.facts),
     )
-    return link
+    return channel
 
 
-def _escalator(role, *, reader=None, **settings) -> ReportEscalator:
-    return ReportEscalator(UNIT_GUIDANCE, role, reader, EscalationSettings(every_s=0.01, min_gap_s=0, **settings))
+def _escalator(role, *, answer_reader=None, **settings) -> ReasoningEscalator:
+    return ReasoningEscalator(
+        StepDefinition("heat", sections={"escalation": UNIT_GUIDANCE}),
+        role,
+        EscalationSettings(every_s=0.01, min_gap_s=0, **settings),
+        answer_reader=answer_reader,
+    )
 
 
-async def test_an_escalator_reads_the_steps_outbound_context_and_answers_only_inbound() -> None:
+async def test_an_escalator_reads_a_snapshot_of_the_step_and_answers_only_by_adding_context() -> None:
     models = FakeModels(
         {
             "reviewer": [
@@ -261,9 +258,9 @@ async def test_an_escalator_reads_the_steps_outbound_context_and_answers_only_in
         asked.append(question)
         return "Fahrenheit"
 
-    escalator = _escalator(models.role("reviewer"), reader=models.role("reader"))
+    escalator = _escalator(models.role("reviewer"), answer_reader=models.role("reader"))
     side = asyncio.ensure_future(
-        escalator.run(_linked(context, ("negative", "unknown", "unknown", "unknown")), _IO(ask=ask))
+        escalator.run(_channel(context, ("negative", "unknown", "unknown", "unknown")), _Environment(ask=ask))
     )
     for _ in range(200):
         if len(models.calls("reviewer")) >= 2:
@@ -275,7 +272,7 @@ async def test_an_escalator_reads_the_steps_outbound_context_and_answers_only_in
     assert "They answered" in context.facts.text()
     calls = models.calls("reviewer")
     assert all(call.thinking for call in calls)  # reasoning, off the fast loop
-    assert all(call.frame is None for call in calls)  # it reads the reports, never frames
+    assert all(call.frame is None for call in calls)  # it reads the evidence as text, never frames
     assert "unknown" in calls[0].prompt and '{"value": 75}' in calls[0].prompt
     assert UNIT_GUIDANCE in calls[0].prompt
 
@@ -293,7 +290,7 @@ async def test_an_escalator_tells_the_person_what_to_do_without_waiting_for_an_a
     context = StepContext()
     escalator = _escalator(models.role("reviewer"), max_lines=1)
     labels = ("unknown", "unknown", "unknown", "unknown")
-    await asyncio.wait_for(escalator.run(_linked(context, labels), _IO(ask=ask, say=say)), 2)
+    await asyncio.wait_for(escalator.run(_channel(context, labels), _Environment(ask=ask, say=say)), 2)
     assert said == ["Show me the kettle."]
     assert context.facts.text() == ""
 
@@ -302,7 +299,7 @@ async def test_an_escalator_stays_quiet_while_the_check_still_decides() -> None:
     models = FakeModels({"reviewer": []})
     escalator = _escalator(models.role("reviewer"))
     side = asyncio.ensure_future(
-        escalator.run(_linked(StepContext(), ("unknown", "negative", "negative", "unknown")), _IO())
+        escalator.run(_channel(StepContext(), ("unknown", "negative", "negative", "unknown")), _Environment())
     )
     await asyncio.sleep(0.1)
     side.cancel()
@@ -316,10 +313,10 @@ async def test_each_escalator_reads_only_the_context_it_is_configured_with() -> 
     for sources in ([], ["dialogue"], ["run", "dialogue"]):
         models = FakeModels({"reviewer": [{"action": "tell", "words": "Show me the kettle."}]})
         escalator = _escalator(models.role("reviewer"), max_lines=1, context=sources)
-        io = _IO(say=lambda text: asyncio.sleep(0), context=io_context)
-        await asyncio.wait_for(escalator.run(_linked(StepContext(), labels), io), 2)
+        environment = _Environment(say=lambda text: asyncio.sleep(0), context=io_context)
+        await asyncio.wait_for(escalator.run(_channel(StepContext(), labels), environment), 2)
         prompts[tuple(sources)] = models.calls("reviewer")[0].prompt
-        assert io.sources == ([list(sources)] if sources else [])
+        assert environment.sources == ([list(sources)] if sources else [])
     assert "Fahrenheit" not in prompts[()] and "run 1" not in prompts[()]
     assert "Fahrenheit" in prompts[("dialogue",)] and "run 1" not in prompts[("dialogue",)]
     both = prompts[("run", "dialogue")]
@@ -330,8 +327,8 @@ async def test_each_escalator_reads_only_the_context_it_is_configured_with() -> 
 async def test_without_guidance_there_is_no_escalation() -> None:
     models = FakeModels({"reviewer": []})
     unknowns = _reports("unknown", "unknown", "unknown", "unknown")
-    step = outbound("fill", WATER_CHECK, unknowns, Facts(), clock.now())
-    assert await escalation_for(step, models.role("reviewer"), guidance="") is None
+    step = watch_step_snapshot("fill", WATER_CHECK, unknowns, Facts(), clock.now())
+    assert await decide_escalation(step, models.role("reviewer"), guidance="") is None
     assert models.calls("reviewer") == []
 
 
@@ -346,7 +343,7 @@ async def test_timer_counts_down_and_reports() -> None:
     assert states[0].status == "running" and states[-1] is final
 
 
-async def test_identify_keeps_looking_until_the_reading_is_enough_then_derives_the_result() -> None:
+async def test_read_and_derive_keeps_looking_until_the_reading_is_enough_then_derives_the_result() -> None:
     models = FakeModels(
         {
             "observe": [{}, {"tea_type": "green tea"}],
@@ -362,22 +359,22 @@ async def test_identify_keeps_looking_until_the_reading_is_enough_then_derives_t
         await s.join()
         p = s.participant()
         job = asyncio.ensure_future(
-            identify(
+            read_and_derive(
                 p.frames,
-                observe=app.role("observe"),
-                answer=app.role("answer"),
+                perceive=app.role("observe"),
+                reason=app.role("answer"),
                 question="Read the label.",
-                visual_model=Tea,
-                result_model=Settings,
+                reading_schema=Tea,
+                derived_schema=Settings,
                 instructions="Give brewing settings.",
-                ready=lambda tea: tea.tea_type is not None,
+                is_enough=lambda tea: tea.tea_type is not None,
                 retrieve=retrieve,
                 interval_s=0.01,
             )
         )
         await _until(s, job.done, frames=True)
         result = job.result()
-    assert result.result == Settings(temperature_c=80, duration_s=120)
+    assert result.derived == Settings(temperature_c=80, duration_s=120)
     assert result.attempts == 2 and result.passages == ("green tea: 80 C for 2 minutes",)
     assert "80 C for 2 minutes" in models.calls("answer")[0].prompt
 
@@ -396,8 +393,14 @@ async def test_a_run_goes_through_its_steps_and_the_conversation_sees_its_summar
 
     async def procedure(run: Run) -> None:
         await run.note(temperature_c=80)
-        await run.step("heat", lambda: timer(0.02, interval_s=0.01, on_state=run.report()), say="Heat the water.")
-        await run.step("steep", lambda: timer(0.02, interval_s=0.01, on_state=run.report()))
+        await run.step(
+            "heat",
+            lambda: timer(0.02, interval_s=0.01, on_state=lambda state: run.report_progress("heat", state)),
+            start_line="Heat the water.",
+        )
+        await run.step(
+            "steep", lambda: timer(0.02, interval_s=0.01, on_state=lambda state: run.report_progress("steep", state))
+        )
 
     models = FakeModels()
     runner = _runner(app, procedure, models)

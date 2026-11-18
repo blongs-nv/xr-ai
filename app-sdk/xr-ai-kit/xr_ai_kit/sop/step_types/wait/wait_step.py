@@ -3,50 +3,44 @@
 
 """A wait step: a countdown on the core clock (:func:`~.timer.timer`); no camera, no models.
 
-Its definition has no section of its own: ``say``, and ``done`` filled with the build-time values
-(:meth:`WaitStep.format`)."""
+Its definition has no section of its own: ``start_line`` and ``done_line``, filled with ``values``."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
-from typing import Any, ClassVar
+from typing import ClassVar
 
-from ...steps.step_api import StepIO
+from ...steps.step_api import StepEnvironment, fill_placeholders
 from ...steps.step_definitions import StepDefinition
 from .timer import TimerState, timer
 
 
-@dataclass(frozen=True, slots=True)
 class WaitStep:
-    """Wait ``duration_s`` seconds, reporting the time left."""
+    """Wait ``duration_s`` seconds, reporting the time left every ``interval_s``."""
 
     scoring: ClassVar[str] = f"{__package__}.wait_scoring"
 
-    id: str
-    duration_s: float
-    say: str | None = None
-    done: str | None = None
-    values: Mapping[str, object] = field(default_factory=dict)
-    interval_s: float = 1.0
+    def __init__(
+        self,
+        definition: StepDefinition,
+        duration_s: float,
+        *,
+        values: Mapping[str, object] | None = None,
+        interval_s: float = 1.0,
+    ) -> None:
+        self.values = dict(values or {})
+        self.id = definition.id
+        self.start_line = fill_placeholders(definition.start_line, self.values)
+        self.duration_s = duration_s
+        self.interval_s = interval_s
+        self._done_line = definition.done_line
 
-    @classmethod
-    def define(cls, definition: StepDefinition, duration_s: float = 0.0, **code: Any) -> WaitStep:
-        """The step from its definition (its duration is usually set later, :meth:`lasting`)."""
-        return cls(definition.id, duration_s, say=definition.say, done=definition.done, **code)
+    def done_line(self, result: TimerState) -> str | None:
+        """``done_line``, filled with the values."""
+        return fill_placeholders(self._done_line, self.values)
 
-    def lasting(self, duration_s: float) -> WaitStep:
-        """A copy that waits ``duration_s`` (a duration known only at run time)."""
-        return replace(self, duration_s=duration_s)
+    async def run(self, environment: StepEnvironment) -> TimerState:
+        async def on_state(state: TimerState) -> None:
+            await environment.report_progress(self.id, state)
 
-    def format(self, **values: object) -> WaitStep:
-        """A copy with ``{name}`` placeholders filled in ``say``; ``done`` gets them when it is spoken."""
-        say = self.say.format(**values) if self.say else self.say
-        return replace(self, say=say, values={**self.values, **values})
-
-    def closing(self, result: TimerState) -> str | None:
-        """``done``, filled with the build-time values."""
-        return self.done.format(**self.values) if self.done else None
-
-    async def run(self, io: StepIO) -> TimerState:
-        return await timer(self.duration_s, interval_s=self.interval_s, on_state=io.report(self.id))
+        return await timer(self.duration_s, interval_s=self.interval_s, on_state=on_state)

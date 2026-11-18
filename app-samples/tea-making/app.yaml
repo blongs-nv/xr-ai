@@ -45,7 +45,3 @@ settings:
       context: [run, dialogue]
       every_s: 20.0
       max_lines: 2
-    # Per step, what differs from the above, for example:
-    # escalation_per_step:
-    #   heat_water: {context: [dialogue]}
-    escalation_per_step: {}

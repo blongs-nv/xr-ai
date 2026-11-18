@@ -1,13 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""A scripted :class:`~..steps.step_api.StepIO` and :class:`~..escalation.link.EscalationIO`: a scene for the camera,
-a scripted person, a record of it."""
+"""A scripted :class:`~..steps.step_api.StepEnvironment` and :class:`~..escalation.escalation_channel.
+EscalatorEnvironment`: a scene for the camera, a scripted person, a record of it."""
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -28,8 +28,8 @@ class Person(BaseModel):
     """What the camera shows once the person was told something (they did it): scene parts, as ``scene``."""
 
 
-class ScriptedIO:
-    """What a step touches in an evaluation (see the module docstring)."""
+class ScriptedEnvironment:
+    """What a step and its escalator touch in an evaluation (see the module docstring)."""
 
     def __init__(
         self, step_id: str, scene: SceneFrames, person: Person, context: Mapping[str, str] | None = None
@@ -58,12 +58,9 @@ class ScriptedIO:
         self.trace.lines.append(Line(asked_at, "ask", question, answer))
         return answer
 
-    def report(self, step_id: str | None = None) -> Callable[[Any], Awaitable[None]]:
-        async def on_state(state: Any) -> None:
-            self.trace.states.append((self.scene.now(), state))
+    async def report_progress(self, step_id: str, state: Any) -> None:
+        self.trace.states.append((self.scene.now(), state))
 
-        return on_state
-
-    async def situation(self, sources: Sequence[str]) -> str:
+    async def read_context(self, sources: Sequence[str]) -> str:
         """The case's text for each source asked for, in order (a source the case does not give is empty)."""
         return "\n\n".join(self._context[s] for s in sources if self._context.get(s))

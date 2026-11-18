@@ -5,8 +5,8 @@
 # One entry per step, keyed by its id; app.py chooses each step's type, its
 # models, its escalator and their order. Every step may have:
 #   does        what the person does, for the plan the conversation reads
-#   say         spoken as the step starts
-#   done        spoken when it finishes
+#   start_line  spoken as the step starts
+#   done_line   spoken when it finishes
 # and sections, each read by its owner:
 #   watch       a camera step's question (what the observing model describes
 #               per frame) and criteria (how the deciding model labels it)
@@ -16,8 +16,8 @@
 
 bed_clear:
   does: clear everything off the print bed
-  say: First, make sure the print bed is clear.
-  done: The bed is clear.
+  start_line: First, make sure the print bed is clear.
+  done_line: The bed is clear.
   watch:
     question: >-
       Describe the 3D printer's print bed: whether it is in view, and whether
@@ -36,8 +36,8 @@ bed_clear:
 
 door_closed:
   does: close the printer door
-  say: Close the printer door.
-  done: The door is closed.
+  start_line: Close the printer door.
+  done_line: The door is closed.
   watch:
     question: >-
       Describe the 3D printer's door or enclosure front: whether it is in view,
@@ -56,6 +56,6 @@ door_closed:
 
 warm_up:
   does: wait 90 seconds while the printer warms up (a timer)
-  say: Warming up for ninety seconds.
-  done: Warm-up done. You can start the print.
+  start_line: Warming up for ninety seconds.
+  done_line: Warm-up done. You can start the print.
 

@@ -1,113 +1,115 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""A read step: read something from the camera into a schema, then derive a result from it (:func:`~.identify.
-identify`), for example a tea's label and its brewing settings. How an evaluation case of a read step is scored is in
-:mod:`.read_scoring`.
+"""A read step: read something from the camera into a schema, then derive a result from it
+(:func:`~.read_and_derive.read_and_derive`), for example a tea's label and its brewing settings. How an evaluation case
+of a read step is scored is in :mod:`.read_scoring`.
 
-Its definition in the procedure's YAML: the ``read`` section (:class:`ReadWords`: ``question`` for the observing
-model, ``instructions`` for deriving the result), and ``done``, filled with the build-time values, ``visual`` (what
-was read) and ``result`` (what was derived)."""
+Its definition in the procedure's YAML: the ``read`` section (:class:`ReadSection`: ``question`` for the perceiving
+model, ``instructions`` for deriving the result), ``start_line``, and ``done_line``. ``values`` fill the
+``{placeholders}`` in the lines; ``done_line`` also gets ``reading`` (what was read) and ``derived`` (what was
+derived)."""
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass
 from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict
 from xr_ai_app import Role
 
-from ...steps.step_api import StepIO
+from ...steps.step_api import StepEnvironment, fill_placeholders
 from ...steps.step_definitions import StepDefinition
-from .identify import Identification, identify
+from .read_and_derive import ReadResult, read_and_derive
 
 
-class ReadWords(BaseModel):
+class ReadSection(BaseModel):
     """A read step's section of its definition (``read:``)."""
 
     model_config = ConfigDict(extra="forbid")
     question: str
-    """What the observing model reads from each frame into ``visual_model``."""
+    """What the perceiving model reads from each frame into the reading schema."""
     instructions: str
-    """How the reasoning model derives ``result_model`` from what was read."""
+    """How the reasoning model derives the derived schema from what was read."""
 
 
 @dataclass(frozen=True, slots=True)
-class ReadStep:
-    """Read ``visual_model`` from the camera until ``ready``; then derive ``result_model``.
+class ReadModels:
+    """The models a read step uses, by what each does."""
 
-    ``observe`` reads each frame (a vision model); ``reason`` derives the result (a reasoning text model).
+    perceive: Role
+    """Reads each frame into the reading schema (a vision model)."""
+    reason: Role
+    """Derives the result from the reading (a reasoning text model)."""
+
+
+class ReadSettings(BaseModel):
+    """How a read step looks (an app's settings may embed this)."""
+
+    model_config = ConfigDict(extra="forbid")
+    interval_s: float = 2.0
+    """How often a frame is read."""
+    timeout_s: float = 30.0
+    """Bound on one model call."""
+
+
+class ReadStep:
+    """Read ``reading_schema`` from the camera until ``is_enough``; then derive ``derived_schema`` from it.
+
+    Built from the step's ``definition`` and the ``models`` it uses. ``is_enough(reading)`` decides in code whether a
+    reading is enough to go on; ``retrieve(reading)``, when given, returns text passages to derive from (a search
+    over a document store). ``values`` fill the placeholders in its lines.
     """
 
     scoring: ClassVar[str] = f"{__package__}.read_scoring"
     section: ClassVar[str] = "read"
 
-    id: str
-    question: str
-    instructions: str
-    visual_model: type[BaseModel]
-    result_model: type[BaseModel]
-    observe: Role
-    reason: Role
-    say: str | None = None
-    done: str | None = None
-    values: Mapping[str, object] = field(default_factory=dict)
-    ready: Callable[[Any], bool] = lambda _visual: True
-    retrieve: Callable[[Any], Awaitable[Sequence[str]]] | None = None
-    interval_s: float = 2.0
-    timeout_s: float = 30.0
-
-    @classmethod
-    def define(
-        cls,
+    def __init__(
+        self,
         definition: StepDefinition,
+        models: ReadModels,
         *,
-        observe: Role,
-        reason: Role,
-        visual_model: type[BaseModel],
-        result_model: type[BaseModel],
-        **code: Any,
-    ) -> ReadStep:
-        """The step from its definition; ``code`` is the rest (``ready``, ``retrieve``, ``interval_s``,
-        ``timeout_s``)."""
-        words = definition.section(cls.section, ReadWords)
-        return cls(
-            definition.id,
-            words.question,
-            words.instructions,
-            visual_model,
-            result_model,
-            observe,
-            reason,
-            say=definition.say,
-            done=definition.done,
-            **code,
-        )
+        reading_schema: type[BaseModel],
+        derived_schema: type[BaseModel],
+        is_enough: Callable[[Any], bool] = lambda _reading: True,
+        retrieve: Callable[[Any], Awaitable[Sequence[str]]] | None = None,
+        values: Mapping[str, object] | None = None,
+        settings: ReadSettings | None = None,
+    ) -> None:
+        self.values = dict(values or {})
+        words = definition.section(self.section, ReadSection)
+        self.id = definition.id
+        self.start_line = fill_placeholders(definition.start_line, self.values)
+        self.question = words.question
+        self.instructions = words.instructions
+        self.models = models
+        self.reading_schema = reading_schema
+        self.derived_schema = derived_schema
+        self.is_enough = is_enough
+        self.retrieve = retrieve
+        self.settings = settings or ReadSettings()
+        self._done_line = definition.done_line
 
-    def format(self, **values: object) -> ReadStep:
-        """A copy with ``{name}`` placeholders filled in ``say``; ``done`` gets them when it is spoken."""
-        say = self.say.format(**values) if self.say else self.say
-        return replace(self, say=say, values={**self.values, **values})
+    def done_line(self, result: ReadResult[Any, Any]) -> str | None:
+        """``done_line``, filled with the values, ``reading`` and ``derived``."""
+        return fill_placeholders(self._done_line, {**self.values, "reading": result.reading, "derived": result.derived})
 
-    def closing(self, result: Identification[Any, Any]) -> str | None:
-        """``done``, filled with the build-time values, ``visual`` and ``result``."""
-        if not self.done:
-            return None
-        return self.done.format(**{**self.values, "visual": result.visual, "result": result.result})
+    async def run(self, environment: StepEnvironment) -> ReadResult[Any, Any]:
+        async def on_state(state: ReadResult[Any, Any]) -> None:
+            await environment.report_progress(self.id, state)
 
-    async def run(self, io: StepIO) -> Identification[Any, Any]:
-        return await identify(
-            io.frames,  # type: ignore[arg-type]  # any Frames: the participant's, or a recorded scene
-            observe=self.observe,
-            answer=self.reason,
+        return await read_and_derive(
+            environment.frames,  # type: ignore[arg-type]  # any Frames: the participant's, or a recorded scene
+            perceive=self.models.perceive,
+            reason=self.models.reason,
             question=self.question,
-            visual_model=self.visual_model,
-            result_model=self.result_model,
+            reading_schema=self.reading_schema,
+            derived_schema=self.derived_schema,
             instructions=self.instructions,
-            ready=self.ready,
+            is_enough=self.is_enough,
             retrieve=self.retrieve,
-            interval_s=self.interval_s,
-            timeout_s=self.timeout_s,
-            on_state=io.report(self.id),
+            interval_s=self.settings.interval_s,
+            timeout_s=self.settings.timeout_s,
+            on_state=on_state,
         )

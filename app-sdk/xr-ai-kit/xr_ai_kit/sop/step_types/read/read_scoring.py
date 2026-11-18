@@ -31,8 +31,8 @@ def score(trace: StepTrace, expect: ReadExpect) -> list[str]:
         problems.append("completed" if trace.completed else "did not complete")
     result = trace.result
     for name, wanted, model in (
-        ("read", expect.reads, getattr(result, "visual", None)),
-        ("derived", expect.derives, getattr(result, "result", None)),
+        ("read", expect.reads, getattr(result, "reading", None)),
+        ("derived", expect.derives, getattr(result, "derived", None)),
     ):
         for key, words in (wanted or {}).items():
             value = getattr(model, key, None)

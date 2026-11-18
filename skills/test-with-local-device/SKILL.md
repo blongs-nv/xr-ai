@@ -101,7 +101,7 @@ unit's report lines with clip times, what was said, and the model calls; `trace.
 when `--expect`/`--between` hold. Playing a video needs `xr-ai-app[video]`. With scripted roles it runs on a
 virtual clock (`--clock virtual`, the default then): idle waits such as look intervals and timers are skipped, so a
 long window takes moments; real model calls still take real time. `--real-models` defaults to `--clock real`. In Python,
-one step of an `xr_ai_kit.sop` procedure on its own, with a `Run` as its io (`m` is the loaded app module):
+one step of an `xr_ai_kit.sop` procedure on its own, with a `Run` as its environment (`m` is the loaded app module):
 `await exercise(m.app, lambda p, probe: m.bed_clear.run(Run(p, 1, name="x")), video=..., from_s=..., to_s=...,
 models=...)`.
 

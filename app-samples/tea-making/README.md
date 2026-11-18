@@ -39,22 +39,25 @@ A watch step's **check** judges a frame every 2 s: the omni model
 describes it (or reads it into a schema) and Clef labels that description
 against the step's criteria (positive, negative or unknown); unknowns take
 no slot, so an obscured view neither confirms nor resets it. Beside each
-camera step runs its **escalator** (`Escalated`), an agent of its own that
-shares only a link with the step: it reads the step's outbound context (its
-task, its latest reports, what it knows) and, when the reports are mostly
-unknown, asks the person for what is missing (the kettle's unit; the answer
-goes back to the step as inbound context, which the check reads) or tells
-them what to bring into view. It never completes a step. Each escalator has
-its own settings, including what it reads besides its step (`context`: the
-procedure's summary `run`, the recent `dialogue`, or neither); app.yaml's
-`settings.tea.escalation` sets them for all, `escalation_per_step` per step.
+camera step runs its **escalator** (`StepWithEscalator`), an agent of its
+own that shares only an escalation channel with the step: it reads a
+snapshot of the step (its task, its latest evidence, what it knows) and,
+when the evidence is mostly unknown, asks the person for what is missing
+(the kettle's unit; the answer is added to the step's context, which the
+check reads) or tells them what to bring into view. It never completes a
+step. What every escalator reads besides its step (`context`: the
+procedure's summary `run`, the recent `dialogue`, or neither) and how often
+it may speak are app.yaml's `settings.tea.escalation`.
 
-Every step's words are in `steps.yaml`: what it says as it starts (`say`)
-and when it finishes (`done`, filled from its result: heat_water says the
-reading that completed it), and one section per owner (`read` or `watch`
-for the step, `escalation` for its escalator). Which type each step is, its
-models, schemas and escalator are in `procedure.build_steps`; the procedure
-itself is the order of the steps and what passes between them.
+Every step's words are in `steps.yaml`: what it says as it starts
+(`start_line`) and when it finishes (`done_line`, filled from its result:
+identify says the tea it read, heat_water the reading that completed it),
+and one section per owner (`read` or `watch` for the step, `escalation` for
+its escalator). Which type each step is, its models, schemas and escalator
+are in `procedure.py` (`TeaProcedure`), and so is the procedure itself
+(`make_tea`): the order of the steps, and the brewing settings it decides
+from what identify read (the recommendation, or the defaults), which it
+says and which heat_water and steep are built with.
 
 Starting the guide starts a run that outlives the turn: a question or an
 interruption never cancels it. "Skip this step" cancels only the current
@@ -102,7 +105,7 @@ names) the same scenario runs on the real models.
 ## Evaluation
 
 `eval/` evaluates each layer on its own. **Step cases** (`eval/steps/`,
-one file per step) run the real step, built by `procedure.build_steps`, on
+one file per step) run the real step, taken from `procedure.TeaProcedure`, on
 scenes from a recording (its own scene, other steps' scenes, look-alikes
 such as the kettle's target setting, and spliced scenes such as the person
 looking away) with a scripted person, scored by the step type's own rules

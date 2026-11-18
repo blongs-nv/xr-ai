@@ -18,7 +18,7 @@ dialogue/            one packet per step state: utterances and expectations
   common.yaml        utterances asked during every step; step words
 recordings/
   green-tea-04.yaml  what the recording shows, when, and where the times came from
-run_steps.py         builds the steps with procedure.build_steps; xr_ai_kit.sop.evaluation runs them
+run_steps.py         takes the steps from procedure.TeaProcedure; xr_ai_kit.sop.evaluation runs them
 run_dialogue.py      the Router, the guide's controls and the Conversation, in a given state
 ```
 
@@ -26,7 +26,7 @@ run_dialogue.py      the Router, the guide's controls and the Conversation, in a
 
 ```yaml
 step: heat_water
-build: {temperature_c: 80}          # passed to procedure.build_steps
+build: {temperature_c: 80}          # what the step is built with (run_steps.build)
 cases:
   - name: unit_unknown_then_answered
     scene: [26, 346]                # seconds of the recording
@@ -34,12 +34,12 @@ cases:
     expect: {asks: [unit], completes: {after: 330}}
   - name: looked_away
     scene: [[26, 36], [5, 12], [5, 12], [5, 12]]   # parts played back to back
-    build: {unit: fahrenheit}       # this case's own build values
+    build: {display_unit: fahrenheit}  # this case's own build values
     person: {after_tell: [[36, 80]]}               # what the camera shows once told
     expect: {says: [kettle, display], completes: false}
 ```
 
-Each case runs the step that ships (built by `procedure.build_steps`, as
+Each case runs the step that ships (taken from `procedure.TeaProcedure`, as
 the procedure builds it) on the devkit's virtual clock: frames from the
 scene at the recording's pace, the person's answers after
 `answer_after_s` (3 s), idle waits skipped, model calls in real time (so
@@ -118,8 +118,9 @@ answered (not acted on) with words of `heat_water`.
   the recording lacks is spliced from its parts.
 - Something the user may say during one step: one entry in that packet's
   `utterances`; during every step: one entry in `dialogue/common.yaml`.
-- A new step: its entry in `steps.yaml`, one line in
-  `procedure.build_steps`, one case file, one packet.
+- A new step: its entry in `steps.yaml`, the step in `procedure.TeaProcedure`
+  (and its place in `make_tea`), one line in `run_steps.build`, one case
+  file, one packet.
 
 ## Run
 

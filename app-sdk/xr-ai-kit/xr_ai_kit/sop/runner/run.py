@@ -3,8 +3,9 @@
 
 """One run of a procedure for one participant: what the procedure function receives and what a step touches.
 
-A :class:`Run` is what a step touches (a :class:`~..steps.step_api.StepIO`) and what an escalator beside a step
-touches (an :class:`~..escalation.link.EscalationIO`); :class:`~.sop_runner.SopRunner` creates one per start.
+A :class:`Run` is what a step touches (a :class:`~..steps.step_api.StepEnvironment`) and what an escalator beside
+a step touches (an :class:`~..escalation.escalation_channel.EscalatorEnvironment`); :class:`~.sop_runner.SopRunner`
+creates one per start.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from typing import Any, Literal, TypeVar
 
 from xr_ai_app import Participant, Sink
 
-from ..steps.step_api import Frames, Step, closing_line
+from ..steps.step_api import Frames, Step
 
 T = TypeVar("T")
 
@@ -31,7 +32,7 @@ class StepRecord:
     id: str
     status: StepStatus
     detail: str = ""
-    """The step's latest reported state (what its ``on_state`` callback last received), as text."""
+    """The step's latest reported progress (:meth:`Run.report_progress`), as text."""
 
 
 @dataclass(slots=True)
@@ -57,7 +58,7 @@ class Run:
 
     output: Sink | None = field(default=None, repr=False)
     _publish: Callable[..., Awaitable[None]] | None = field(default=None, repr=False)
-    _situation: Callable[[Participant, Sequence[str]], Awaitable[str]] | None = field(default=None, repr=False)
+    _read_context: Callable[[Participant, Sequence[str]], Awaitable[str]] | None = field(default=None, repr=False)
     _answer: asyncio.Future[str] | None = field(default=None, repr=False)
 
     @property
@@ -77,28 +78,30 @@ class Run:
         step: Step[T] | str,
         work: Callable[[], Awaitable[T]] | None = None,
         *,
-        say: str | None = None,
+        start_line: str | None = None,
     ) -> T | None:
         """Run one step as its own task; return its result, or ``None`` when the user skipped it.
 
-        ``step`` is a step object (``run.step(heat)``: its ``run(self)`` is the work and its ``say`` the instruction)
-        or a step id with ``work``, any coroutine function of the app's own. ``say`` is spoken as the step starts
-        (it replaces the step's own); a step object's ``closing(result)``, if it has one, is spoken when it finishes
-        (not when it is skipped). A step that fails fails the run (the exception propagates).
+        ``step`` is a step object (``run.step(heat_water)``: its ``run(self)`` is the work) or a step id with
+        ``work``, any coroutine function of the app's own. The step's ``start_line`` is spoken as it starts
+        (``start_line`` here replaces it) and its ``done_line(result)`` when it finishes (not when it is skipped). A
+        step that fails fails the run (the exception propagates).
         """
-        obj: object = None
+        step_object: Step[T] | None = None
         if isinstance(step, str):
             if work is None:
                 raise TypeError("run.step(step_id, work): work is required with a step id")
             step_id = step
         else:
-            step_id, say, obj = step.id, say if say is not None else step.say, step
-            work = lambda: obj.run(self)  # noqa: E731
+            step_object = step
+            step_id = step.id
+            start_line = start_line if start_line is not None else step.start_line
+            work = lambda: step.run(self)  # noqa: E731
         record = StepRecord(step_id, "running")
         self.steps.append(record)
         await self._changed("step", step=step_id, status="running")
-        if say:
-            await self.say(say)
+        if start_line:
+            await self.say(start_line)
         task = self.p.spawn(work(), key=f"sop:{self.name}:step", supersede=True)
         try:
             result = await task
@@ -115,22 +118,18 @@ class Run:
             raise
         record.status = "done"
         await self._changed("step", step=step_id, status="done")
-        if closing := closing_line(obj, result):
-            await self.say(closing)
+        if step_object is not None and (done_line := step_object.done_line(result)):
+            await self.say(done_line)
         return result
 
-    def report(self, step_id: str | None = None) -> Callable[[Any], Awaitable[None]]:
-        """An ``on_state`` callback recording a flow's state as the step's detail (its ``summary()``, if any)."""
-
-        async def on_state(state: Any) -> None:
-            record = next((s for s in reversed(self.steps) if step_id in (None, s.id)), None)
-            if record is None:
-                return
-            summary = getattr(state, "summary", None)
-            record.detail = summary() if callable(summary) else str(state)
-            await self._changed("state", step=record.id, detail=record.detail)
-
-        return on_state
+    async def report_progress(self, step_id: str, state: Any) -> None:
+        """Record a step's latest state as its detail (the state's ``summary()``, if it has one)."""
+        record = next((s for s in reversed(self.steps) if s.id == step_id), None)
+        if record is None:
+            return
+        summary = getattr(state, "summary", None)
+        record.detail = summary() if callable(summary) else str(state)
+        await self._changed("state", step=record.id, detail=record.detail)
 
     async def note(self, **values: Any) -> None:
         """Record facts for the conversation and the record (for example the brewing settings in use)."""
@@ -165,10 +164,10 @@ class Run:
         await self._changed("answer", question=question, answer=answer)
         return answer
 
-    async def situation(self, sources: Sequence[str]) -> str:
+    async def read_context(self, sources: Sequence[str]) -> str:
         """What is going on, for a step's escalator: ``run`` (the run's summary) and the runner's
         ``escalation_context`` channels by name, in the order given; a name the runner does not have is an error."""
-        return await self._situation(self.p, sources) if self._situation is not None else ""
+        return await self._read_context(self.p, sources) if self._read_context is not None else ""
 
     def answer(self, text: str) -> bool:
         """Give the pending question its answer; whether one was pending."""

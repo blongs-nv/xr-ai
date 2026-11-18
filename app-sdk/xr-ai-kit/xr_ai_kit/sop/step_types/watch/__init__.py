@@ -5,8 +5,9 @@
 
 ==================  ==========================================================================================
 ``watch_step``      :class:`WatchStep` and :class:`WatchSettings`: what runs
-``judge``           one frame against a :class:`Check` (observe, then decide a label); :class:`StepContext`
-                    holds what is known beyond the camera
+``judge``           one frame against a :class:`Check` with :class:`WatchModels` (perceive, then decide a label);
+                    :class:`StructuredObservation` reads a frame into a schema; :class:`StepContext` holds what is
+                    known beyond the camera
 ``verify``          the fast check: :func:`judge` in a loop until enough distinct frames confirm it
 ``watch_scoring``   how an evaluation case of a watch step is scored (evaluation only; not imported here)
 ==================  ==========================================================================================
@@ -14,9 +15,20 @@
 
 from __future__ import annotations
 
-from .judge import LABELS, Check, Criteria, Facts, Judgment, Label, StepContext, judge
+from .judge import (
+    LABELS,
+    Check,
+    Criteria,
+    Facts,
+    Judgment,
+    Label,
+    StepContext,
+    StructuredObservation,
+    WatchModels,
+    judge,
+)
 from .verify import Verification, verify
-from .watch_step import WatchSettings, WatchStep, WatchWords, outbound
+from .watch_step import WatchSection, WatchSettings, WatchStep, watch_step_snapshot
 
 __all__ = [
     "Check",
@@ -26,11 +38,13 @@ __all__ = [
     "LABELS",
     "Label",
     "StepContext",
+    "StructuredObservation",
     "Verification",
+    "WatchModels",
+    "WatchSection",
     "WatchSettings",
     "WatchStep",
-    "WatchWords",
     "judge",
-    "outbound",
     "verify",
+    "watch_step_snapshot",
 ]

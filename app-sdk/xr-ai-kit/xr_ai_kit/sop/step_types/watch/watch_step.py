@@ -3,33 +3,34 @@
 
 """A watch step: the camera confirms something.
 
-The check (:func:`~.verify.verify`): a frame every ``interval_s``, observed and labelled by fast models, done when
-``required`` of the last ``window`` decidable frames are positive. No reasoning, never asks. It reads its context
-(:class:`~.judge.StepContext`: the typed facts it started with, and anything added since) on every frame.
+The check (:func:`~.verify.verify`): a frame every ``interval_s``, described and labelled by fast models
+(:class:`~.judge.WatchModels`), done when ``required`` of the last ``window`` decidable frames are positive. No
+reasoning, never asks. It reads its context (:class:`~.judge.StepContext`: the typed facts it started with, and
+anything added since) on every frame.
 
-It supports escalation (``..escalation``): linked to a run's :class:`~...escalation.Link`, it shows an escalator its
-task, its recent judgments, each with the frame it judged, and what it knows (outbound), and adds what the escalator
-sends to its context (inbound), which the next frame's decision reads. It knows nothing else about the escalator.
+It supports escalation (``...escalation``): run with an :class:`~...escalation.EscalationChannel`, it shows an
+escalator a snapshot of itself (its task, its recent judgments as evidence, each with the frame it judged, and what it
+knows) and adds the context the escalator sends to its own, which the next frame's decision reads. It knows nothing
+else about the escalator.
 
-Its definition in the procedure's YAML: the ``watch`` section (:class:`WatchWords`: ``question`` and ``criteria``),
-and ``done``, filled with the build-time values and ``observation`` (the observation that completed it, an instance
-of the check's ``observation_model`` when it has one). How an evaluation case of it is scored is in
-:mod:`.watch_scoring`.
+Its definition in the procedure's YAML: the ``watch`` section (:class:`WatchSection`: ``question`` and ``criteria``),
+``start_line``, and ``done_line``. ``values`` fill the ``{placeholders}`` in all of them; ``done_line`` also gets
+``observation`` (the observation that completed the check, an instance of its observation schema when it has one).
+How an evaluation case of it is scored is in :mod:`.watch_scoring`.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field, replace
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
-from xr_ai_app import Role, clock
+from xr_ai_app import clock
 
-from ...escalation.link import Link, Outbound, Report
-from ...steps.step_api import StepIO
+from ...escalation.escalation_channel import EscalationChannel, Evidence, StepSnapshot
+from ...steps.step_api import StepEnvironment, fill_placeholders
 from ...steps.step_definitions import StepDefinition
-from .judge import Check, Criteria, Facts, Judgment, StepContext
+from .judge import Check, Criteria, Facts, Judgment, StepContext, StructuredObservation, WatchModels
 from .verify import Verification, verify
 
 
@@ -47,107 +48,96 @@ class WatchSettings(BaseModel):
     """Bound on one model call."""
 
 
-class WatchWords(BaseModel):
+class WatchSection(BaseModel):
     """A watch step's section of its definition (``watch:``)."""
 
     model_config = ConfigDict(extra="forbid")
     question: str
-    """What the observing model describes in each frame."""
+    """What the perceiving model describes in each frame."""
     criteria: Criteria
     """How the deciding model labels a description: ``instructions``, ``positive``, ``negative``, ``unknown``."""
 
 
-@dataclass(frozen=True, slots=True)
 class WatchStep:
     """A camera check; see the module docstring.
 
-    ``observe`` describes each frame (a vision model); ``decide`` labels the description (a fast classifier).
+    Built from the step's ``definition`` and the ``models`` it uses. ``values`` fill the placeholders in its words
+    (targets known only at run time). ``facts_schema`` is the typed facts it may need that the camera may not show,
+    and ``known_facts`` (an instance of it) what is known from the start, such as an app setting. ``observation``
+    reads each frame into a schema (:class:`~.judge.StructuredObservation`).
     """
 
     scoring: ClassVar[str] = f"{__package__}.watch_scoring"
     section: ClassVar[str] = "watch"
 
-    id: str
-    check: Check
-    observe: Role
-    decide: Role
-    say: str | None = None
-    done: str | None = None
-    """Spoken when it completes (see the module docstring for its placeholders)."""
-    values: Mapping[str, object] = field(default_factory=dict)
-    """The build-time values given to :meth:`format`, for ``done``."""
-    known: BaseModel | None = None
-    """Typed facts the step starts with (an instance of the check's ``needs``, from the app's settings)."""
-    settings: WatchSettings = field(default_factory=WatchSettings)
-    link: Link | None = None
-    """The run's link to an escalator (set by :meth:`linked`, per run; ``None``: no escalator)."""
-
-    @classmethod
-    def define(
-        cls,
+    def __init__(
+        self,
         definition: StepDefinition,
+        models: WatchModels,
         *,
-        observe: Role,
-        decide: Role,
+        values: Mapping[str, object] | None = None,
+        facts_schema: type[BaseModel] | None = None,
+        known_facts: BaseModel | None = None,
+        observation: StructuredObservation | None = None,
         settings: WatchSettings | None = None,
-        **check: Any,
-    ) -> WatchStep:
-        """The step from its definition. ``check`` is what code adds to the :class:`~.judge.Check` (``needs``,
-        ``observation_model``, ``can_assess``, ``reconcile``)."""
-        words = definition.section(cls.section, WatchWords)
-        return cls(
-            definition.id,
-            Check(words.question, words.criteria, **check),
-            observe,
-            decide,
-            say=definition.say,
-            done=definition.done,
-            settings=settings or WatchSettings(),
+    ) -> None:
+        if known_facts is not None and (facts_schema is None or not isinstance(known_facts, facts_schema)):
+            raise TypeError(f"step {definition.id!r}: known_facts must be an instance of its facts_schema")
+        self.values = dict(values or {})
+        words = definition.section(self.section, WatchSection)
+        criteria = words.criteria
+        self.id = definition.id
+        self.start_line = fill_placeholders(definition.start_line, self.values)
+        self.check = Check(
+            words.question.format(**self.values),
+            Criteria(
+                criteria.instructions.format(**self.values),
+                criteria.positive.format(**self.values),
+                criteria.negative.format(**self.values),
+                criteria.unknown.format(**self.values),
+            ),
+            facts_schema=facts_schema,
+            observation=observation,
         )
+        self.models = models
+        self.known_facts = known_facts
+        self.settings = settings or WatchSettings()
+        self._done_line = definition.done_line
 
-    def format(self, **values: object) -> WatchStep:
-        """A copy with ``{name}`` placeholders filled in the criteria and ``say`` (run-time targets); ``done`` gets
-        them when it is spoken."""
-        say = self.say.format(**values) if self.say else self.say
-        return replace(self, check=self.check.format(**values), say=say, values={**self.values, **values})
-
-    def knowing(self, known: BaseModel | None) -> WatchStep:
-        """A copy that starts with ``known`` as its typed facts."""
-        return replace(self, known=known)
-
-    def linked(self, link: Link) -> WatchStep:
-        """A copy that shows ``link`` its outbound context and takes inbound context from it (escalation)."""
-        return replace(self, link=link)
-
-    def closing(self, result: Verification) -> str | None:
-        """``done``, filled with the build-time values and the observation that completed the check."""
-        if not self.done:
-            return None
+    def done_line(self, result: Verification) -> str | None:
+        """``done_line``, filled with the values and the observation that completed the check."""
         observation = next((j.parsed for j in reversed(result.judgments) if j.label == "positive"), None)
-        return self.done.format(**{**self.values, "observation": observation})
+        return fill_placeholders(self._done_line, {**self.values, "observation": observation})
 
-    async def run(self, io: StepIO) -> Verification:
+    async def run(self, environment: StepEnvironment) -> Verification:
         """Watch until the check completes; returns its final state. Cancelling the task ends the step."""
+        return await self._watch(environment, None)
+
+    async def run_with_escalation(self, environment: StepEnvironment, channel: EscalationChannel) -> Verification:
+        """:meth:`run`, showing ``channel`` a snapshot of the step and taking the context it adds."""
+        return await self._watch(environment, channel)
+
+    async def _watch(self, environment: StepEnvironment, channel: EscalationChannel | None) -> Verification:
         settings = self.settings
-        context = StepContext(self.known)
+        context = StepContext(self.known_facts)
         latest: list[Verification] = []
-        report = io.report(self.id)
 
         async def on_state(state: Verification) -> None:
             latest[:] = [state]
-            await report(state)
+            await environment.report_progress(self.id, state)
 
-        if self.link is not None:
+        if channel is not None:
             started = clock.now()
-            self.link.attach(
-                lambda: outbound(self.id, self.check, latest[0].judgments if latest else (), context.facts, started),
-                lambda inbound: context.add(inbound.note, inbound.known),
+            channel.connect_step(
+                snapshot=lambda: watch_step_snapshot(
+                    self.id, self.check, latest[0].judgments if latest else (), context.facts, started
+                ),
+                add_context=lambda added: context.add(added.note, added.facts),
             )
         return await verify(
-            io.frames,  # type: ignore[arg-type]  # any Frames: the participant's, or a recorded scene
+            environment.frames,  # type: ignore[arg-type]  # any Frames: the participant's, or a recorded scene
             self.check,
-            observe=self.observe,
-            decide=self.decide,
+            self.models,
             context=context,
             required=settings.required,
             window=settings.window,
@@ -157,12 +147,13 @@ class WatchStep:
         )
 
 
-def outbound(
+def watch_step_snapshot(
     step_id: str, check: Check, judgments: tuple[Judgment, ...] | list[Judgment], facts: Facts, started_s: float
-) -> Outbound:
-    """A watch step's outbound context: its check as its task, its judgments as reports, its facts as what it knows."""
+) -> StepSnapshot:
+    """A watch step as its escalator sees it: its check as its task, its judgments as evidence, its facts as what it
+    knows."""
     criteria = check.criteria
-    return Outbound(
+    return StepSnapshot(
         step_id,
         started_s,
         task=(
@@ -171,10 +162,12 @@ def outbound(
             f"It completes when: {criteria.positive}",
             f"It cannot decide when: {criteria.unknown}",
         ),
-        reports=tuple(
-            Report(j.label, j.description[:300] + (f" ({j.reason})" if j.reason else ""), j.label != "unknown", j.frame)
+        evidence=tuple(
+            Evidence(
+                j.label, j.description[:300] + (f" ({j.reason})" if j.reason else ""), j.label != "unknown", j.frame
+            )
             for j in judgments
         ),
         known=facts.text(),
-        needs=check.needs,
+        facts_schema=check.facts_schema,
     )

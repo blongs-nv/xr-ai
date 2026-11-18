@@ -30,31 +30,33 @@ models and its code hooks are chosen in code:
 
 ```yaml
 fill_water:
-  does: fill the kettle with fresh water     # the plan the conversation reads
-  say: Fill the kettle and keep it in view.  # spoken as the step starts
-  done: Water is visible in the kettle.      # spoken when it finishes
-  watch:                                     # the watch step's own section
+  does: fill the kettle with fresh water            # the plan the conversation reads
+  start_line: Fill the kettle and keep it in view.  # spoken as the step starts
+  done_line: Water is visible in the kettle.        # spoken when it finishes
+  watch:                                            # the watch step's own section
     question: Describe whether water is visibly inside the kettle.
     criteria: {instructions: Is there water?, positive: ..., negative: ..., unknown: ...}
   escalation: The kettle has to be in view; the person knows if it is full.
 steep:
-  say: Steeping for {minutes:g} minutes.
-  done: The tea is ready.
+  start_line: Steeping for {minutes:g} minutes.
+  done_line: The tea is ready.
 ```
 
 ```python
-from xr_ai_kit.sop import Escalated, ReportEscalator, Run, SopRunner, StepDefinitions, WaitStep, WatchStep
+from xr_ai_kit.sop import (
+    ReasoningEscalator, Run, SopRunner, StepDefinitions, StepWithEscalator, WaitStep, WatchModels, WatchStep,
+)
 
 STEPS = StepDefinitions.load("steps.yaml")
-fill = Escalated(
-    WatchStep.define(STEPS["fill_water"], observe=vlm, decide=classifier),
-    ReportEscalator.define(STEPS["fill_water"], reasoning),
+fill_water = StepWithEscalator(
+    WatchStep(STEPS["fill_water"], WatchModels(perceive=vlm, decide=classifier)),
+    ReasoningEscalator(STEPS["fill_water"], reasoning),
 )
-steep = WaitStep.define(STEPS["steep"]).lasting(180).format(minutes=3)
+steep = WaitStep(STEPS["steep"], 180, values={"minutes": 3})
 STEPS.check_read()  # every section of the file has a reader
 
 async def make_tea(run: Run) -> None:
-    await run.step(fill)
+    await run.step(fill_water)
     await run.step(steep)
 
 tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier, plan=STEPS.plan()))
@@ -62,26 +64,31 @@ tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier
 # tea.context is the run's summary, for a Conversation's context=.
 ```
 
-- **Steps.** A step is any object with `id`, `say` and `run(io)`; `io` gives
-  it the camera frames, speech and a progress callback. Each step type names
-  the models it uses as its own fields (a watch step's `observe` and
-  `decide`), reads its own section of the YAML, and may have
-  `closing(result)`, the line spoken when it finishes. `WatchStep` labels a
-  frame every few seconds (observe, then decide) until N of the last M
-  decidable frames are positive; `ReadStep` reads into a schema and derives a
+- **Steps.** A step is any object with `id`, `start_line`,
+  `done_line(result)` and `run(environment)`; its `StepEnvironment` gives it
+  the camera, speaking to the person, asking them something, and reporting
+  its progress. The kit's step types are each built in one call: the step's
+  definition (its words from the YAML; each type reads its own section), the
+  models it uses, grouped by what each does (`WatchModels(perceive,
+  decide)`), and `values` for the `{placeholders}` in its words (targets
+  known only at run time), plus a few options of its own. `WatchStep` labels
+  a frame every few seconds (perceive, then decide) until N of the last M
+  decidable frames are positive, optionally reading each frame into a schema
+  (`StructuredObservation`); `ReadStep` reads into a schema and derives a
   result; `WaitStep` counts down. An app's own step type works the same way.
-- **Escalation** is optional and separate from the steps. An escalator
-  runs beside one step (`Escalated(step, escalator)`) and shares only a
-  `Link` with it: it reads the step's **outbound** context (what the step
-  does, its recent reports, each with the frame behind it, what it knows)
-  and gives it **inbound** context (what it learned). It talks to the person
-  itself, and can look at the camera (`io.frames`). An escalator is anything
-  with `run(link, io)`: the kit's `ReportEscalator` reasons in text over the
-  reports and asks the person or tells them what to bring into view, with a
-  prompt each step may replace (its `escalation` section: `guidance`, and
-  optionally `instructions` or the whole `prompt`); another could send the
-  frame behind a report to a model of its own. A step type supports
-  escalation by implementing `linked(link)`; the watch step does.
+- **Escalation** is optional and separate from the steps. An escalator runs
+  beside one step (`StepWithEscalator(step, escalator)`) and shares only an
+  `EscalationChannel` with it: it reads a `StepSnapshot` of the step (what
+  the step does, its recent `Evidence`, each with the frame behind it, what
+  it knows) and gives it `AddedContext` (what it learned). It talks to the
+  person itself, and can look at the camera (`environment.frames`). An
+  escalator is anything with `run(channel, environment)`: the kit's
+  `ReasoningEscalator` reasons in text over the evidence and asks the person
+  or tells them what to bring into view, with a prompt each step may replace
+  (its `escalation` section: `guidance`, and optionally `instructions` or the
+  whole `prompt`); another could send the frame behind the evidence to a
+  model of its own. A step type supports escalation by implementing
+  `run_with_escalation(environment, channel)`; the watch step does.
 - `SopRunner` owns the run: each step is its own task, so skip cancels only
   the step and stop cancels the run; a new turn never cancels either. Every
   change is traced, written to the participant's artifacts (`sop-<name>.jsonl`)

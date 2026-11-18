@@ -6,17 +6,19 @@
 SHAPE: a PROCEDURE (xr_ai_kit.sop). The procedure is a plain async function
 that runs its steps in order; a SopRunner runs it for each participant who
 starts it, and the user can say start, stop, skip or restart, or ask about
-it. Each camera step judges a frame a second (observe, then decide) until two
-of the last three agree; beside it, an escalator of its own (Escalated)
-watches what the step sees and, when the camera cannot tell for a while,
-tells the user what to show, or asks them. Each step says its own lines.
+it. Each camera step judges a frame a second (perceive, then decide) until
+two of the last three agree; beside it, an escalator of its own
+(StepWithEscalator) watches what the step sees and, when the camera cannot
+tell for a while, tells the user what to show, or asks them. Each step says
+its own lines.
 
-  xr_ai_kit.sop                  this file
-  ---------------------------    -------------------------------------------
-  SopRunner (component)          preflight(run): the steps and their order
-  WatchStep, WaitStep (steps)    sop.yaml: the steps' words (StepDefinitions)
-  Escalated, ReportEscalator     what each escalator reads (HELP)
-  controls: start | stop |       the models each step uses
+  xr_ai_kit.sop                     this file
+  -------------------------------   ----------------------------------------
+  SopRunner (component)             preflight(run): the steps and their order
+  WatchStep, WaitStep (steps)       sop.yaml: the steps' words
+  StepWithEscalator,                what each escalator reads (ESCALATION)
+    ReasoningEscalator              the models each step uses
+  controls: start | stop |
     skip | restart
 
 The runner publishes a summary of where the run is to `preflight.context`;
@@ -28,13 +30,14 @@ from pathlib import Path
 from xr_ai_app import App, Hub, PerConnection, Voice
 from xr_ai_kit import Conversation, OneShotDestination, Router
 from xr_ai_kit.sop import (
-    Escalated,
     EscalationSettings,
-    ReportEscalator,
+    ReasoningEscalator,
     Run,
     SopRunner,
     StepDefinitions,
+    StepWithEscalator,
     WaitStep,
+    WatchModels,
     WatchSettings,
     WatchStep,
 )
@@ -45,35 +48,35 @@ app = App.from_config(HERE / "app.yaml", enrollment=PerConnection(admit=None))
 hub = app.add(Hub())
 perceive = app.role("perceive")
 decide = app.role("decide")
-reasoning = app.role("answer_with_reasoning")
+answer_with_reasoning = app.role("answer_with_reasoning")
 voice = app.add(Voice(summarize=app.role("answer_lightweight")))
 
 WARM_UP_S = 90
 
 # ---- the steps: words from sop.yaml, types and models here ----
 DEFINITIONS = StepDefinitions.load(HERE / "sop.yaml")
+# perceive describes each frame; decide labels the description.
+CAMERA_CHECK_MODELS = WatchModels(perceive=perceive, decide=decide)
 # A look a second; done when two of the last three decided looks are yes.
 WATCH = WatchSettings(required=2, window=3, interval_s=1.0)
-
 # Each camera step gets its own escalator: when the camera cannot tell, it
 # tells the user what to show, or asks them. Each reads what it needs:
 # here the checklist's state ("run") and the recent dialogue.
-HELP = EscalationSettings(context=["run", "dialogue"])
+ESCALATION = EscalationSettings(context=["run", "dialogue"])
 
-
-def camera_step(step_id: str) -> Escalated:
-    """A watch step (perceive describes a frame, decide labels it) with its
-    escalator beside it (reasoning)."""
-    definition = DEFINITIONS[step_id]
-    step = WatchStep.define(
-        definition, observe=perceive, decide=decide, settings=WATCH
-    )
-    return Escalated(step, ReportEscalator.define(definition, reasoning, HELP))
-
-
-bed_clear = camera_step("bed_clear")
-door_closed = camera_step("door_closed")
-warm_up = WaitStep.define(DEFINITIONS["warm_up"], WARM_UP_S)
+bed_clear = StepWithEscalator(
+    WatchStep(DEFINITIONS["bed_clear"], CAMERA_CHECK_MODELS, settings=WATCH),
+    ReasoningEscalator(
+        DEFINITIONS["bed_clear"], answer_with_reasoning, ESCALATION
+    ),
+)
+door_closed = StepWithEscalator(
+    WatchStep(DEFINITIONS["door_closed"], CAMERA_CHECK_MODELS, settings=WATCH),
+    ReasoningEscalator(
+        DEFINITIONS["door_closed"], answer_with_reasoning, ESCALATION
+    ),
+)
+warm_up = WaitStep(DEFINITIONS["warm_up"], WARM_UP_S)
 DEFINITIONS.check_read()  # every section of sop.yaml is used
 
 
@@ -106,7 +109,7 @@ INSTRUCTIONS = (
 )
 conversation = app.add(
     Conversation(
-        role=reasoning,
+        role=answer_with_reasoning,
         output=voice,
         instructions=INSTRUCTIONS,
         context=[voice.dialogue, procedure.context],

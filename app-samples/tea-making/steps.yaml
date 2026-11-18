@@ -4,8 +4,8 @@
 # The tea procedure's step definitions (xr_ai_kit.sop.StepDefinitions), one
 # entry per step id. Every step may have:
 #   does        what the person does (the plan the conversation reads)
-#   say         spoken as the step starts
-#   done        spoken when it finishes, filled from its result
+#   start_line  spoken as the step starts
+#   done_line   spoken when it finishes, filled from its result
 # and sections, each read by its owner:
 #   read        the read step's question and instructions
 #   watch       a watch step's question (to the observing model) and
@@ -14,13 +14,16 @@
 #               by the step's escalator); a mapping instead may also give the
 #               step's own escalation prompt: {guidance, instructions, prompt}
 # Which type each step is, its models, schemas and escalator are in
-# procedure.py. {placeholders} are filled in at run time; in heat_water's
-# done, observation is the display reading that completed the step. The
-# questions and criteria follow the tea sample's (NVIDIA/xr-ai PR 711).
+# procedure.py. {placeholders} are filled from the values each step is built
+# with; in a done_line also from its result: identify's reading (the label it
+# read), heat_water's observation (the display reading that completed it).
+# procedure_lines are what the procedure itself says. The questions and
+# criteria follow the tea sample's (NVIDIA/xr-ai PR 711).
 
 identify:
   does: show the tea's label so its settings can be read
-  say: Show the tea's label clearly so I can read its name and type.
+  start_line: Show the tea's label clearly so I can read its name and type.
+  done_line: I read {reading.spoken_name}.
   read:
     question: |-
       Read only clearly legible text on a tea package or tag, including a photo
@@ -42,8 +45,8 @@ identify:
 
 fill_water:
   does: fill the kettle with fresh water
-  say: Fill a kettle or pot with fresh water and keep it in view.
-  done: Water is visible in the vessel.
+  start_line: Fill a kettle or pot with fresh water and keep it in view.
+  done_line: Water is visible in the vessel.
   watch:
     question: |-
       Inspect the kettle or pot the user is deliberately showing (directly in
@@ -69,10 +72,10 @@ fill_water:
 
 heat_water:
   does: heat the water to the recommended temperature
-  say: >-
+  start_line: >-
     Heat the water to {temperature_c:g} degrees Celsius, and keep the
     kettle's display in view.
-  done: >-
+  done_line: >-
     The display reads {observation.reading}; the water is hot enough.
   watch:
     question: |-
@@ -108,7 +111,7 @@ heat_water:
 
 start_steeping:
   does: put the tea in the hot water
-  say: Put the tea in the water; I'll start the timer when I see it.
+  start_line: Put the tea in the water; I'll start the timer when I see it.
   watch:
     question: |-
       Describe tea-water contact only inside an actual physical vessel in the
@@ -136,11 +139,12 @@ start_steeping:
 
 steep:
   does: wait while the timer runs
-  say: I'll time {minutes:g} minutes from now.
-  done: The tea has finished steeping.
+  start_line: I'll time {minutes:g} minutes from now.
+  done_line: The tea has finished steeping.
 
-lines:
-  identified: >-
-    I read {tea}. I recommend {temperature_c:g} degrees Celsius for
+procedure_lines:
+  recommended: >-
+    I recommend {temperature_c:g} degrees Celsius for {minutes:g} minutes.
+  defaults: >-
+    I'll use the default settings: {temperature_c:g} degrees Celsius for
     {minutes:g} minutes.
-  not_identified: I'll use the default settings.

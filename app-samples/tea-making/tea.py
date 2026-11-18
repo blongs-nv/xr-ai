@@ -3,8 +3,8 @@
 
 """Tea-specific data: what is read from the camera and what is derived.
 
-The step functions (xr_ai_kit.sop) know nothing about tea; these schemas and
-the temperature check are what this app passes them.
+The step types (xr_ai_kit.sop) know nothing about tea; these schemas and the
+temperature checks are what procedure.py gives them.
 """
 
 from __future__ import annotations
@@ -50,6 +50,11 @@ class TeaLabel(BaseModel):
         if value is None or any(c.isalpha() for c in value):
             return value
         return None
+
+    @property
+    def spoken_name(self) -> str:
+        """The name and type as spoken ("Bigelow Premium Green Tea green")."""
+        return " ".join(filter(None, (self.tea_name, self.tea_type)))
 
 
 # Recommended brewing settings for the identified tea (None: not
@@ -125,7 +130,9 @@ class DisplayFacts(BaseModel):
 _UNIT_TEXT = {"celsius": "°C", "fahrenheit": "°F"}
 
 
-def reconcile(reading: Thermometer, known: DisplayFacts | None) -> Thermometer:
+def use_known_unit(
+    reading: Thermometer, known: DisplayFacts | None
+) -> Thermometer:
     """The reading with the known unit in place of the unit the model read.
 
     A unit the person stated (or app.yaml set) wins: on a display that prints
@@ -136,7 +143,7 @@ def reconcile(reading: Thermometer, known: DisplayFacts | None) -> Thermometer:
     return reading.model_copy(update={"unit_text": _UNIT_TEXT[known.unit]})
 
 
-def assessable(reading: Thermometer, known: DisplayFacts | None) -> bool:
+def can_judge_reading(reading: Thermometer, known: DisplayFacts | None) -> bool:
     """Whether a reading can be compared with the target at all.
 
     A known unit (the person said it, or app.yaml set it) wins over the unit
@@ -154,7 +161,7 @@ def fahrenheit(celsius: float) -> float:
     return celsius * 9 / 5 + 32
 
 
-def target(temperature_c: float, unit: str | None) -> str:
+def target_in_display_unit(temperature_c: float, unit: str | None) -> str:
     """The minimum as the criteria say it, in the display's unit if known."""
     if unit == "fahrenheit":
         return f"{fahrenheit(temperature_c):g} degrees Fahrenheit"

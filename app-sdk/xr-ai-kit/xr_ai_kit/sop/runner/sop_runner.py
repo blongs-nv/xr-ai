@@ -7,7 +7,7 @@ The procedure is an ``async def procedure(run)`` that runs its steps in order, e
 (a step object: a kit step type from :mod:`..step_types`, an app's own, or one with an escalator beside it) or
 ``await run.step(step_id, work)`` around any coroutine of the app's own. There is no step language and no workflow
 engine: the order, the branches and the data passed between steps are the function's own code. :class:`~.run.Run`
-is what a step touches (a :class:`~..steps.step_api.StepIO`) and what an escalator touches.
+is what a step touches (a :class:`~..steps.step_api.StepEnvironment`) and what an escalator touches.
 
 What the runner adds:
 
@@ -117,7 +117,7 @@ class SopRunner(Component):
             asking=run.asking,
             output=self.output,
             _publish=self._changed,
-            _situation=self._situation,
+            _read_context=self._read_context,
         )
         await self.context.set(p, self.summary(p))
 
@@ -160,11 +160,13 @@ class SopRunner(Component):
     def _new_run(self, p: Participant) -> Run:
         previous = self.run(p)
         number = (previous.number + 1) if previous else 1
-        run = Run(p, number, name=self.name, output=self.output, _publish=self._changed, _situation=self._situation)
+        run = Run(
+            p, number, name=self.name, output=self.output, _publish=self._changed, _read_context=self._read_context
+        )
         p.state[self._key] = run
         return run
 
-    async def _situation(self, p: Participant, sources: Sequence[str]) -> str:
+    async def _read_context(self, p: Participant, sources: Sequence[str]) -> str:
         known = self._sources()
         parts = []
         for name in sources:

@@ -4,25 +4,25 @@
 """A procedure's steps written in one YAML file (:class:`StepDefinitions`), whatever their types.
 
 Only words live in the file; the step's type, models, schemas and code hooks are chosen in code, where the step is
-built from its definition (``WatchStep.define(DEFINITIONS["heat_water"], observe=..., decide=...)``). One entry per
-step, keyed by its id, and ``lines`` for what the procedure says that belongs to no one step::
+built from its definition (``WatchStep(DEFINITIONS["heat_water"], models, ...)``). One entry per step, keyed by
+its id, and ``procedure_lines`` for what the procedure itself says (lines that belong to no one step)::
 
     fill_water:
       does: fill the kettle with fresh water                    # every step: the plan the conversation reads
-      say: Fill a kettle with fresh water and keep it in view.  # every step: spoken as it starts
-      done: Water is visible in the vessel.                     # every step: spoken when it finishes
+      start_line: Fill a kettle with fresh water.               # every step: spoken as it starts
+      done_line: Water is visible in the vessel.                # every step: spoken when it finishes
       watch:                                                    # a section: the watch step's own words
         question: Describe whether water is visibly inside the kettle ...
         criteria: {instructions: ..., positive: ..., negative: ..., unknown: ...}
       escalation: The kettle has to be in the camera's view ... # a section: the step's escalator's guidance
-    lines:
-      not_identified: I'll use the default settings.
+    procedure_lines:
+      defaults: I'll use the default settings.
 
-This module knows only ``does``, ``say`` and ``done``. Every other key of an entry is a section, owned by whatever
-reads it (a step type, an escalator, an app's own component) with :meth:`StepDefinition.section`, which validates it
-against the reader's own type (a words model with ``extra="forbid"``, or ``str``), so nothing here changes for a new
-step type. :meth:`StepDefinitions.unread` lists the sections nothing has read (a misspelled section name, or one
-whose reader is not wired), for an app to check once it has built its steps.
+This module knows only ``does``, ``start_line`` and ``done_line``. Every other key of an entry is a section, owned by
+whatever reads it (a step type, an escalator, an app's own component) with :meth:`StepDefinition.section`, which
+validates it against the reader's own type (a section model with ``extra="forbid"``, or ``str``), so nothing here
+changes for a new step type. :meth:`StepDefinitions.unread` lists the sections nothing has read (a misspelled
+section name, or one whose reader is not wired), for an app to check once it has built its steps.
 """
 
 from __future__ import annotations
@@ -37,21 +37,23 @@ from pydantic import TypeAdapter, ValidationError
 
 T = TypeVar("T")
 
-SHARED = ("does", "say", "done")
+SHARED = ("does", "start_line", "done_line")
 """The keys every step's entry may have; every other key is a section."""
 
 
 @dataclass(frozen=True, slots=True)
 class StepDefinition:
-    """One step's entry: what every step has (``does``, ``say``, ``done``) and its sections (:meth:`section`)."""
+    """One step's entry: what every step has (``does``, ``start_line``, ``done_line``) and its sections
+    (:meth:`section`)."""
 
     id: str
     does: str | None = None
     """What the person does in this step, for the plan the conversation reads."""
-    say: str | None = None
-    """Spoken as the step starts."""
-    done: str | None = None
-    """Spoken when the step finishes ({placeholders} filled from its result; see the step's type)."""
+    start_line: str | None = None
+    """Spoken as the step starts ({placeholders} filled from the values the step is built with)."""
+    done_line: str | None = None
+    """Spoken when the step finishes ({placeholders} filled from those values and its result; see the step's
+    type)."""
     sections: Mapping[str, Any] = field(default_factory=dict)
     """The entry's other keys, each read by its owner."""
     _read: set[str] = field(default_factory=set, repr=False, compare=False)
@@ -73,22 +75,23 @@ class StepDefinition:
 
 
 class StepDefinitions(Mapping[str, StepDefinition]):
-    """A procedure's step definitions by id, in file order, and its ``lines`` (see the module docstring)."""
+    """A procedure's step definitions by id, in file order, and its ``procedure_lines`` (see the module
+    docstring)."""
 
-    def __init__(self, steps: Mapping[str, StepDefinition], lines: Mapping[str, str]) -> None:
+    def __init__(self, steps: Mapping[str, StepDefinition], procedure_lines: Mapping[str, str]) -> None:
         self._steps = dict(steps)
-        self.lines = dict(lines)
+        self.procedure_lines = dict(procedure_lines)
 
     @classmethod
     def load(cls, path: Path | str) -> StepDefinitions:
         raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
-        lines = raw.pop("lines", None) or {}
+        procedure_lines = raw.pop("procedure_lines", None) or {}
         steps = {}
         for step_id, entry in raw.items():
             entry = dict(entry or {})
             shared = {key: entry.pop(key, None) for key in SHARED}
             steps[step_id] = StepDefinition(step_id, **shared, sections=entry)
-        return cls(steps, lines)
+        return cls(steps, procedure_lines)
 
     def __getitem__(self, step_id: str) -> StepDefinition:
         try:
@@ -106,9 +109,9 @@ class StepDefinitions(Mapping[str, StepDefinition]):
         """``(step id, what the person does)`` in file order, for :class:`~..runner.SopRunner`'s ``plan``."""
         return [(d.id, d.does) for d in self._steps.values() if d.does]
 
-    def line(self, name: str, **values: object) -> str:
-        """One of ``lines``, with its ``{placeholders}`` filled."""
-        return self.lines[name].format(**values)
+    def procedure_line(self, name: str, **values: object) -> str:
+        """One of ``procedure_lines``, with its ``{placeholders}`` filled."""
+        return self.procedure_lines[name].format(**values)
 
     def unread(self) -> list[str]:
         """The sections nothing has read so far, as ``step.section``."""

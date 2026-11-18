@@ -17,7 +17,7 @@ class Line:
     """When, on the evaluation's scene clock (the recording's own time for a scene that is one part of it)."""
 
     kind: Literal["ask", "say", "done"]
-    """``ask`` and ``say`` during the step; ``done``: its closing line."""
+    """``ask`` and ``say`` during the step; ``done``: its ``done_line``."""
     text: str
     answer: str | None = None
     """For ``ask``: the person's answer (``None``: none came)."""

@@ -287,7 +287,7 @@ async def run_all(
 def load_models(fakes: Path | None) -> tuple[Models, str]:
     import app as sample  # the router, runner and wording the app uses
 
-    decide, answer = sample.decide, sample.answer
+    decide, answer = sample.decide, sample.answer_with_reasoning
     label = "yaml/models.json (decide, answer_with_reasoning)"
     routing, tea = sample.routing, sample.tea
     if fakes is not None:

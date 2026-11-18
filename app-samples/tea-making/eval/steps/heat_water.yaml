@@ -22,25 +22,25 @@ cases:
   # The unit is known (app.yaml): it watches quietly while the water heats.
   - name: rising
     scene: [26, 321]
-    build: {unit: fahrenheit}
+    build: {display_unit: fahrenheit}
     expect: {completes: false, quiet: true}
 
   - name: at_target
     scene: [335, 346]
-    build: {unit: fahrenheit}
+    build: {display_unit: fahrenheit}
     expect: {completes: true}
 
   # Heating in view, then the person looks away (the packet close up, then
   # opening the tea bag); told to, they show the kettle again.
   - name: looked_away
     scene: [[26, 36], [5, 12], [5, 12], [5, 12], [346, 351], [346, 351]]
-    build: {unit: fahrenheit}
+    build: {display_unit: fahrenheit}
     person: {after_tell: [[36, 80]]}
     expect: {says: [kettle, display, view], completes: false}
 
   - name: setpoint_flash
     scene: [20, 30]
-    build: {unit: fahrenheit}
+    build: {display_unit: fahrenheit}
     expect: {completes: false}
     why: 176 shows at 22.5-25.5 s while the button is pressed; it is the kettle's target setting
 

@@ -15,9 +15,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Literal
 
-from xr_ai_app import FrameStream, Role, clock
+from xr_ai_app import FrameStream, clock
 
-from .judge import Check, Facts, Judgment, Label, StepContext, judge
+from .judge import Check, Facts, Judgment, Label, StepContext, WatchModels, judge
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,9 +56,8 @@ class Verification:
 async def verify(
     frames: FrameStream,
     check: Check,
+    models: WatchModels,
     *,
-    observe: Role,
-    decide: Role,
     context: StepContext | None = None,
     required: int = 2,
     window: int = 4,
@@ -88,7 +87,7 @@ async def verify(
             continue
         last = (frame.timestamp_us, frame.sequence)
         facts = context.facts if context is not None else Facts()
-        judgment = await judge(frame, check, observe=observe, decide=decide, facts=facts, timeout_s=timeout_s)
+        judgment = await judge(frame, check, models, facts=facts, timeout_s=timeout_s)
         recent.append(judgment)
         if judgment.label != "unknown":
             labels.append(judgment.label)

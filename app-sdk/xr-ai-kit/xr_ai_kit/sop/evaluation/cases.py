@@ -14,7 +14,7 @@ A case file is about one step::
         expect: {asks: [unit], completes: {after: 330}}   # completes: the step's; asks: its escalator's
       - name: looked_away
         scene: [[26, 36], [5, 12], [5, 12], [5, 12]]
-        build: {unit: fahrenheit}     # this case's own factory values
+        build: {display_unit: fahrenheit}   # this case's own factory values
         person: {after_tell: [[26, 60]]}
         expect: {says: [kettle, display], completes: false}
 
@@ -46,9 +46,9 @@ from typing import Any, Protocol
 import yaml
 from pydantic import BaseModel, ConfigDict, create_model
 
-from ..steps.step_api import Step, closing_line
+from ..steps.step_api import Step
 from .scene import Recording, SceneFrames
-from .scripted_io import Person, ScriptedIO
+from .scripted_environment import Person, ScriptedEnvironment
 from .step_trace import Line, StepTrace
 
 
@@ -174,13 +174,13 @@ async def run_case(
     scoring = scoring_for(step, scorings)
     expect = scoring.Expect.model_validate(case.expect)
     scene = SceneFrames(recording, case.scene)
-    io = ScriptedIO(step.id, scene, case.person, case.context)
+    environment = ScriptedEnvironment(step.id, scene, case.person, case.context)
     began = time.monotonic()
     scene.begin()
-    task = asyncio.ensure_future(step.run(io))
+    task = asyncio.ensure_future(step.run(environment))
     while not task.done() and (remaining := scene.remaining_s()) > 0:
         await asyncio.wait({task}, timeout=remaining)
-    trace = io.trace
+    trace = environment.trace
     if task.done():
         if task.cancelled():
             trace.error = "cancelled"
@@ -188,8 +188,8 @@ async def run_case(
             trace.error = repr(exc)
         else:
             trace.completed, trace.completed_at_s, trace.result = True, scene.now(), task.result()
-            if closing := closing_line(step, trace.result):  # what the runner would say as it finishes
-                trace.lines.append(Line(scene.now(), "done", closing))
+            if done_line := step.done_line(trace.result):  # what the runner would say as it finishes
+                trace.lines.append(Line(scene.now(), "done", done_line))
     else:
         task.cancel()
         with contextlib.suppress(BaseException):

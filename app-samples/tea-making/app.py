@@ -14,8 +14,8 @@ Router asks Clef (`decide`) where each turn goes:
 
 Starting the guide starts a run that outlives the turn: a question, or an
 interruption, never cancels it. Each step watches the camera on its own
-clock (identify, verify, timer); the runner speaks each instruction and
-result, and the conversation answers from the same state. Roles are the
+clock (a read step, watch steps, a wait step); the runner speaks each step's
+lines, and the conversation answers from the same state. Roles are the
 jobs, as in the teaching samples: perceive (the omni model on images, no
 reasoning: the per-frame loop), answer_with_reasoning (the same model,
 reasoning: answers, recommendations, escalation), answer_lightweight (no
@@ -25,7 +25,7 @@ every frame's verdict) and speech_out (Pocket TTS).
 
 from pathlib import Path
 
-from procedure import DEFINITIONS, TeaModels, TeaSettings, make_tea
+from procedure import DEFINITIONS, TeaProcedure, TeaSettings
 from pydantic import BaseModel, Field
 from xr_ai_app import App, Hub, Participant, PerConnection, Turn, Voice
 from xr_ai_kit import Ack, Conversation, OneShotDestination, Router
@@ -51,13 +51,18 @@ app = App.from_config(HERE / "app.yaml", enrollment=PerConnection(admit=None))
 SETTINGS = app.settings(Settings)
 app.add(Hub())  # the device connection: who is here, and their camera
 perceive = app.role("perceive")
-answer = app.role("answer_with_reasoning")
+answer_with_reasoning = app.role("answer_with_reasoning")
 decide = app.role("decide")
-MODELS = TeaModels(observe=perceive, decide=decide, reason=answer)
+tea_procedure = TeaProcedure(
+    perceive=perceive,
+    decide=decide,
+    answer_with_reasoning=answer_with_reasoning,
+    settings=SETTINGS.tea,
+)
 voice = app.add(
     Voice(
         tts=app.role("speech_out"),
-        summarize=answer,
+        summarize=answer_with_reasoning,
         dialogue_budget_bytes=SETTINGS.dialogue_budget_bytes,
     )
 )
@@ -65,7 +70,7 @@ voice = app.add(
 tea = app.add(
     SopRunner(
         "tea",
-        make_tea(MODELS, SETTINGS.tea),
+        tea_procedure.make_tea,
         title="Tea guidance",
         decide=decide,
         output=voice,
@@ -83,7 +88,7 @@ tea = app.add(
 
 conversation = app.add(
     Conversation(
-        role=answer,
+        role=answer_with_reasoning,
         output=voice,
         instructions=prompt("conversation"),
         context=[tea.context, voice.dialogue],

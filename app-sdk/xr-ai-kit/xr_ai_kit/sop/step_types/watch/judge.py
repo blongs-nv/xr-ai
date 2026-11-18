@@ -4,10 +4,11 @@
 """One camera frame judged against a check: the unit every visual check is built from.
 
 A :class:`Check` declares what a step verifies: the question asked of each frame, the criteria for done, and,
-optionally, what it may need to know that the camera cannot show (``needs``; a step's escalator may ask the person
-for it). An observing role describes the frame (free text, or an instance of a schema); a deciding role
-reads that description, with the :class:`Facts` known so far, and picks ``positive``, ``negative`` or ``unknown``
-against the criteria. Keeping the two apart means the observation can be read back and evaluated on its own, and
+optionally, the typed facts it may need that the camera cannot show (``facts_schema``; a step's escalator may ask the
+person for them) and how to read each frame into a schema (:class:`StructuredObservation`). The perceiving model
+(:class:`WatchModels`) describes the frame (free text, or an instance of the schema); the deciding model reads that
+description, with the :class:`Facts` known so far, and picks ``positive``, ``negative`` or ``unknown`` against the
+criteria. Keeping the two apart means the observation can be read back and evaluated on its own, and
 the same function runs live (inside :func:`verify`) and offline (an evaluation over recorded frames).
 """
 
@@ -15,7 +16,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -45,15 +46,6 @@ class Criteria:
         """The criteria as ``role.decide`` choices."""
         return {"positive": self.positive, "negative": self.negative, "unknown": self.unknown}
 
-    def format(self, **values: object) -> Criteria:
-        """A copy with ``{name}`` placeholders filled in every field (for targets known only at run time)."""
-        return Criteria(
-            self.instructions.format(**values),
-            self.positive.format(**values),
-            self.negative.format(**values),
-            self.unknown.format(**values),
-        )
-
 
 @dataclass(frozen=True, slots=True)
 class Judgment:
@@ -70,7 +62,7 @@ class Judgment:
     """The frame's per-participant sequence number (0 when the source does not number frames)."""
 
     parsed: BaseModel | None = None
-    """The observation as an instance of the schema, when one was given and the reply fit it."""
+    """The observation as an instance of the check's observation schema, when it has one and the reply fit it."""
 
     confidence: float | None = None
     """The deciding role's confidence in ``label``, when it reports one."""
@@ -83,34 +75,51 @@ class Judgment:
 
 
 @dataclass(frozen=True, slots=True)
-class Check:
-    """What one visual check verifies; declared by the app, run by :func:`verify`.
+class WatchModels:
+    """The models a watch step uses, by what each does."""
 
-    ``question`` is asked of each frame and ``criteria`` define done. ``observation_model`` makes the observation a
-    schema instance, and ``can_assess(observation, known)`` is a check in code over it and the typed facts known so
-    far (``known`` is ``None`` when the check has no ``needs``): when it is false the frame is ``unknown`` without a
-    decision. ``reconcile(observation, known)`` returns the observation corrected with the known facts before anything
-    judges it (a unit the person stated replacing one the model claims to read): known facts win in code, not by
-    asking the deciding model to prefer them. ``needs`` is a schema of facts the check may need but the camera may
-    not establish (a display's unit, a vessel's contents); the step's escalator (``...escalation``) may ask the person
-    for them.
+    perceive: Role
+    """Describes each frame (a vision model), as free text or into the observation schema."""
+    decide: Role
+    """Labels a description against the criteria (a fast classifier)."""
+
+
+@dataclass(frozen=True, slots=True)
+class StructuredObservation:
+    """Optional for a check: read each frame into a schema, and work with it in code before anything decides.
+
+    ``schema`` is what the perceiving model fills in for each frame (a display's number and unit, say).
+    ``apply_known_facts(observation, facts)`` returns the observation corrected with the typed facts known so far
+    (a unit the person stated replacing one the model claims to read): known facts win in code, not by asking the
+    deciding model to prefer them. ``can_judge(observation, facts)`` says whether the observation can be judged at
+    all; when it is false the frame is ``unknown`` without a decision. ``facts`` is ``None`` while none are known.
+    """
+
+    schema: type[BaseModel]
+    apply_known_facts: Callable[[Any, Any], Any] | None = None
+    can_judge: Callable[[Any, Any], bool] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Check:
+    """What one visual check verifies; run by :func:`verify`.
+
+    ``question`` is asked of each frame and ``criteria`` define done. ``facts_schema`` is a schema of facts the check
+    may need but the camera may not establish (a display's unit, a vessel's contents); the step's escalator
+    (``...escalation``) may ask the person for them. ``observation``, when given, reads each frame into a schema
+    (:class:`StructuredObservation`).
     """
 
     question: str
     criteria: Criteria
-    needs: type[BaseModel] | None = None
-    observation_model: type[BaseModel] | None = None
-    can_assess: Callable[[Any, Any], bool] | None = None
-    reconcile: Callable[[Any, Any], Any] | None = None
-
-    def format(self, **values: object) -> Check:
-        """A copy with ``{name}`` placeholders filled in the criteria (targets known only at run time)."""
-        return replace(self, criteria=self.criteria.format(**values))
+    facts_schema: type[BaseModel] | None = None
+    observation: StructuredObservation | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class Facts:
-    """What is known beyond the camera: typed facts (an instance of a check's ``needs``) and what the person said."""
+    """What is known beyond the camera: typed facts (an instance of a check's ``facts_schema``) and notes (what the
+    person said)."""
 
     known: BaseModel | None = None
     said: tuple[str, ...] = field(default=())
@@ -135,10 +144,10 @@ class Facts:
 
 
 class StepContext:
-    """A step's external context channel: what is known from outside the fast loop.
+    """What a watch step knows from outside its fast loop, for one run of the step.
 
     The check reads :attr:`facts` on every frame and never writes; anything outside the loop (an app setting at the
-    start, the side escalation with what the person answered) adds to it with :meth:`add`. One per step run.
+    start, the escalator beside the step with what the person answered) adds to it with :meth:`add`.
     """
 
     def __init__(self, known: BaseModel | None = None) -> None:
@@ -156,42 +165,43 @@ class StepContext:
 async def judge(
     frame: Frame,
     check: Check,
+    models: WatchModels,
     *,
-    observe: Role,
-    decide: Role,
     facts: Facts | None = None,
     timeout_s: float | None = None,
 ) -> Judgment:
-    """Describe ``frame`` with ``observe``, then judge the description against ``check`` with ``decide``.
+    """Describe ``frame`` with ``models.perceive``, then judge the description against ``check`` with
+    ``models.decide``.
 
-    With ``check.observation_model`` the observation is an instance of that schema; a reply that does not fit it is
-    ``unknown`` (reason ``unreadable``) without a decision. When ``check.can_assess`` is false for the observation and
-    the known facts, the frame is ``unknown`` (reason ``not assessable``) and the deciding role is not asked. The
+    With ``check.observation`` the observation is an instance of its schema; a reply that does not fit it is
+    ``unknown`` (reason ``unreadable``) without a decision. When its ``can_judge`` is false for the observation and
+    the known facts, the frame is ``unknown`` (reason ``not assessable``) and the deciding model is not asked. The
     facts reach the decision, never the observation, so what the camera shows is described on its own. ``timeout_s``
     bounds the observation call.
     """
     facts = facts or Facts()
     parsed: BaseModel | None = None
-    if check.observation_model is not None:
+    structured = check.observation
+    if structured is not None:
         try:
-            parsed = await observe.ask(
-                frame, check.question, response_format=check.observation_model, timeout_s=timeout_s
+            parsed = await models.perceive.ask(
+                frame, check.question, response_format=structured.schema, timeout_s=timeout_s
             )
         except StructuredOutputError:
             return Judgment("unknown", "", frame.timestamp_us, frame.sequence, reason="unreadable", frame=frame)
-        if check.reconcile is not None:
-            parsed = check.reconcile(parsed, facts.known)
+        if structured.apply_known_facts is not None:
+            parsed = structured.apply_known_facts(parsed, facts.known)
         description = parsed.model_dump_json(exclude_none=True)
-        if check.can_assess is not None and not check.can_assess(parsed, facts.known):
+        if structured.can_judge is not None and not structured.can_judge(parsed, facts.known):
             return Judgment(
                 "unknown", description, frame.timestamp_us, frame.sequence, parsed, reason="not assessable", frame=frame
             )
     else:
-        description = str(await observe.ask(frame, check.question, timeout_s=timeout_s)).strip()
+        description = str(await models.perceive.ask(frame, check.question, timeout_s=timeout_s)).strip()
     context = f"Observation of the current camera frame:\n{description}"
     if known := facts.text():
         context += f"\n\n{known}"
     criteria = check.criteria
-    decision = await decide.decide(criteria.instructions, choices=criteria.choices(), context=context)
+    decision = await models.decide.decide(criteria.instructions, choices=criteria.choices(), context=context)
     label: Label = str(decision) if str(decision) in LABELS else "unknown"  # type: ignore[assignment]
     return Judgment(label, description, frame.timestamp_us, frame.sequence, parsed, decision.confidence, frame=frame)

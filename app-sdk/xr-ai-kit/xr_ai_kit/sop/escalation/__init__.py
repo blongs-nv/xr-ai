@@ -4,53 +4,61 @@
 """Escalation: an agent of its own beside a step, helping the person when the step cannot decide.
 
 =========================  ===========================================================================================
-``link``                   :class:`Link`, the only thing a step and its escalator share: the step's outbound
-                           context (:class:`Outbound`) and the escalator's inbound context (:class:`Inbound`);
-                           :class:`Escalatable`, what a step type implements to support it; :class:`Escalator`,
-                           what any escalator implements; :class:`EscalationIO`, how it reaches the person and
-                           the camera
-``escalator``              :class:`ReportEscalator`, the kit's :class:`Escalator`: when the step is stuck, reason
-                           over its reports and ask the person or tell them what to do; its prompt is per step
-``escalated``              :class:`Escalated`: a step with an escalator beside it, itself a step
+``escalation_channel``     :class:`EscalationChannel`, the only thing a step and its escalator share: a
+                           :class:`StepSnapshot` of the step for the escalator, and :class:`AddedContext` from the
+                           escalator for the step; :class:`SupportsEscalation`, what a step type implements to
+                           support it; :class:`Escalator`, what any escalator implements; :class:`EscalatorEnvironment`,
+                           how an escalator reaches the person and the camera
+``reasoning_escalator``    :class:`ReasoningEscalator`, the kit's :class:`Escalator`: when the step is stuck, reason
+                           over its evidence and ask the person or tell them what to do; its prompt is per step
+``step_with_escalator``    :class:`StepWithEscalator`: a step with an escalator beside it, itself a step
 ``escalation_scoring``     what an evaluation case may expect of an escalator (evaluation only; not imported here)
 =========================  ===========================================================================================
 
 Optional: the core step contract does not mention it, and a step type supports it only by implementing
-:class:`Escalatable`. Nothing here imports a step type.
+:class:`SupportsEscalation`. Nothing here imports a step type.
 """
 
 from __future__ import annotations
 
-from .escalated import Escalated
-from .escalator import (
+from .escalation_channel import (
+    AddedContext,
+    EscalationChannel,
+    Escalator,
+    EscalatorEnvironment,
+    Evidence,
+    StepSnapshot,
+    SupportsEscalation,
+)
+from .reasoning_escalator import (
     INSTRUCTIONS,
     PROMPT,
-    STUCK,
-    Escalation,
+    STUCK_RULE,
+    EscalationMessage,
+    EscalationSection,
     EscalationSettings,
-    EscalationWords,
-    ReportEscalator,
-    escalation_for,
-    stuck,
+    ReasoningEscalator,
+    decide_escalation,
+    is_stuck,
 )
-from .link import Escalatable, EscalationIO, Escalator, Inbound, Link, Outbound, Report
+from .step_with_escalator import StepWithEscalator
 
 __all__ = [
     "INSTRUCTIONS",
     "PROMPT",
-    "STUCK",
-    "Escalatable",
-    "Escalated",
-    "Escalation",
-    "EscalationIO",
+    "STUCK_RULE",
+    "AddedContext",
+    "EscalationChannel",
+    "EscalationMessage",
+    "EscalationSection",
     "EscalationSettings",
-    "EscalationWords",
     "Escalator",
-    "Inbound",
-    "Link",
-    "Outbound",
-    "Report",
-    "ReportEscalator",
-    "escalation_for",
-    "stuck",
+    "EscalatorEnvironment",
+    "Evidence",
+    "ReasoningEscalator",
+    "StepSnapshot",
+    "StepWithEscalator",
+    "SupportsEscalation",
+    "decide_escalation",
+    "is_stuck",
 ]
