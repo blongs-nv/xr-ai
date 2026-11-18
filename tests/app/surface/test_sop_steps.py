@@ -736,24 +736,3 @@ async def test_a_transform_cannot_be_skipped_even_while_it_asks() -> None:
     )
     assert said == [MESSAGES["cannot_skip"]]
     assert run.steps[0].status == "done" and results == [Brewing(tea_type="green", temperature_c=80, minutes=2)]
-
-
-def test_a_gate_makes_the_model_decide_first_and_fill_nothing_on_no() -> None:
-    from xr_ai_kit.sop import gate, gated_reply
-
-    class Reading(BaseModel):
-        value: float
-        unit: str | None = None
-
-    Reply = gated_reply("display_in_view", Reading, otherwise={"what_is_in_view": str})
-    schema = Reply.model_json_schema()
-    shapes = [schema["$defs"][ref["$ref"].split("/")[-1]] for ref in schema["properties"]["look"]["anyOf"]]
-    assert [list(shape["properties"])[0] for shape in shapes] == ["display_in_view", "display_in_view"]  # first
-    shown, absent = shapes
-    assert set(shown["properties"]) == {"display_in_view", "value", "unit"}
-    assert set(absent["properties"]) == {"display_in_view", "what_is_in_view"}  # nothing to fill on no
-    assert Reply.model_validate({"look": {"display_in_view": True, "value": 80}}).look.value == 80
-    with pytest.raises(ValueError):
-        Reply.model_validate({"look": {"display_in_view": False, "value": 80}})  # no shape has both
-    nested = gate("unit_printed", Reading)
-    assert {model.__name__ for model in nested.__args__} == {"ReadingShown", "ReadingAbsent"}

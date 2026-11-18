@@ -64,7 +64,7 @@ from .escalation import (
     is_stuck,
 )
 from .runner import CONTROLS, MESSAGES, Run, SopRunner, StepRecord
-from .step_types.read import ReadSection, ReadSettings, ReadState, ReadStep, gate, gated_reply, read_until_enough
+from .step_types.read import ReadSection, ReadSettings, ReadState, ReadStep, read_until_enough
 from .step_types.transform import TransformSection, TransformSettings, TransformState, TransformStep
 from .step_types.wait import TimerState, WaitInputs, WaitStep, timer
 from .step_types.watch import (
@@ -147,8 +147,6 @@ __all__ = [
     "check_placeholders",
     "decide_escalation",
     "fill_placeholders",
-    "gate",
-    "gated_reply",
     "is_stuck",
     "judge",
     "read_until_enough",
