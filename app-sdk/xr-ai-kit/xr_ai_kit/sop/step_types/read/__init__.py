@@ -6,6 +6,8 @@
 ``read_step`` is :class:`ReadStep` (what runs); ``read_until_enough`` is the reading underneath
 (:func:`read_until_enough`, merging what each frame shows); ``read_scoring`` is how an evaluation case of it is
 scored (evaluation only; not imported here).
+
+Patterns, what works and what does not, smaller models and speed: README.md, next to this file.
 """
 
 from __future__ import annotations

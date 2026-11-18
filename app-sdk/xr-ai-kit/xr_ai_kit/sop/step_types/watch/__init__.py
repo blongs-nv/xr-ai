@@ -11,6 +11,8 @@
 ``verify``          the fast check: :func:`judge` in a loop until enough distinct frames confirm it
 ``watch_scoring``   how an evaluation case of a watch step is scored (evaluation only; not imported here)
 ==================  ==========================================================================================
+
+Patterns, what works and what does not, smaller models and speed: README.md, next to this file.
 """
 
 from __future__ import annotations

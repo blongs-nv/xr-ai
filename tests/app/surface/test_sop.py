@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+from typing import Literal
 
 import pytest
 from pydantic import BaseModel
@@ -361,7 +362,7 @@ async def test_reading_merges_what_each_frame_shows_until_it_is_enough() -> None
                 p.frames,
                 perceive=app.role("observe"),
                 question="Read the label.",
-                reading_schema=Settings,
+                reply_schema=Settings,
                 is_enough=lambda read: read.temperature_c is not None,
                 interval_s=0.01,
                 on_state=on_state,
@@ -371,6 +372,50 @@ async def test_reading_merges_what_each_frame_shows_until_it_is_enough() -> None
         result = job.result()
     assert result == Settings(tea_type="green tea", temperature_c=80)
     assert [st.status for st in states] == ["reading", "reading", "completed"]
+
+
+async def test_reading_extracts_each_reply_so_a_gated_reply_keeps_what_was_read() -> None:
+    """A reply shaped to guide the model (a gate: is the package in view?) is turned into the record kept; a frame
+    without the package reads nothing and erases nothing."""
+
+    class InView(BaseModel):
+        package_in_view: Literal[True]
+        tea_type: str | None = None
+        temperature_c: float | None = None
+
+    class NotInView(BaseModel):
+        package_in_view: Literal[False]
+
+    class Look(BaseModel):
+        look: InView | NotInView
+
+    def settings(reply: Look) -> Settings:
+        seen = reply.look
+        return Settings(**seen.model_dump(exclude={"package_in_view"})) if isinstance(seen, InView) else Settings()
+
+    replies = [
+        {"look": {"package_in_view": True, "tea_type": "green tea"}},
+        {"look": {"package_in_view": False}},
+        {"look": {"package_in_view": True, "temperature_c": 80}},
+    ]
+    models = FakeModels({"observe": replies})
+    app = _app()
+    async with app.test_session(models=models) as s:
+        await s.join()
+        p = s.participant()
+        job = asyncio.ensure_future(
+            read_until_enough(
+                p.frames,
+                perceive=app.role("observe"),
+                question="Read the label.",
+                reply_schema=Look,
+                extract=settings,
+                is_enough=lambda read: read.temperature_c is not None,
+                interval_s=0.01,
+            )
+        )
+        await _until(s, job.done, frames=True)
+    assert job.result() == Settings(tea_type="green tea", temperature_c=80)
 
 
 # ------------------------------------------------------------------------------- the runner

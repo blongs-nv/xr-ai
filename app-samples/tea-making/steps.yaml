@@ -27,23 +27,18 @@ identify:
   start_line: >-
     Show me the tea's package, so I can read its name and its brewing
     directions.
-  done_line: I read {reading.tea.spoken_name}.
+  done_line: I read {reading.spoken_name}.
   read:
     question: |-
-      Read only clearly legible text on a tea package or tag, including a photo
-      or screen showing it. Before each value, say where it is printed: on the
-      tea's own package, on a kettle or other appliance (its label or
-      display), on some other object, or not visible. brand and name: copy
-      only a clearly readable brand or product name; if it is blurred,
-      obscured, partly readable or uncertain, return null. Never guess a brand
-      or complete a name from memory, packaging appearance, color or artwork.
-      tea_type: only the kind of tea explicitly readable on the package; a
-      brand name is not a kind of tea. water_temperature: only a brewing
-      temperature printed on the tea's package, with the unit printed beside
-      it; a kettle's display shows the water now, not a brewing direction.
-      steep_time: only a steeping time printed on the package, in minutes; a
-      range such as 2-3 minutes gives both ends, a single time gives the same
-      for both. Return null for anything not legibly printed.
+      Is a tea package, bag or tag (or a photo or screen of one) in view? If
+      not, say what is in view instead and read nothing. If it is: first copy
+      every legible word on the tea's own package; then its brand, name and
+      kind of tea from those words, quoting them. Never guess a brand or
+      complete a name from memory. Then: are brewing directions (a water
+      temperature or a steeping time) printed and legible on this package in
+      this image? Only if so, copy them word for word and fill them in. What
+      you know about a tea is not printed on it. A kettle, its display or
+      label, a mug or any other object is not the tea's package.
 
 choose_settings:
   does: work out the brewing settings

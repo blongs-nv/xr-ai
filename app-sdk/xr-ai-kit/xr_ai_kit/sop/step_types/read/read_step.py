@@ -41,13 +41,15 @@ class ReadSettings(BaseModel):
 
 
 class ReadStep:
-    """Read ``reading_schema`` from the camera until ``is_enough(reading)``; the result is the reading.
+    """Read from the camera until ``is_enough(reading)``; the result is the reading (see this package's README for
+    how to shape the schema).
 
     ``perceive`` reads each frame (a vision model). Reading a frame into a schema means judging what each field may
     take (what is printed on the package, not a display behind it): either a model that reasons, or a schema that
-    makes it state where each value comes from before the value, without reasoning (the tea sample's). ``is_enough``
-    decides in code whether what has been read is enough to go on
-    (fields read in different frames are merged). ``inputs_schema`` is what each run starts with (``None``:
+    makes it decide what is in view and copy what it sees before it interprets it, without reasoning (the tea
+    sample's). ``reply_schema`` is what the model fills in for one frame, ``extract`` turns a reply into the record
+    that is kept (default: the reply itself; fields read in different frames are merged), and ``is_enough`` decides in
+    code whether what has been read is enough to go on. ``inputs_schema`` is what each run starts with (``None``:
     nothing).
     """
 
@@ -59,7 +61,8 @@ class ReadStep:
         definition: StepDefinition,
         perceive: Role,
         *,
-        reading_schema: type[BaseModel],
+        reply_schema: type[BaseModel],
+        extract: Callable[[Any], BaseModel] | None = None,
         is_enough: Callable[[Any], bool] = lambda _reading: True,
         inputs_schema: type[BaseModel] | None = None,
         settings: ReadSettings | None = None,
@@ -69,7 +72,8 @@ class ReadStep:
         self.inputs_schema = inputs_schema
         self.question = words.question
         self.perceive = perceive
-        self.reading_schema = reading_schema
+        self.reply_schema = reply_schema
+        self.extract = extract
         self.is_enough = is_enough
         self.settings = settings or ReadSettings()
         self._start_line = definition.start_line
@@ -95,7 +99,8 @@ class ReadStep:
             environment.frames,  # type: ignore[arg-type]  # any Frames: the participant's, or a recorded scene
             perceive=self.perceive,
             question=fill_placeholders(self.question, inputs) or "",
-            reading_schema=self.reading_schema,
+            reply_schema=self.reply_schema,
+            extract=self.extract,
             is_enough=self.is_enough,
             interval_s=self.settings.interval_s,
             timeout_s=self.settings.timeout_s,

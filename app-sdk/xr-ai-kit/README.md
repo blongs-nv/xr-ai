@@ -87,7 +87,11 @@ tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier
   `TransformStep` has a reasoning model turn one schema into another
   following its prompt (filling in what a reading left empty, keeping what
   it has), may ask the person a question, and cannot be skipped; `WaitStep`
-  counts down. An app's own step type works the same way.
+  counts down. An app's own step type works the same way. Each step type's
+  README (`xr_ai_kit/sop/step_types/<type>/README.md`) covers its patterns,
+  what works and what does not (measured on real models), smaller models and
+  speed; `step_types/README.md` covers shaping a schema a vision model fills
+  in.
 - **Escalation** is optional and separate from the steps. An escalator runs
   beside one step (`StepWithEscalator(step, escalator)`) and shares only an
   `EscalationChannel` with it: it reads a `StepSnapshot` of the step (what

@@ -29,11 +29,12 @@ from pydantic import BaseModel, Field
 from tea import (
     DisplayFacts,
     Tea,
-    TeaPackageReading,
+    TeaPackageLook,
     Thermometer,
     WaterTemperature,
     can_judge_reading,
     fahrenheit,
+    tea_from_look,
     use_known_unit,
 )
 from xr_ai_app import Role
@@ -101,10 +102,10 @@ class TeaProcedure:
     """The tea procedure (make_tea, for SopRunner) and its steps.
 
     perceive reads camera frames, without reasoning: the watch steps'
-    descriptions, and the package (TeaPackageReading names where each value
-    is printed before the value, so a number on the kettle's display is
-    dropped); decide labels what perceive saw (fast); answer_with_reasoning
-    fills in the brewing settings and is what every escalator reasons with.
+    descriptions, and the package (TeaPackageLook: whether a package is in
+    view, its words, then each value with the words it comes from); decide
+    labels what perceive saw (fast); answer_with_reasoning fills in the
+    brewing settings and is what every escalator reasons with.
     These are yaml/models.json's roles.
     """
 
@@ -121,7 +122,8 @@ class TeaProcedure:
         self.identify = ReadStep(
             DEFINITIONS["identify"],
             perceive,
-            reading_schema=TeaPackageReading,
+            reply_schema=TeaPackageLook,
+            extract=tea_from_look,
             is_enough=lambda tea: tea.tea_type is not None,
             settings=settings.read,
         )
@@ -182,7 +184,7 @@ class TeaProcedure:
     async def make_tea(self, run: Run) -> None:
         """The procedure: read the package, fill in its settings, brew."""
         read = await run.step(self.identify)  # None when skipped
-        tea = await run.step(self.choose_settings, read.tea if read else Tea())
+        tea = await run.step(self.choose_settings, read or Tea())
         # choose_settings cannot be skipped, and it always sets both.
         assert tea is not None
         assert tea.water_temperature is not None and tea.steep_time is not None

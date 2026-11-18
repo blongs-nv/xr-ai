@@ -3,10 +3,12 @@
 
 """Read something from the camera into a schema, frame after frame, until what has been read is enough.
 
-The schema is the app's (``reading_schema``, for example what a tea's package says). Its fields should default to
-``None``: a frame shows only part of the thing (the front of a box, then its back), so each field keeps the last
-value read for it, and a later frame that does not show a field does not erase it. Whether what has been read is
-enough to go on is the app's call, in code (``is_enough``).
+The schema is the app's: ``reply_schema``, what the model fills in for one frame (it may be shaped to guide the
+model: a gate such as "is the package in view?", the words copied before they are interpreted; see this package's
+README), and ``extract``, which turns one reply into the record that is kept (default: the reply itself). The
+record's fields should default to ``None``: a frame shows only part of the thing (the front of a box, then its
+back), so each field keeps the last value read for it, and a later frame that does not show a field does not erase
+it. Whether what has been read is enough to go on is the app's call, in code (``is_enough``).
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from pydantic import BaseModel
 from xr_ai_app import FrameStream, Role, StructuredOutputError, clock
 
 R = TypeVar("R", bound=BaseModel)
+S = TypeVar("S", bound=BaseModel)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,14 +62,16 @@ async def read_until_enough(
     *,
     perceive: Role,
     question: str,
-    reading_schema: type[R],
+    reply_schema: type[S],
+    extract: Callable[[S], R] | None = None,
     is_enough: Callable[[R], bool] = lambda _reading: True,
     interval_s: float = 0.0,
     timeout_s: float | None = 15.0,
     on_state: Callable[[ReadState[R]], Awaitable[None]] | None = None,
 ) -> R:
-    """Read frame after frame into ``reading_schema`` with ``perceive`` (asked ``question``), merging what each frame
-    shows (:func:`merge`), until ``is_enough`` says it is; return what was read. Each read takes the newest frame not
+    """Read frame after frame with ``perceive`` (asked ``question``, replying in ``reply_schema``), turn each reply
+    into a record (``extract``), and merge what each frame shows (:func:`merge`) until ``is_enough`` says it is;
+    return what was read. Each read takes the newest frame not
     read yet, at least ``interval_s`` after the last (0: as soon as the last read is done). ``on_state`` is awaited in
     this task after every frame."""
     started = clock.now()
@@ -75,11 +80,12 @@ async def read_until_enough(
     async for frame in frames.every(interval_s, timeout_s=timeout_s or 5.0):
         count += 1
         try:
-            latest = await perceive.ask(frame, question, response_format=reading_schema, timeout_s=timeout_s)
+            reply = await perceive.ask(frame, question, response_format=reply_schema, timeout_s=timeout_s)
         except StructuredOutputError:
-            latest = None
-        if latest is not None:
-            reading = merge(reading, latest)
+            reply = None
+        if reply is not None:
+            latest = extract(reply) if extract is not None else reply
+            reading = merge(reading, latest)  # type: ignore[arg-type]  # without extract, the reply is the record
         done = reading is not None and is_enough(reading)
         if on_state is not None:
             await on_state(ReadState("completed" if done else "reading", reading, count, started, clock.now()))

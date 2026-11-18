@@ -450,7 +450,7 @@ def test_each_step_uses_its_own_models_and_a_misspelled_key_fails() -> None:
         name: str | None = None
 
     read = StepDefinition("identify", start_line="Show the label.", sections={"read": {"question": "Q."}})
-    step = ReadStep(read, FakeModels().role("ocr"), reading_schema=Label)
+    step = ReadStep(read, FakeModels().role("ocr"), reply_schema=Label)
     assert (step.perceive.name, step.question) == ("ocr", "Q.")
     criteria = {"instructions": "?", "positive": "y", "negative": "n", "unknown": "u"}
     typo = StepDefinition("fill", sections={"watch": {"question": "Water?", "criteria": {**criteria, "postive": "y"}}})

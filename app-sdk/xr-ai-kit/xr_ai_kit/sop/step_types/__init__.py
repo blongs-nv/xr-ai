@@ -14,4 +14,7 @@
 
 Each package has the step, what only it uses, and its ``*_scoring`` module for evaluation, which the running code
 never imports. They depend on ``..steps`` and never on each other.
+
+Each package's README.md covers its patterns, what works and what does not, smaller models and speed; this
+package's README.md covers shaping a schema a vision model fills in.
 """
