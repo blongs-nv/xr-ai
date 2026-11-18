@@ -29,16 +29,17 @@ cases:
 
   # The last stretch: asked the unit, then the display reaches 176.
   - name: at_target
-    scene: [300, 346]
+    scene: [290, 346]
     person: {answers: [Fahrenheit]}
     expect: {asks: [unit, celsius, fahrenheit], completes: {after: 330}}
 
-  # Heating in view, then the person looks away (the packet close up, then
-  # opening the tea bag); told to, they show the kettle again.
+  # Heating in view, then the person looks away for a minute (the packet
+  # close up, then opening the tea bag). The escalator first asks the unit
+  # (answered); still looking away, they are told to show the kettle, and do.
   - name: looked_away
-    scene: [[26, 36], [5, 12], [5, 12], [5, 12], [346, 351], [346, 351]]
+    scene: [[26, 36], [5, 12], [5, 12], [5, 12], [5, 12], [5, 12], [5, 12], [5, 12], [5, 12], [346, 351], [346, 351]]
     person: {answers: [Fahrenheit], after_tell: [[36, 80]]}
-    expect: {says: [kettle, display, view], completes: false}
+    expect: {asks: [unit, celsius, fahrenheit], says: [kettle, display, view], completes: false}
 
   - name: setpoint_flash
     scene: [20, 30]
