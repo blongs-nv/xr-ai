@@ -44,14 +44,7 @@ def steps(fakes: Any) -> Mapping[str, Step[Any]]:
             answer_with_reasoning=fakes.role("answer_with_reasoning"),
             settings=app.SETTINGS.tea,
         )
-    return {
-        "identify": tea_procedure.identify,
-        "choose_settings": tea_procedure.choose_settings,
-        "fill_water": tea_procedure.fill_water,
-        "heat_water": tea_procedure.heat_water,
-        "start_steeping": tea_procedure.start_steeping,
-        "steep": tea_procedure.steep,
-    }
+    return {step.id: step for step in tea_procedure.steps}
 
 
 def main(argv: list[str] | None = None) -> int:

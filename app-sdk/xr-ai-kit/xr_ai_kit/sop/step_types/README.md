@@ -49,8 +49,15 @@ numbers are from one recording; the direction of each effect was clear.
 4. **Quote the evidence with each value.** `{quote: "Premium Green Tea",
    value: "green"}`: the value is tied to words in view, and a value that may
    be inferred (the kind of tea) says what it is inferred from.
-5. **Closed choices over free text** (`Literal` enums for kinds, units,
-   roles), and units kept as printed, with conversion in code.
+5. **Name the object before reading it.** "A lit display on a kettle", or
+   "only printed text or a label": a tea bag's "100% Organic" was read as a
+   display's temperature in 11 of 20 tries until the caption had to say what
+   it was reading, then in none.
+6. **Constrain, do not explain.** Closed choices over free text (`Literal`
+   enums for kinds, units, roles; a pattern for digits, `^[0-9]{1,3}$`, which
+   stopped "163." becoming 16.3), and units kept as printed, with conversion in
+   code. Explaining instead backfired: a description saying "the dot is a
+   degree mark" made the model invent units in 16 of 60 readings.
 
 **What does not work**
 

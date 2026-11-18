@@ -30,7 +30,7 @@ from .judge import (
     judge,
 )
 from .verify import Verification, verify
-from .watch_step import WatchSection, WatchSettings, WatchStep, watch_step_snapshot
+from .watch_step import WatchSettings, WatchStep, WatchWords, watch_step_snapshot
 
 __all__ = [
     "Check",
@@ -43,7 +43,7 @@ __all__ = [
     "StructuredObservation",
     "Verification",
     "WatchModels",
-    "WatchSection",
+    "WatchWords",
     "WatchSettings",
     "WatchStep",
     "judge",

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from xr_ai_app import App
 from xr_ai_app._base.app import AppConfig
 from xr_ai_app.devkit import run_virtual
@@ -22,28 +22,32 @@ from xr_ai_kit.sop import (
     Criteria,
     EscalationChannel,
     EscalationSettings,
+    EscalationWords,
     EscalatorEnvironment,
     ReadStep,
+    ReadWords,
     ReasoningEscalator,
     Run,
     SopRunner,
     Step,
-    StepDefinition,
-    StepDefinitions,
     StepEnvironment,
     StepWithEscalator,
+    StepWords,
     StructuredObservation,
     TransformSettings,
     TransformStep,
+    TransformWords,
     WaitInputs,
     WaitStep,
     WatchModels,
     WatchSettings,
     WatchStep,
+    WatchWords,
     check_placeholders,
     decide_escalation,
     evaluation,
     fill_placeholders,
+    load_words,
 )
 from xr_ai_kit.sop.escalation import PROMPT, escalation_scoring
 from xr_ai_kit.sop.evaluation import Line, StepTrace
@@ -65,14 +69,14 @@ WATER_SECTION = {
 FAST = WatchSettings(interval_s=0.01, required=2, window=4)
 
 
-def _water(step_id: str = "fill", **lines: str) -> StepDefinition:
-    """A watch step's definition, as StepDefinitions.load makes it from YAML."""
-    return StepDefinition(step_id, **lines, sections={"watch": WATER_SECTION})
+def _water(**lines: str) -> WatchWords:
+    """A watch step's words, as load_words makes them from YAML."""
+    return WatchWords.model_validate({**WATER_SECTION, **lines})
 
 
 def _escalator(models: FakeModels, guidance: str, **settings) -> ReasoningEscalator:
     return ReasoningEscalator(
-        StepDefinition("fill", sections={"escalation": guidance}),
+        EscalationWords(guidance=guidance),
         models.role("reason"),
         EscalationSettings(**{"every_s": 0.01, "max_lines": 1, **settings}),
     )
@@ -125,7 +129,7 @@ async def test_a_watch_step_completes_on_the_fast_check_and_a_failing_escalation
         }
     )
     step = StepWithEscalator(
-        WatchStep(_water(), _camera(models), settings=FAST),
+        WatchStep("fill", _water(), _camera(models), settings=FAST),
         _escalator(models, "The kettle must be in view."),
     )
     run, results = await _run_alone(models, step)
@@ -138,7 +142,7 @@ async def test_skipping_a_watch_step_withdraws_its_pending_question() -> None:
     ask = {"missing": "whether there is water", "action": "ask", "words": "Is there water in the kettle?"}
     models = FakeModels({"observe": ["A kettle."] * 300, "decide": ["unknown"] * 300, "reason": [ask]})
     step = StepWithEscalator(
-        WatchStep(_water(), _camera(models), settings=FAST),
+        WatchStep("fill", _water(), _camera(models), settings=FAST),
         _escalator(models, "The person knows."),
     )
 
@@ -151,7 +155,7 @@ async def test_skipping_a_watch_step_withdraws_its_pending_question() -> None:
 
 async def test_a_watch_step_without_an_escalator_never_reasons() -> None:
     models = FakeModels({"observe": ["A kettle."] * 60, "decide": ["unknown"] * 8 + ["positive"] * 40, "reason": []})
-    run, _ = await _run_alone(models, WatchStep(_water(), _camera(models), settings=FAST))
+    run, _ = await _run_alone(models, WatchStep("fill", _water(), _camera(models), settings=FAST))
     assert run.status == "completed" and models.calls("reason") == []
 
 
@@ -164,7 +168,8 @@ async def test_a_step_says_its_done_line_when_it_finishes_from_its_result() -> N
 
     models = FakeModels({"observe": [{"value": 81}] * 60, "decide": ["positive"] * 60})
     heat = WatchStep(
-        _water("heat", done_line="It reads {observation.value:g}, at least {minimum:g}."),
+        "heat",
+        _water(done_line="It reads {observation.value:g}, at least {minimum:g}."),
         _camera(models),
         inputs_schema=Target,
         observation=StructuredObservation(Reading),
@@ -186,7 +191,7 @@ async def test_a_step_says_its_done_line_when_it_finishes_from_its_result() -> N
 
 def test_an_escalator_needs_a_step_that_supports_escalation() -> None:
     with pytest.raises(TypeError, match="WaitStep does not support escalation"):
-        StepWithEscalator(WaitStep(StepDefinition("w"), duration_s=1.0), _escalator(FakeModels(), "The person knows."))
+        StepWithEscalator(WaitStep("w", StepWords(), duration_s=1.0), _escalator(FakeModels(), "The person knows."))
 
 
 def test_watch_step_scoring() -> None:
@@ -215,7 +220,7 @@ def test_escalation_scoring_and_a_case_of_an_escalated_step_split_by_owner() -> 
     assert escalation_scoring.score(done, expect(quiet=True)) == []  # a step's own done line is not the escalator's
 
     models = FakeModels()
-    step = StepWithEscalator(WatchStep(_water(), _camera(models)), _escalator(models, "The person knows."))
+    step = StepWithEscalator(WatchStep("fill", _water(), _camera(models)), _escalator(models, "The person knows."))
     scoring = evaluation.scoring_for(step)
     late = StepTrace("s", completed=True, completed_at_s=50.0, lines=asked.lines)
     both = scoring.Expect.model_validate({"completes": False, "asks": ["unit"]})
@@ -237,9 +242,9 @@ def test_read_and_wait_step_scoring() -> None:
 
 def test_evaluation_finds_each_step_types_scoring_and_an_apps_own() -> None:
     models = FakeModels()
-    watch = WatchStep(_water(), _camera(models))
+    watch = WatchStep("fill", _water(), _camera(models))
     assert evaluation.scoring_for(watch) is watch_scoring
-    assert evaluation.scoring_for(WaitStep(StepDefinition("w"), duration_s=1.0)) is wait_scoring
+    assert evaluation.scoring_for(WaitStep("w", StepWords(), duration_s=1.0)) is wait_scoring
 
     class Mine:
         id, start_line = "mine", None
@@ -317,7 +322,7 @@ async def test_another_escalator_can_send_the_frame_behind_the_evidence_to_a_mod
         }
     )
     step = StepWithEscalator(
-        WatchStep(_water(), _camera(models), settings=FAST),
+        WatchStep("fill", _water(), _camera(models), settings=FAST),
         FrameEscalator(models.role("frontier")),
     )
     run, _ = await _run_alone(models, step)
@@ -328,7 +333,7 @@ async def test_another_escalator_can_send_the_frame_behind_the_evidence_to_a_mod
 
 def test_a_step_with_an_escalator_checks_its_parts_and_its_environment_up_front() -> None:
     models = FakeModels()
-    watch = WatchStep(_water(), _camera(models))
+    watch = WatchStep("fill", _water(), _camera(models))
     with pytest.raises(TypeError, match="is not an escalator"):
         StepWithEscalator(watch, object())  # type: ignore[arg-type]
     paired = StepWithEscalator(watch, _escalator(models, "The person knows."))
@@ -344,27 +349,18 @@ def test_a_step_with_an_escalator_checks_its_parts_and_its_environment_up_front(
 
 
 async def test_each_steps_escalation_may_carry_its_own_prompt(tmp_path: Path) -> None:
-    (tmp_path / "steps.yaml").write_text(
-        """
-fill:
-  watch:
-    question: Is there water?
-    criteria: {instructions: "Water?", positive: "yes", negative: "no", unknown: unclear}
-  escalation: The person knows.
-seal:
-  watch:
-    question: Is the lid sealed?
-    criteria: {instructions: "Sealed?", positive: "yes", negative: "no", unknown: unclear}
-  escalation:
-    guidance: The person can press the lid.
-    instructions: Ask the person to press the lid and say whether it clicks.
-""",
+    (tmp_path / "fill.escalation.yaml").write_text("guidance: The person knows.\n", encoding="utf-8")
+    (tmp_path / "seal.escalation.yaml").write_text(
+        "guidance: The person can press the lid.\n"
+        "instructions: Ask the person to press the lid and say whether it clicks.\n",
         encoding="utf-8",
     )
-    steps = StepDefinitions.load(tmp_path / "steps.yaml")
     reason = FakeModels().role("reason")
-    fill, seal = (ReasoningEscalator(steps[i], reason) for i in ("fill", "seal"))
-    assert (fill.guidance, fill.prompt) == ("The person knows.", PROMPT)  # a plain string: the guidance
+    fill, seal = (
+        ReasoningEscalator(load_words(tmp_path / f"{name}.escalation.yaml", EscalationWords), reason)
+        for name in ("fill", "seal")
+    )
+    assert (fill.guidance, fill.prompt) == ("The person knows.", PROMPT)
     assert seal.instructions == "Ask the person to press the lid and say whether it clicks."
     models = FakeModels({"reason": [{"action": "ask", "words": "Does it click?"}]})
     unknowns = [Judgment("unknown", "a lid", i, i) for i in range(4)]
@@ -375,36 +371,35 @@ seal:
         instructions=seal.instructions,
     )
     assert said is not None and models.calls("reason")[0].prompt.endswith(seal.instructions)
-    with pytest.raises(ValueError, match="instruction"):
-        ReasoningEscalator(
-            StepDefinition("x", sections={"escalation": {"guidance": "g", "instruction": "typo"}}), reason
-        )
+    (tmp_path / "typo.escalation.yaml").write_text("guidance: g\ninstruction: typo\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"(?s)typo.escalation.yaml.*instruction"):
+        load_words(tmp_path / "typo.escalation.yaml", EscalationWords)  # a misspelled key fails when it is loaded
 
 
-# ---------------------------------------------------------------------------------- the step definitions
+# ---------------------------------------------------------------------------------- the words
 
 
-def test_step_definitions_build_steps_from_yaml_and_code(tmp_path: Path) -> None:
-    (tmp_path / "steps.yaml").write_text(
+def test_words_load_from_yaml_into_each_step_types_schema(tmp_path: Path) -> None:
+    (tmp_path / "fill.yaml").write_text(
         """
-fill:
-  does: fill the kettle
-  start_line: Fill the kettle to {level}.
-  done_line: Filled to {level}.
-  watch:
-    question: Is there water?
-    criteria: {instructions: "Water at {level}?", positive: "yes", negative: "no", unknown: unclear}
-  escalation: The person knows.
-steep:
-  does: wait
-  start_line: Steeping for {minutes:g} minutes.
-  done_line: Steeped for {minutes:g} minutes.
-procedure_lines:
-  defaults: The default settings.
+does: fill the kettle
+start_line: Fill the kettle to {level}.
+done_line: Filled to {level}.
+question: Is there water?
+criteria: {instructions: "Water at {level}?", positive: "yes", negative: "no", unknown: unclear}
 """,
         encoding="utf-8",
     )
-    steps = StepDefinitions.load(tmp_path / "steps.yaml")
+    (tmp_path / "procedure.yaml").write_text(
+        """
+steep:
+  step:
+    does: wait
+    start_line: Steeping for {minutes:g} minutes.
+    done_line: Steeped for {minutes:g} minutes.
+""",
+        encoding="utf-8",
+    )
     models = FakeModels()
 
     class Level(BaseModel):
@@ -415,63 +410,53 @@ procedure_lines:
         def minutes(self) -> float:
             return self.duration_s / 60
 
-    fill = WatchStep(steps["fill"], _camera(models), inputs_schema=Level)
+    words = load_words(tmp_path / "fill.yaml", WatchWords)
+    fill = WatchStep("fill", words, _camera(models), inputs_schema=Level)
     line = Level(level="the line")
     assert (fill.start_line(line), fill.check_for(line).criteria.instructions) == (
         "Fill the kettle to the line.",
         "Water at the line?",
     )
-    assert steps.unread() == ["fill.escalation"]  # nothing has wired its escalator yet
-    escalator = ReasoningEscalator(steps["fill"], models.role("reason"), EscalationSettings(context=["dialogue"]))
-    assert (escalator.guidance, escalator.settings.context) == ("The person knows.", ["dialogue"])
-    steps.check_read()
-    with pytest.raises(ValueError, match="'steep' has no 'escalation' section"):
-        ReasoningEscalator(steps["steep"], models.role("reason"))
-    steep = WaitStep(steps["steep"], inputs_schema=Steep)
+    steep = WaitStep("steep", load_words(tmp_path / "procedure.yaml", StepWords, key="steep.step"), inputs_schema=Steep)
     two_minutes = Steep(duration_s=120)
     assert (steep.start_line(two_minutes), steep.done_line(two_minutes, None)) == (  # type: ignore[arg-type]
         "Steeping for 2 minutes.",
         "Steeped for 2 minutes.",
     )
-    assert steps.plan() == [("fill", "fill the kettle"), ("steep", "wait")]
-    assert steps.procedure_line("defaults") == "The default settings."
+    assert [(step.id, step.words.does) for step in (fill, steep)] == [("fill", "fill the kettle"), ("steep", "wait")]
     with pytest.raises(ValueError, match=r"its criteria uses \{level\}"):
-        WatchStep(steps["fill"], _camera(models))  # a placeholder its inputs do not have fails when the step is built
+        WatchStep("fill", words, _camera(models))  # a placeholder its inputs do not have fails when the step is built
     with pytest.raises(TypeError, match="runs with Level; it got NoneType"):
         run_virtual(fill.run(None))  # type: ignore[arg-type]  # inputs are checked before anything runs
-    with pytest.raises(ValueError, match="'steep' has no 'watch' section"):
-        WatchStep(steps["steep"], _camera(models))
-    with pytest.raises(KeyError, match="no definition of step 'boil'"):
-        steps["boil"]
+    with pytest.raises(ValueError, match="question"):
+        load_words(tmp_path / "procedure.yaml", WatchWords, key="steep.step")  # a watch step needs its question
+    with pytest.raises(KeyError, match="'boil.step'"):
+        load_words(tmp_path / "procedure.yaml", StepWords, key="boil.step")
 
 
 def test_each_step_uses_its_own_models_and_a_misspelled_key_fails() -> None:
     class Label(BaseModel):
         name: str | None = None
 
-    read = StepDefinition("identify", start_line="Show the label.", sections={"read": {"question": "Q."}})
-    step = ReadStep(read, FakeModels().role("ocr"), reply_schema=Label)
+    step = ReadStep(
+        "identify", ReadWords(start_line="Show the label.", question="Q."), FakeModels().role("ocr"), reply_schema=Label
+    )
     assert (step.perceive.name, step.question) == ("ocr", "Q.")
     criteria = {"instructions": "?", "positive": "y", "negative": "n", "unknown": "u"}
-    typo = StepDefinition("fill", sections={"watch": {"question": "Water?", "criteria": {**criteria, "postive": "y"}}})
     with pytest.raises(ValueError, match="postive"):
-        WatchStep(typo, _camera(FakeModels()))  # inside a section: when the step is built
-    misnamed = StepDefinitions({"fill": StepDefinition("fill", sections={"escalaton": "x"})}, {})
-    with pytest.raises(ValueError, match="fill.escalaton"):
-        misnamed.check_read()  # a section nothing reads: once the app has built its steps
+        WatchWords.model_validate({"question": "Water?", "criteria": {**criteria, "postive": "y"}})
+    with pytest.raises(ValueError, match="escalaton"):
+        WatchWords.model_validate({"question": "Water?", "criteria": criteria, "escalaton": "x"})
 
 
-def test_an_apps_own_step_type_reads_its_own_section_of_the_same_file(tmp_path: Path) -> None:
-    (tmp_path / "steps.yaml").write_text(
-        "scan:\n  start_line: Scan it.\n  scan: {pattern: '[0-9]{12}'}\n", encoding="utf-8"
-    )
+def test_an_apps_own_step_type_defines_its_own_words(tmp_path: Path) -> None:
+    (tmp_path / "scan.yaml").write_text("start_line: Scan it.\npattern: '[0-9]{12}'\n", encoding="utf-8")
 
-    class ScanWords(BaseModel):
-        model_config = ConfigDict(extra="forbid")
+    class ScanWords(StepWords):
         pattern: str
 
-    definition = StepDefinitions.load(tmp_path / "steps.yaml")["scan"]
-    assert definition.section("scan", ScanWords).pattern == "[0-9]{12}" and definition.start_line == "Scan it."
+    words = load_words(tmp_path / "scan.yaml", ScanWords)
+    assert (words.pattern, words.start_line) == ("[0-9]{12}", "Scan it.")
 
 
 # ---------------------------------------------------------------------------------- the evaluation
@@ -519,7 +504,7 @@ def test_a_case_runs_the_real_step_on_a_scene_and_a_scripted_person(tmp_path: Pa
         }
     )
     step = StepWithEscalator(
-        WatchStep(_water("heat"), _camera(models), settings=WatchSettings(interval_s=2.0)),
+        WatchStep("heat", _water(), _camera(models), settings=WatchSettings(interval_s=2.0)),
         _escalator(models, "The person knows the unit.", every_s=20.0, max_lines=2, context=["dialogue"]),
     )
     case = evaluation.Case(
@@ -538,7 +523,7 @@ def test_a_case_runs_the_real_step_on_a_scene_and_a_scripted_person(tmp_path: Pa
 
 
 def test_a_case_records_the_steps_done_line_apart_from_what_an_escalator_says(tmp_path: Path) -> None:
-    step = WaitStep(StepDefinition("steep", done_line="Steeped for 2 minutes."), duration_s=5.0)
+    step = WaitStep("steep", StepWords(done_line="Steeped for 2 minutes."), duration_s=5.0)
     case = evaluation.Case(name="steeps", scene=[0, 30], expect={"completes": True})
     result = run_virtual(evaluation.run_case(step, case, _recording(tmp_path, 30)))
     assert result.ok, result.problems
@@ -548,10 +533,9 @@ def test_a_case_records_the_steps_done_line_apart_from_what_an_escalator_says(tm
 # ---------------------------------------------------------------------------------- an app's own step type
 
 
-class AskSection(BaseModel):
-    """The ``ask:`` section of an ask step's definition."""
+class AskWords(StepWords):
+    """An ask step's words: what every step says, and its question."""
 
-    model_config = ConfigDict(extra="forbid")
     question: str
 
 
@@ -562,18 +546,17 @@ class AskStep:
 
     inputs_schema = None
 
-    def __init__(self, definition: StepDefinition) -> None:
-        self.id = definition.id
-        self.question = definition.section("ask", AskSection).question
-        self._start_line = definition.start_line
-        self._done_line = definition.done_line
-        check_placeholders(self.id, "done_line", self._done_line, None, also=("answer",))
+    def __init__(self, step_id: str, words: AskWords) -> None:
+        self.id = step_id
+        self.words = words
+        self.question = words.question
+        check_placeholders(self.id, "done_line", words.done_line, None, also=("answer",))
 
     def start_line(self, inputs: None = None) -> str | None:
-        return self._start_line
+        return self.words.start_line
 
     def done_line(self, inputs: None, answer: str) -> str | None:
-        return fill_placeholders(self._done_line, answer=answer)
+        return fill_placeholders(self.words.done_line, answer=answer)
 
     async def run(self, environment: StepEnvironment, inputs: None = None) -> str:
         while (answer := await environment.ask(self.question)) is None:
@@ -582,19 +565,16 @@ class AskStep:
 
 
 def test_an_apps_own_step_type_runs_and_is_evaluated_like_the_kits(tmp_path: Path) -> None:
-    (tmp_path / "steps.yaml").write_text(
+    (tmp_path / "batch.yaml").write_text(
         """
-batch:
-  start_line: Next, the batch number.
-  done_line: Batch {answer} noted.
-  ask:
-    question: What is the batch number on the label?
+start_line: Next, the batch number.
+done_line: Batch {answer} noted.
+question: What is the batch number on the label?
 """,
         encoding="utf-8",
     )
-    steps = StepDefinitions.load(tmp_path / "steps.yaml")
-    step = AskStep(steps["batch"])
-    steps.check_read()
+    words = load_words(tmp_path / "batch.yaml", AskWords)
+    step = AskStep("batch", words)
     assert isinstance(step, Step)
 
     async def answer(runner, p) -> None:
@@ -607,7 +587,7 @@ batch:
     assert run.status == "completed" and results == ["A-17"]
 
     case = evaluation.Case(name="answered", scene=[0, 10], person={"answers": ["B-2"]}, expect={"completes": True})
-    result = run_virtual(evaluation.run_case(AskStep(steps["batch"]), case, _recording(tmp_path, 10)))
+    result = run_virtual(evaluation.run_case(AskStep("batch", words), case, _recording(tmp_path, 10)))
     assert result.ok, result.problems
     assert [(line.by, line.kind, line.text) for line in result.trace.lines] == [
         ("step", "ask", "What is the batch number on the label?"),
@@ -642,20 +622,16 @@ class Brewing(BaseModel):
     minutes: float | None = None
 
 
-SETTINGS = StepDefinition(
-    "settings",
+SETTINGS = TransformWords(
     done_line="{output.temperature_c:g} degrees for {output.minutes:g} minutes.",
-    sections={
-        "transform": {
-            "instructions": "Fill in conventional brewing settings for this tea. Ask the person only when the kind "
-            "of tea is unknown."
-        }
-    },
+    instructions="Fill in conventional brewing settings for this tea. Ask the person only when the kind of tea is "
+    "unknown.",
 )
 
 
 def _settings_step(models: FakeModels, **settings) -> TransformStep:
     return TransformStep(
+        "settings",
         SETTINGS,
         models.role("reason"),
         input_schema=Brewing,
@@ -711,11 +687,11 @@ def test_a_transform_asks_again_for_a_missing_required_field_then_fails(tmp_path
 def test_a_transform_names_only_fields_it_has() -> None:
     with pytest.raises(ValueError, match="required_fields"):
         TransformStep(
-            SETTINGS, FakeModels().role("r"), input_schema=Brewing, output_schema=Brewing, required_fields=("x",)
+            "s", SETTINGS, FakeModels().role("r"), input_schema=Brewing, output_schema=Brewing, required_fields=("x",)
         )
-    wrong = StepDefinition("s", done_line="{result.minutes}", sections=SETTINGS.sections)
+    wrong = TransformWords(done_line="{result.minutes}", instructions=SETTINGS.instructions)
     with pytest.raises(ValueError, match=r"\{result\}"):
-        TransformStep(wrong, FakeModels().role("r"), input_schema=Brewing, output_schema=Brewing)
+        TransformStep("s", wrong, FakeModels().role("r"), input_schema=Brewing, output_schema=Brewing)
 
 
 async def test_a_transform_cannot_be_skipped_even_while_it_asks() -> None:

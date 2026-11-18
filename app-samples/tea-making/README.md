@@ -32,13 +32,14 @@ Voice -> Router (Clef)
 | identify | `ReadStep`: read the package frame after frame (`TeaPackageLook`: is a package in view, its words, then each value with the words it comes from, and brewing directions only when printed), into a `Tea` merged across frames | a kind of tea is read |
 | choose_settings | `TransformStep`: fill in the brewing settings the package does not print, keeping what it does; asks the person what tea it is when nothing was read | both settings are set; it cannot be skipped |
 | fill_water | `WatchStep` | water is seen in the kettle in 2 of the last 4 decidable frames |
-| heat_water | `WatchStep` on a `Thermometer` reading | the display reads at least the target, with a unit (printed, or said by the person when its escalator asks); a setpoint is not judged |
+| heat_water | `WatchStep` that describes the display in a schema (`DisplayCaption`: is a lit display in view, what it is on, its characters, the digits, whether a unit letter is printed) and judges it in code (`reached_target`) | the digits reach the target, in a unit printed or said by the person when its escalator asks |
 | start_steeping | `WatchStep` | a real tea bag touches real water (not packaging art) |
 | steep | `WaitStep` | the steeping time has passed (the middle of a range); it starts after the tea goes in, or when that check is skipped |
 
 A watch step's **check** judges a frame every 2 s: the omni model
-describes it (or reads it into a schema) and Clef labels that description
-against the step's criteria (positive, negative or unknown); unknowns take
+describes it (or fills in a schema) and Clef labels that description
+against the step's criteria, or, for heat_water, code compares the digits
+with the target (positive, negative or unknown); unknowns take
 no slot, so an obscured view neither confirms nor resets it. Beside each
 camera step runs its **escalator** (`StepWithEscalator`), an agent of its
 own that shares only an escalation channel with the step: it reads a
@@ -50,14 +51,22 @@ step. What every escalator reads besides its step (`context`: the
 procedure's summary `run`, the recent `dialogue`, or neither) and how often
 it may speak are app.yaml's `settings.tea.escalation`.
 
-Every step's words are in `steps.yaml`: what it says as it starts
-(`start_line`) and when it finishes (`done_line`, filled from its result:
-identify says the tea it read, choose_settings the settings, heat_water the
-reading that completed it), and one section per owner (`read`, `transform`
-or `watch` for the step, `escalation` for its escalator). Each step is
-defined once in `procedure.py` (`TeaProcedure`): its type, models and
-schemas, and what it runs with (`HeatInputs`, `SteepInputs`). The procedure
-itself (`make_tea`) is the order of the steps and what passes between them:
+```text
+procedure.py      make_tea (the order of the steps, what passes between them); TeaProcedure builds them
+tea.py            what passes between steps: Tea, WaterTemperature, SteepTime
+steps/<step>/     everything about one step:
+  words.yaml        what it says and asks its models (does, start_line, done_line, question, ...)
+  escalation.yaml   how the person can help when its camera check is stuck (camera steps)
+  schemas.py        its own types (identify: the package reply; heat_water: the display
+                    caption and its judge, HeatWaterInputs; steep: SteepInputs)
+eval/steps/       each step's evaluation cases
+```
+
+Each step's words are loaded into its type's words schema
+(`load_words(..., WatchWords)`), so a misspelled key fails when the app
+starts. Each step is defined once in `procedure.py` (`TeaProcedure`): its
+type, its models, and its schemas from its folder. The procedure itself
+(`make_tea`) is the order of the steps and what passes between them:
 the `Tea` read from the package goes to choose_settings, and its
 temperature and steeping time to heat_water and steep. There are no default
 settings in code: the model fills in what the package does not print.

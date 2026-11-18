@@ -86,7 +86,7 @@ class Run:
     ) -> T | None:
         """Run one step as its own task with ``inputs``; return its result, or ``None`` when the user skipped it.
 
-        ``step`` is a step object (``run.step(heat_water, HeatInputs(temperature_c=80))``: its ``run(self, inputs)``
+        ``step`` is a step object (``run.step(steep, SteepInputs(duration_s=120))``: its ``run(self, inputs)``
         is the work; ``inputs`` is an instance of its ``inputs_schema``, or ``None`` when it takes none) or a step id
         with ``work``, any coroutine function of the app's own. The step's ``start_line(inputs)`` is spoken as it
         starts (``start_line`` here replaces it) and its ``done_line(inputs, result)`` when it finishes (not when it

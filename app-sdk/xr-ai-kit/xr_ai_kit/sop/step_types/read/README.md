@@ -26,7 +26,7 @@ tea = await run.step(identify)        # a Tea, or None when the person skipped i
 How to shape what the model fills in is in [the step types' README](../README.md#shaping-a-schema-for-a-vision-model):
 gate on something plainly visible, gate each group of fields the model may
 fill from memory, copy the words before interpreting them, and quote the
-words each value comes from. The tea sample's (`tea.py`):
+words each value comes from. The tea sample's (`steps/identify/schemas.py`):
 
 ```text
 look:

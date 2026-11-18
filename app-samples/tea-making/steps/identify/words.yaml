@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# identify's words (xr_ai_kit.sop.ReadWords), loaded in procedure.py.
+does: show the tea's package so its name and brewing directions can be read
+start_line: >-
+  Show me the tea's package, so I can read its name and its brewing
+  directions.
+done_line: I read {reading.spoken_name}.
+question: |-
+  Is a tea package, bag or tag (or a photo or screen of one) in view? If
+  not, say what is in view instead and read nothing. If it is: first copy
+  every legible word on the tea's own package; then its brand, name and
+  kind of tea from those words, quoting them. Never guess a brand or
+  complete a name from memory. Then: are brewing directions (a water
+  temperature or a steeping time) printed and legible on this package in
+  this image? Only if so, copy them word for word and fill them in. What
+  you know about a tea is not printed on it. A kettle, its display or
+  label, a mug or any other object is not the tea's package.

@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# How the person can help when heat_water's camera check cannot decide (xr_ai_kit.sop.EscalationWords),
+# for the escalator beside it.
+guidance: >-
+  The display has to be in the camera's view to be read. Some displays print
+  no unit, and some show a target setting as well as the water's
+  temperature; the person knows which unit their kettle uses and what its
+  display is showing.

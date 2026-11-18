@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# fill_water's words (xr_ai_kit.sop.WatchWords), loaded in procedure.py.
+does: fill the kettle with fresh water
+start_line: Fill a kettle or pot with fresh water and keep it in view.
+done_line: Water is visible in the vessel.
+question: |-
+  Inspect the kettle or pot the user is deliberately showing (directly in
+  view, or a focused photo of it on a phone or screen). Describe whether
+  water is visibly inside it, using its liquid surface or level as evidence.
+  A cup printed on tea packaging, a logo or incidental artwork is not the
+  vessel. If no vessel is shown, or its contents cannot be seen, say the
+  contents are unknown.
+criteria:
+  instructions: Is there water inside the kettle or pot the user is showing?
+  positive: >-
+    A visible liquid surface or level establishes water inside the target
+    kettle or pot, shown directly or in a focused photo of that vessel.
+  negative: >-
+    A clear view of the vessel's inside establishes that it is empty or dry.
+  unknown: >-
+    No kettle or pot is shown, its contents are obscured or unclear, or the
+    only vessel is packaging artwork or a decorative illustration.

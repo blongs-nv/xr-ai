@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# steep's words (xr_ai_kit.sop.StepWords), loaded in procedure.py.
+does: wait while the timer runs
+start_line: I'll time {minutes:g} minutes from now.
+done_line: The tea has finished steeping.

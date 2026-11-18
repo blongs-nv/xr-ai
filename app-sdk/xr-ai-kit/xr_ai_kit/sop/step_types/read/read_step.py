@@ -5,9 +5,9 @@
 (:func:`~.read_until_enough.read_until_enough`), for example what a tea's package says. Its result is the reading, an
 instance of the schema. How an evaluation case of a read step is scored is in :mod:`.read_scoring`.
 
-Its definition in the procedure's YAML: the ``read`` section (:class:`ReadSection`: ``question``, what the perceiving
-model reads from each frame), ``start_line``, and ``done_line``, whose placeholders name fields or properties of its
-inputs and ``reading`` (what was read)."""
+Its words (:class:`ReadWords`): ``question``, what the perceiving model reads from each frame, and what every step
+says (``does``, ``start_line``, ``done_line``, whose placeholders name fields or properties of its inputs and
+``reading``, what was read)."""
 
 from __future__ import annotations
 
@@ -18,14 +18,13 @@ from pydantic import BaseModel, ConfigDict
 from xr_ai_app import Role
 
 from ...steps.step_api import StepEnvironment, check_inputs, check_placeholders, fill_placeholders
-from ...steps.step_definitions import StepDefinition
+from ...steps.step_words import StepWords
 from .read_until_enough import ReadState, read_until_enough
 
 
-class ReadSection(BaseModel):
-    """A read step's section of its definition (``read:``)."""
+class ReadWords(StepWords):
+    """A read step's words: what every step says, and its ``question``."""
 
-    model_config = ConfigDict(extra="forbid")
     question: str
     """What the perceiving model reads from each frame into the reading schema."""
 
@@ -54,11 +53,11 @@ class ReadStep:
     """
 
     scoring: ClassVar[str] = f"{__package__}.read_scoring"
-    section: ClassVar[str] = "read"
 
     def __init__(
         self,
-        definition: StepDefinition,
+        step_id: str,
+        words: ReadWords,
         perceive: Role,
         *,
         reply_schema: type[BaseModel],
@@ -67,8 +66,8 @@ class ReadStep:
         inputs_schema: type[BaseModel] | None = None,
         settings: ReadSettings | None = None,
     ) -> None:
-        words = definition.section(self.section, ReadSection)
-        self.id = definition.id
+        self.id = step_id
+        self.words = words
         self.inputs_schema = inputs_schema
         self.question = words.question
         self.perceive = perceive
@@ -76,18 +75,16 @@ class ReadStep:
         self.extract = extract
         self.is_enough = is_enough
         self.settings = settings or ReadSettings()
-        self._start_line = definition.start_line
-        self._done_line = definition.done_line
         check_placeholders(self.id, "question", words.question, inputs_schema)
-        check_placeholders(self.id, "start_line", definition.start_line, inputs_schema)
-        check_placeholders(self.id, "done_line", definition.done_line, inputs_schema, also=("reading",))
+        check_placeholders(self.id, "start_line", words.start_line, inputs_schema)
+        check_placeholders(self.id, "done_line", words.done_line, inputs_schema, also=("reading",))
 
     def start_line(self, inputs: BaseModel | None = None) -> str | None:
-        return fill_placeholders(self._start_line, inputs)
+        return fill_placeholders(self.words.start_line, inputs)
 
     def done_line(self, inputs: BaseModel | None, result: BaseModel) -> str | None:
         """``done_line``, filled with the inputs and ``reading``."""
-        return fill_placeholders(self._done_line, inputs, reading=result)
+        return fill_placeholders(self.words.done_line, inputs, reading=result)
 
     async def run(self, environment: StepEnvironment, inputs: BaseModel | None = None) -> Any:
         check_inputs(self.id, self.inputs_schema, inputs)

@@ -1,24 +1,21 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# The printer pre-flight's step definitions (xr_ai_kit.sop.StepDefinitions).
-# One entry per step, keyed by its id; app.py chooses each step's type, its
-# models, its escalator and their order. Every step may have:
-#   does        what the person does, for the plan the conversation reads
-#   start_line  spoken as the step starts
-#   done_line   spoken when it finishes
-# and sections, each read by its owner:
-#   watch       a camera step's question (what the observing model describes
-#               per frame) and criteria (how the deciding model labels it)
-#   escalation  when the camera cannot tell, what the person can be told or
-#               asked (read by the step's escalator); a mapping instead may
-#               also give the step's own prompt: {guidance, instructions}
+# The printer pre-flight's words, one entry per step id; app.py chooses each
+# step's type, its models, its escalator and their order, and loads each part
+# with xr_ai_kit.sop.load_words. Each entry has:
+#   step        the step's words (WatchWords for a camera step: does,
+#               start_line, done_line, question, criteria; StepWords for the
+#               timer: does, start_line, done_line)
+#   escalation  for a camera step, how the person can help when the camera
+#               cannot tell (EscalationWords: guidance, and optionally this
+#               step's own instructions or prompt)
 
 bed_clear:
-  does: clear everything off the print bed
-  start_line: First, make sure the print bed is clear.
-  done_line: The bed is clear.
-  watch:
+  step:
+    does: clear everything off the print bed
+    start_line: First, make sure the print bed is clear.
+    done_line: The bed is clear.
     question: >-
       Describe the 3D printer's print bed: whether it is in view, and whether
       anything (a print, a spool, a tool, debris) lies on it.
@@ -29,16 +26,17 @@ bed_clear:
       unknown: >-
         The print bed is not in view, is partly hidden, or the view is too
         dark or blurred to tell.
-  escalation: >-
-    The whole print bed has to be in the camera's view. When it is not, tell
-    the person to point the camera at the print bed. The person can also say
-    whether the bed is clear.
+  escalation:
+    guidance: >-
+      The whole print bed has to be in the camera's view. When it is not, tell
+      the person to point the camera at the print bed. The person can also say
+      whether the bed is clear.
 
 door_closed:
-  does: close the printer door
-  start_line: Close the printer door.
-  done_line: The door is closed.
-  watch:
+  step:
+    does: close the printer door
+    start_line: Close the printer door.
+    done_line: The door is closed.
     question: >-
       Describe the 3D printer's door or enclosure front: whether it is in view,
       and whether it is open or closed.
@@ -49,13 +47,15 @@ door_closed:
       unknown: >-
         The door is not in view, is partly hidden, or the view is too dark or
         blurred to tell.
-  escalation: >-
-    The printer's door has to be in the camera's view. When it is not, tell
-    the person to point the camera at the door. The person can also say
-    whether it is closed.
+  escalation:
+    guidance: >-
+      The printer's door has to be in the camera's view. When it is not, tell
+      the person to point the camera at the door. The person can also say
+      whether it is closed.
 
 warm_up:
-  does: wait 90 seconds while the printer warms up (a timer)
-  start_line: Warming up for ninety seconds.
-  done_line: Warm-up done. You can start the print.
+  step:
+    does: wait 90 seconds while the printer warms up (a timer)
+    start_line: Warming up for ninety seconds.
+    done_line: Warm-up done. You can start the print.
 

@@ -18,7 +18,7 @@ perceive:
   by_prompt:
     - ["Is a tea package, bag or tag", {look: {tea_package_in_view: true, text_on_package: [Bicelon, Green Tea], brand: {quote: Bicelon, value: Bicelon}, tea_type: {quote: Green Tea, value: green}, directions: {brewing_directions_visible: false}}}]
     - ["water is visibly inside", "The kettle holds water; its level shows in the window."]
-    - ["Transcribe the temperature", {value: 176, unit_text: "°F", role: unknown}]
+    - ["Is a lit digital temperature display", {look: {display_in_view: true, display_is_on: kettle, display_kind: lit digital digits, where_in_image: center, text_on_display: ["176."], reading: {evidence: the display, shown_as: "176.", digits: "176"}, unit: {unit_letter_visible: true, letter: F}, marked_as: {evidence: nothing, answer: not shown}}}]
     - ["tea-water contact", "A tea bag hangs in the mug and touches the hot water."]
 answer_with_reasoning:
   by_prompt:

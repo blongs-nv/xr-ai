@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# heat_water's words (xr_ai_kit.sop.WatchWords), loaded in procedure.py. The
+# question is for the display caption (schemas.DisplayCaption); the criteria are
+# what the escalator reads as the step's task (the code judge decides).
+does: heat the water to the recommended temperature
+start_line: >-
+  Heat the water to {target.spoken}, and keep the kettle's display in
+  view.
+done_line: >-
+  The display reads {observation.look.reading.digits}; the water is hot
+  enough.
+question: |-
+  Is a lit digital temperature display (on a kettle or thermometer) in view
+  and readable? Printed text on a package, a label or a mug is not a
+  display. If not, say why and what is in view instead. If it is: say what it
+  is on and where it is in the image; copy every character on it exactly; the
+  reading (the evidence, the characters as shown, then only its digits);
+  then: is a unit letter (C or F) printed on the display in this image? Only
+  if so, give it; then whether a label or indicator marks the number as the
+  water's temperature or a target setting.
+criteria:
+  instructions: >-
+    Has the water reached the target? The observation describes the
+    kettle's display: reading.digits is the number shown, and unit the unit
+    letter printed beside it, if any (or the unit the person stated, in the
+    known facts). The target minimum is {minimum}. An already-high reading
+    qualifies; no rising trend is needed.
+  positive: The reading is equal to or greater than {minimum}.
+  negative: The reading is less than {minimum}.
+  unknown: >-
+    No numeric reading or unit is available, a setpoint or a
+    non-temperature unit is shown, or the units conflict.

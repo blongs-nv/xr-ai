@@ -1,24 +1,21 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""The tea procedure: its steps, what each runs with, and the order.
+"""The tea procedure: make_tea runs the steps in order and passes each the
+data it needs; TeaProcedure builds them.
 
 identify         read the tea's package into a Tea (a read step)
 choose_settings  fill in the brewing settings the package does not print
                  (a transform step; it may ask the person what tea it is)
 fill_water       water visible in the kettle (a watch step)
 heat_water       the display reads at least the target temperature (a watch
-                 step that reads the display into a Thermometer)
+                 step that describes the display and judges it in code)
 start_steeping   tea touching the water in a real cup (a watch step)
 steep            a countdown for the steeping time (a wait step)
 
-Each step is defined once: its words from steps.yaml, its type, models and
-schemas here. A step that needs something an earlier step produced declares
-it as its inputs (HeatInputs, SteepInputs), and make_tea passes it on. Each
-camera step has an escalator beside it (StepWithEscalator): when the camera
-alone cannot decide, it asks the person or tells them what to show. Each
-step says its own lines. The evaluation (eval/run_steps.py) takes its steps
-from TeaProcedure, so the step it evaluates is the step that runs.
+Each step's folder (steps/<step>/) has its words (words.yaml), how the person
+can help when its camera check is stuck (escalation.yaml), and its own types
+(schemas.py). What passes between steps is in tea.py.
 """
 
 from __future__ import annotations
@@ -26,38 +23,38 @@ from __future__ import annotations
 from pathlib import Path
 
 from pydantic import BaseModel, Field
-from tea import (
+from steps.heat_water.schemas import (
+    DisplayCaption,
     DisplayFacts,
-    Tea,
-    TeaPackageLook,
-    Thermometer,
-    WaterTemperature,
-    can_judge_reading,
-    fahrenheit,
-    tea_from_look,
-    use_known_unit,
+    HeatWaterInputs,
+    reached_target,
 )
+from steps.identify.schemas import TeaPackageLook, tea_from_look
+from steps.steep.schemas import SteepInputs
+from tea import Tea
 from xr_ai_app import Role
 from xr_ai_kit.sop import (
     EscalationSettings,
+    EscalationWords,
     ReadSettings,
     ReadStep,
+    ReadWords,
     ReasoningEscalator,
     Run,
-    StepDefinitions,
     StepWithEscalator,
+    StepWords,
     StructuredObservation,
     TransformStep,
-    WaitInputs,
+    TransformWords,
     WaitStep,
     WatchModels,
     WatchSettings,
     WatchStep,
+    WatchWords,
+    load_words,
 )
 
-DEFINITIONS = StepDefinitions.load(
-    Path(__file__).resolve().parent / "steps.yaml"
-)
+STEPS = Path(__file__).resolve().parent / "steps"
 
 
 class TeaSettings(BaseModel):
@@ -73,116 +70,17 @@ class TeaSettings(BaseModel):
     """How every camera step's escalator works."""
 
 
-class HeatInputs(BaseModel):
-    """What heat_water runs with: the target, in the unit it was given in."""
-
-    target: WaterTemperature
-
-    @property
-    def minimum(self) -> str:
-        """{minimum} in heat_water's criteria: the target in both units,
-        since the display may print none."""
-        target = self.target
-        if target.unit == "celsius":
-            other = f"{fahrenheit(target.value):g} degrees Fahrenheit"
-        else:
-            other = f"{target.celsius:g} degrees Celsius"
-        return f"{target.spoken} or {other}, matching the reading's unit"
-
-
-class SteepInputs(WaitInputs):
-    """What steep runs with: duration_s, and {minutes} for its words."""
-
-    @property
-    def minutes(self) -> float:
-        return self.duration_s / 60
-
-
 class TeaProcedure:
     """The tea procedure (make_tea, for SopRunner) and its steps.
 
-    perceive reads camera frames, without reasoning: the watch steps'
-    descriptions, and the package (TeaPackageLook: whether a package is in
-    view, its words, then each value with the words it comes from); decide
-    labels what perceive saw (fast); answer_with_reasoning fills in the
-    brewing settings and is what every escalator reasons with.
-    These are yaml/models.json's roles.
+    perceive reads camera frames, without reasoning; decide labels what
+    perceive saw (fast); answer_with_reasoning fills in the brewing settings
+    and is what every escalator reasons with. These are yaml/models.json's
+    roles.
     """
 
-    def __init__(
-        self,
-        *,
-        perceive: Role,
-        decide: Role,
-        answer_with_reasoning: Role,
-        settings: TeaSettings,
-    ) -> None:
-        camera_check_models = WatchModels(perceive=perceive, decide=decide)
-
-        self.identify = ReadStep(
-            DEFINITIONS["identify"],
-            perceive,
-            reply_schema=TeaPackageLook,
-            extract=tea_from_look,
-            is_enough=lambda tea: tea.tea_type is not None,
-            settings=settings.read,
-        )
-        self.choose_settings = TransformStep(
-            DEFINITIONS["choose_settings"],
-            answer_with_reasoning,
-            input_schema=Tea,
-            output_schema=Tea,
-            keep_input_values=True,
-            required_fields=("water_temperature", "steep_time"),
-        )
-        self.fill_water = StepWithEscalator(
-            WatchStep(
-                DEFINITIONS["fill_water"],
-                camera_check_models,
-                settings=settings.watch,
-            ),
-            ReasoningEscalator(
-                DEFINITIONS["fill_water"],
-                answer_with_reasoning,
-                settings.escalation,
-            ),
-        )
-        self.heat_water = StepWithEscalator(
-            WatchStep(
-                DEFINITIONS["heat_water"],
-                camera_check_models,
-                inputs_schema=HeatInputs,
-                facts_schema=DisplayFacts,
-                observation=StructuredObservation(
-                    schema=Thermometer,
-                    apply_known_facts=use_known_unit,
-                    can_judge=can_judge_reading,
-                ),
-                settings=settings.watch,
-            ),
-            ReasoningEscalator(
-                DEFINITIONS["heat_water"],
-                answer_with_reasoning,
-                settings.escalation,
-            ),
-        )
-        self.start_steeping = StepWithEscalator(
-            WatchStep(
-                DEFINITIONS["start_steeping"],
-                camera_check_models,
-                settings=settings.watch,
-            ),
-            ReasoningEscalator(
-                DEFINITIONS["start_steeping"],
-                answer_with_reasoning,
-                settings.escalation,
-            ),
-        )
-        self.steep = WaitStep(DEFINITIONS["steep"], inputs_schema=SteepInputs)
-        DEFINITIONS.check_read()  # every section of steps.yaml has a reader
-
     async def make_tea(self, run: Run) -> None:
-        """The procedure: read the package, fill in its settings, brew."""
+        """Read the package, fill in its settings, brew."""
         read = await run.step(self.identify)  # None when skipped
         tea = await run.step(self.choose_settings, read or Tea())
         # choose_settings cannot be skipped, and it always sets both.
@@ -199,7 +97,110 @@ class TeaProcedure:
 
         await run.step(self.fill_water)
         await run.step(
-            self.heat_water, HeatInputs(target=tea.water_temperature)
+            self.heat_water, HeatWaterInputs(target=tea.water_temperature)
         )
         await run.step(self.start_steeping)
         await run.step(self.steep, SteepInputs(duration_s=duration_s))
+
+    def __init__(
+        self,
+        *,
+        perceive: Role,
+        decide: Role,
+        answer_with_reasoning: Role,
+        settings: TeaSettings,
+    ) -> None:
+        camera_check_models = WatchModels(perceive=perceive, decide=decide)
+
+        self.identify = ReadStep(
+            "identify",
+            load_words(STEPS / "identify" / "words.yaml", ReadWords),
+            perceive,
+            reply_schema=TeaPackageLook,
+            extract=tea_from_look,
+            is_enough=lambda tea: tea.tea_type is not None,
+            settings=settings.read,
+        )
+        self.choose_settings = TransformStep(
+            "choose_settings",
+            load_words(
+                STEPS / "choose_settings" / "words.yaml", TransformWords
+            ),
+            answer_with_reasoning,
+            input_schema=Tea,
+            output_schema=Tea,
+            keep_input_values=True,
+            required_fields=("water_temperature", "steep_time"),
+        )
+        self.fill_water = StepWithEscalator(
+            WatchStep(
+                "fill_water",
+                load_words(STEPS / "fill_water" / "words.yaml", WatchWords),
+                camera_check_models,
+                settings=settings.watch,
+            ),
+            ReasoningEscalator(
+                load_words(
+                    STEPS / "fill_water" / "escalation.yaml", EscalationWords
+                ),
+                answer_with_reasoning,
+                settings.escalation,
+            ),
+        )
+        self.heat_water = StepWithEscalator(
+            WatchStep(
+                "heat_water",
+                load_words(STEPS / "heat_water" / "words.yaml", WatchWords),
+                camera_check_models,
+                inputs_schema=HeatWaterInputs,
+                facts_schema=DisplayFacts,
+                observation=StructuredObservation(
+                    schema=DisplayCaption, judge=reached_target
+                ),
+                settings=settings.watch,
+            ),
+            ReasoningEscalator(
+                load_words(
+                    STEPS / "heat_water" / "escalation.yaml", EscalationWords
+                ),
+                answer_with_reasoning,
+                settings.escalation,
+            ),
+        )
+        self.start_steeping = StepWithEscalator(
+            WatchStep(
+                "start_steeping",
+                load_words(STEPS / "start_steeping" / "words.yaml", WatchWords),
+                camera_check_models,
+                settings=settings.watch,
+            ),
+            ReasoningEscalator(
+                load_words(
+                    STEPS / "start_steeping" / "escalation.yaml",
+                    EscalationWords,
+                ),
+                answer_with_reasoning,
+                settings.escalation,
+            ),
+        )
+        self.steep = WaitStep(
+            "steep",
+            load_words(STEPS / "steep" / "words.yaml", StepWords),
+            inputs_schema=SteepInputs,
+        )
+        self.steps = (
+            self.identify,
+            self.choose_settings,
+            self.fill_water,
+            self.heat_water,
+            self.start_steeping,
+            self.steep,
+        )
+        """In the order make_tea runs them."""
+
+    @property
+    def plan(self) -> list[tuple[str, str]]:
+        """(step id, what the person does) in order, for the conversation."""
+        return [
+            (step.id, step.words.does) for step in self.steps if step.words.does
+        ]

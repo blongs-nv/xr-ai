@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# start_steeping's words (xr_ai_kit.sop.WatchWords), loaded in procedure.py.
+does: put the tea in the hot water
+start_line: Put the tea in the water; I'll start the timer when I see it.
+question: |-
+  Describe tea-water contact only inside an actual physical vessel in the
+  scene. Packaging artwork, printed cups, photos and screen images are
+  depictions, not real tea in real water. If an actual vessel is visible,
+  describe whether a real tea bag, infuser or leaves visibly touch its real
+  water. If the view is a depiction or the contact is unclear, say so.
+criteria:
+  instructions: >-
+    Does this observation establish tea touching real water in an actual
+    physical vessel? Printed packaging, illustrated cups, photos and screens
+    do not establish it, even when they show tea and water.
+  positive: >-
+    An actual vessel holds a visible real liquid AND a real tea bag, infuser
+    or leaves visibly touch that liquid, not a depiction.
+  negative: >-
+    A clear view shows the tea separate from the water (outside or above
+    it), or no water in the visible vessel.
+  unknown: >-
+    The relationship is in a depiction, or the water or the contact is
+    unclear, unconfirmed, occluded or missing.

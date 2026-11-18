@@ -42,6 +42,7 @@ class StepWithEscalator:
         self.step = step
         self.escalator = escalator
         self.id: str = step.id
+        self.words = getattr(step, "words", None)
         self.inputs_schema = step.inputs_schema
 
     @property

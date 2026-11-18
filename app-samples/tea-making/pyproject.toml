@@ -37,4 +37,4 @@ tea_making = "main:run"
 tea_making_app = "app:main"
 
 [tool.hatch.build.targets.wheel]
-only-include = ["main.py", "app.py", "procedure.py", "tea.py"]
+only-include = ["main.py", "app.py", "procedure.py", "tea.py", "steps"]

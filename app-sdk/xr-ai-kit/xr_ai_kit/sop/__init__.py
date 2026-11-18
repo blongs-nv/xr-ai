@@ -7,8 +7,8 @@ The package::
 
     steps/            what every step shares, whatever its type
       step_api.py         Step, StepEnvironment, Frames: what a step is and what it may touch
-      step_definitions.py StepDefinitions: a procedure's steps written in YAML (does, start_line, done_line; and
-                          sections, each read by its owner)
+      step_words.py       StepWords (what every step says; each step type's words extend it) and load_words
+                          (YAML into a words schema)
     step_types/       the kit's step types, one package each; an app's own follow the same shape
       watch/              WatchStep: the fast camera check (judge, verify); supports escalation
       read/               ReadStep: read the camera into a schema until it is enough (read_until_enough)
@@ -27,18 +27,18 @@ between them. Everything it needs is importable from here.
 
 A procedure::
 
-    STEPS = StepDefinitions.load("steps.yaml")
     fill_water = StepWithEscalator(
-        WatchStep(STEPS["fill_water"], WatchModels(perceive=vision_model, decide=classifier)),
-        ReasoningEscalator(STEPS["fill_water"], reasoning_model),
+        WatchStep("fill_water", load_words(HERE / "fill_water.yaml", WatchWords),
+                  WatchModels(perceive=vision_model, decide=classifier)),
+        ReasoningEscalator(load_words(HERE / "fill_water.escalation.yaml", EscalationWords), reasoning_model),
     )
-    steep = WaitStep(STEPS["steep"], inputs_schema=SteepInputs)   # SteepInputs(WaitInputs): {minutes} for its words
+    steep = WaitStep("steep", load_words(HERE / "steep.yaml", StepWords), inputs_schema=SteepInputs)
 
     async def make_tea(run: Run) -> None:
         await run.step(fill_water)                                # says its start_line, then its done_line
         await run.step(steep, SteepInputs(duration_s=120))
 
-Each step is defined once, from its definition, the models it uses and its ``inputs_schema``, and each run of it
+Each step is defined once, from its id, its words, the models it uses and its ``inputs_schema``, and each run of it
 gets its inputs: what earlier steps produced, passed on by the procedure. A step type of the app's own (any object
 with ``id``, ``inputs_schema``, ``start_line(inputs)``, ``done_line(inputs, result)`` and ``run(environment,
 inputs)``) runs and is evaluated like the kit's.
@@ -51,8 +51,8 @@ from .escalation import (
     AddedContext,
     EscalationChannel,
     EscalationMessage,
-    EscalationSection,
     EscalationSettings,
+    EscalationWords,
     Escalator,
     EscalatorEnvironment,
     Evidence,
@@ -64,8 +64,8 @@ from .escalation import (
     is_stuck,
 )
 from .runner import CONTROLS, MESSAGES, Run, SopRunner, StepRecord
-from .step_types.read import ReadSection, ReadSettings, ReadState, ReadStep, read_until_enough
-from .step_types.transform import TransformSection, TransformSettings, TransformState, TransformStep
+from .step_types.read import ReadSettings, ReadState, ReadStep, ReadWords, read_until_enough
+from .step_types.transform import TransformSettings, TransformState, TransformStep, TransformWords
 from .step_types.wait import TimerState, WaitInputs, WaitStep, timer
 from .step_types.watch import (
     LABELS,
@@ -78,21 +78,21 @@ from .step_types.watch import (
     StructuredObservation,
     Verification,
     WatchModels,
-    WatchSection,
     WatchSettings,
     WatchStep,
+    WatchWords,
     judge,
     verify,
 )
 from .steps import (
     Frames,
     Step,
-    StepDefinition,
-    StepDefinitions,
     StepEnvironment,
+    StepWords,
     check_inputs,
     check_placeholders,
     fill_placeholders,
+    load_words,
 )
 
 __all__ = [
@@ -102,8 +102,8 @@ __all__ = [
     "Criteria",
     "EscalationChannel",
     "EscalationMessage",
-    "EscalationSection",
     "EscalationSettings",
+    "EscalationWords",
     "Escalator",
     "EscalatorEnvironment",
     "Evidence",
@@ -113,18 +113,17 @@ __all__ = [
     "LABELS",
     "Label",
     "MESSAGES",
-    "ReadSection",
     "ReadSettings",
     "ReadState",
     "ReadStep",
+    "ReadWords",
     "ReasoningEscalator",
     "Run",
     "STUCK_RULE",
     "SopRunner",
     "Step",
     "StepContext",
-    "StepDefinition",
-    "StepDefinitions",
+    "StepWords",
     "StepEnvironment",
     "StepRecord",
     "StepSnapshot",
@@ -132,15 +131,15 @@ __all__ = [
     "StructuredObservation",
     "SupportsEscalation",
     "TimerState",
-    "TransformSection",
     "TransformSettings",
     "TransformState",
     "TransformStep",
+    "TransformWords",
     "Verification",
     "WaitInputs",
     "WaitStep",
     "WatchModels",
-    "WatchSection",
+    "WatchWords",
     "WatchSettings",
     "WatchStep",
     "check_inputs",
@@ -149,6 +148,7 @@ __all__ = [
     "fill_placeholders",
     "is_stuck",
     "judge",
+    "load_words",
     "read_until_enough",
     "timer",
     "verify",

@@ -120,7 +120,7 @@ answered (not acted on) with words of `heat_water`.
   the recording lacks is spliced from its parts.
 - Something the user may say during one step: one entry in that packet's
   `utterances`; during every step: one entry in `dialogue/common.yaml`.
-- A new step: its entry in `steps.yaml`, the step in `procedure.TeaProcedure`
+- A new step: its folder under `steps/` (words.yaml), the step in `procedure.TeaProcedure`
   (and its place in `make_tea`), one line in `run_steps.steps`, one case
   file, one packet.
 

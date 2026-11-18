@@ -21,13 +21,13 @@ from xr_ai_kit.sop import (
     Criteria,
     EscalationChannel,
     EscalationSettings,
+    EscalationWords,
     Facts,
     Judgment,
     ReasoningEscalator,
     Run,
     SopRunner,
     StepContext,
-    StepDefinition,
     StructuredObservation,
     WatchModels,
     decide_escalation,
@@ -76,15 +76,21 @@ def _models(app: App) -> WatchModels:
     return WatchModels(perceive=app.role("observe"), decide=app.role("decide"))
 
 
+def _at_least_176(reading: Reading, known: Display | None, inputs: object) -> str:
+    """A code judge: no unit (read, or known) means the reading cannot be judged."""
+    unit = reading.unit or (known.unit if known is not None else None)
+    if reading.value is None or unit is None:
+        return "unknown"
+    return "positive" if reading.value >= 176 else "negative"
+
+
 def _display_check() -> Check:
-    """A check on a display's reading, which cannot be judged without a unit (read, or known)."""
+    """A check on a display's reading, described in a schema and judged in code."""
     return Check(
         "Read the display.",
         WATER,
         facts_schema=Display,
-        observation=StructuredObservation(
-            Reading, can_judge=lambda r, known: (r.unit or (known and known.unit)) is not None
-        ),
+        observation=StructuredObservation(Reading, judge=_at_least_176),
     )
 
 
@@ -113,26 +119,34 @@ async def test_judge_describes_the_frame_then_decides_against_the_criteria() -> 
     assert "half full" in models.calls("decide")[0].context
 
 
-async def test_judge_with_a_schema_skips_the_decision_when_the_reading_cannot_be_assessed() -> None:
-    models = FakeModels({"observe": [{"value": 68}, ValueError("not json")], "decide": []})
+async def test_a_code_judge_labels_a_schema_observation_and_no_model_decides() -> None:
+    models = FakeModels({"observe": [{"value": 68}], "decide": []})
     app = _app()
     async with app.test_session(models=models) as s:
         await s.join()
-        frame = solid_frame("white")
-        no_unit = await judge(frame, _display_check(), _models(app))
-    assert (no_unit.label, no_unit.reason, no_unit.parsed) == ("unknown", "not assessable", Reading(value=68))
+        no_unit = await judge(solid_frame("white"), _display_check(), _models(app))
+    assert (no_unit.label, no_unit.parsed) == ("unknown", Reading(value=68))
     assert models.calls("decide") == []
 
 
-async def test_facts_reach_the_check_in_code_and_the_decision_not_the_observation() -> None:
-    models = FakeModels({"observe": [{"value": 176}], "decide": ["positive"]})
+async def test_without_a_code_judge_the_deciding_model_reads_the_schema_observation() -> None:
+    models = FakeModels({"observe": [{"value": 176, "unit": "F"}], "decide": ["positive"]})
+    app = _app()
+    check = Check("Read the display.", WATER, observation=StructuredObservation(Reading))
+    async with app.test_session(models=models) as s:
+        await s.join()
+        j = await judge(solid_frame("white"), check, _models(app))
+    assert j.label == "positive" and '"value":176.0' in models.calls("decide")[0].context
+
+
+async def test_facts_reach_the_judge_and_never_the_observation() -> None:
+    models = FakeModels({"observe": [{"value": 176}], "decide": []})
     app = _app()
     facts = Facts(Display(unit="fahrenheit"), ('Asked the person: "Unit?" They answered: "Fahrenheit"',))
     async with app.test_session(models=models) as s:
         await s.join()
         j = await judge(solid_frame(), _display_check(), _models(app), facts=facts)
     assert j.label == "positive"
-    assert "fahrenheit" in models.calls("decide")[0].context
     assert "Fahrenheit" not in models.calls("observe")[0].prompt
 
 
@@ -236,7 +250,7 @@ def _channel(context: StepContext, labels: tuple[str, ...]) -> EscalationChannel
 
 def _escalator(role, *, answer_reader=None, **settings) -> ReasoningEscalator:
     return ReasoningEscalator(
-        StepDefinition("heat", sections={"escalation": UNIT_GUIDANCE}),
+        EscalationWords(guidance=UNIT_GUIDANCE),
         role,
         EscalationSettings(every_s=0.01, min_gap_s=0, **settings),
         answer_reader=answer_reader,

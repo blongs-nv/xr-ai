@@ -31,15 +31,18 @@ from xr_ai_app import App, Hub, PerConnection, Voice
 from xr_ai_kit import Conversation, OneShotDestination, Router
 from xr_ai_kit.sop import (
     EscalationSettings,
+    EscalationWords,
     ReasoningEscalator,
     Run,
     SopRunner,
-    StepDefinitions,
     StepWithEscalator,
+    StepWords,
     WaitStep,
     WatchModels,
     WatchSettings,
     WatchStep,
+    WatchWords,
+    load_words,
 )
 
 HERE = Path(__file__).resolve().parent
@@ -54,7 +57,7 @@ voice = app.add(Voice(summarize=app.role("answer_lightweight")))
 WARM_UP_S = 90
 
 # ---- the steps: words from sop.yaml, types and models here ----
-DEFINITIONS = StepDefinitions.load(HERE / "sop.yaml")
+SOP = HERE / "sop.yaml"
 # perceive describes each frame; decide labels the description.
 CAMERA_CHECK_MODELS = WatchModels(perceive=perceive, decide=decide)
 # A look a second; done when two of the last three decided looks are yes.
@@ -65,19 +68,37 @@ WATCH = WatchSettings(required=2, window=3, interval_s=1.0)
 ESCALATION = EscalationSettings(context=["run", "dialogue"])
 
 bed_clear = StepWithEscalator(
-    WatchStep(DEFINITIONS["bed_clear"], CAMERA_CHECK_MODELS, settings=WATCH),
+    WatchStep(
+        "bed_clear",
+        load_words(SOP, WatchWords, key="bed_clear.step"),
+        CAMERA_CHECK_MODELS,
+        settings=WATCH,
+    ),
     ReasoningEscalator(
-        DEFINITIONS["bed_clear"], answer_with_reasoning, ESCALATION
+        load_words(SOP, EscalationWords, key="bed_clear.escalation"),
+        answer_with_reasoning,
+        ESCALATION,
     ),
 )
 door_closed = StepWithEscalator(
-    WatchStep(DEFINITIONS["door_closed"], CAMERA_CHECK_MODELS, settings=WATCH),
+    WatchStep(
+        "door_closed",
+        load_words(SOP, WatchWords, key="door_closed.step"),
+        CAMERA_CHECK_MODELS,
+        settings=WATCH,
+    ),
     ReasoningEscalator(
-        DEFINITIONS["door_closed"], answer_with_reasoning, ESCALATION
+        load_words(SOP, EscalationWords, key="door_closed.escalation"),
+        answer_with_reasoning,
+        ESCALATION,
     ),
 )
-warm_up = WaitStep(DEFINITIONS["warm_up"], duration_s=WARM_UP_S)
-DEFINITIONS.check_read()  # every section of sop.yaml is used
+warm_up = WaitStep(
+    "warm_up",
+    load_words(SOP, StepWords, key="warm_up.step"),
+    duration_s=WARM_UP_S,
+)
+STEPS = (bed_clear, door_closed, warm_up)
 
 
 async def preflight(run: Run) -> None:
@@ -94,7 +115,8 @@ procedure = app.add(
         title="Printer pre-flight",
         decide=decide,
         output=voice,
-        plan=DEFINITIONS.plan(),  # the steps ahead, for the conversation
+        # the steps ahead, for the conversation
+        plan=[(step.id, step.words.does) for step in STEPS],
         escalation_context=[voice.dialogue],  # what escalators may read
     )
 )

@@ -3,8 +3,8 @@
 
 """What a step is and what it may touch: the contract every step type, the runner and the evaluation share.
 
-A step (:class:`Step`) is defined once and run with inputs, like a function: ``await run.step(heat_water,
-HeatInputs(temperature_c=80))``. It has an ``id``; ``inputs_schema``, the pydantic model of what each run of it
+A step (:class:`Step`) is defined once and run with inputs, like a function: ``await run.step(steep,
+SteepInputs(duration_s=120))``. It has an ``id``; ``inputs_schema``, the pydantic model of what each run of it
 starts with (``None``: it takes none); the line spoken as it starts (``start_line(inputs)``) and when it finishes
 (``done_line(inputs, result)``); and ``run(environment, inputs)``. It touches the world only through its
 :class:`StepEnvironment`: the camera, speaking to the person, asking them something, and reporting its progress.
@@ -12,8 +12,9 @@ Live, the environment is the procedure's :class:`~..runner.Run`; in an evaluatio
 (:mod:`..evaluation`) that plays recorded frames, so the evaluation runs exactly the code that ships.
 
 A step type (the kit's ``watch``, ``read``, ``transform``, ``wait``, or an app's own) is any class with that shape.
-The kit's types are built from the step's definition (:class:`~.step_definitions.StepDefinition`, its words from the
-procedure's YAML), the models it uses and its ``inputs_schema``. The ``{placeholders}`` in its words name fields or
+The kit's types are built from the step's id, its words (an instance of the type's own words schema, which extends
+:class:`~.step_words.StepWords`; :func:`~.step_words.load_words` reads them from YAML), the models it uses and its
+``inputs_schema``. The ``{placeholders}`` in its words name fields or
 properties of its inputs (``{temperature_c}``, ``{minimum}``) or, in its done line, what its result offers; they are
 checked when the step is built (:func:`check_placeholders`) and filled when it runs (:func:`fill_placeholders`).
 

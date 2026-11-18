@@ -25,27 +25,23 @@ Routing by hand, without a `Router`, is the core's `role.decide`.
 ## Procedures (`xr_ai_kit.sop`)
 
 A procedure is an ordinary `async def` that runs its steps in order with
-`await run.step(step)`. A step's words live in a YAML file; its type, its
-models and its code hooks are chosen in code:
+`await run.step(step, inputs)`. A step's words live in a YAML file, loaded
+into the words schema of its type; its type, its models and its schemas are
+chosen in code:
 
 ```yaml
-fill_water:
-  does: fill the kettle with fresh water            # the plan the conversation reads
-  start_line: Fill the kettle and keep it in view.  # spoken as the step starts
-  done_line: Water is visible in the kettle.        # spoken when it finishes
-  watch:                                            # the watch step's own section
-    question: Describe whether water is visibly inside the kettle.
-    criteria: {instructions: Is there water?, positive: ..., negative: ..., unknown: ...}
-  escalation: The kettle has to be in view; the person knows if it is full.
-steep:
-  start_line: Steeping for {minutes:g} minutes.   # {minutes}: a property of its inputs
-  done_line: The tea is ready.
+# steps/fill_water/words.yaml: a watch step's words (WatchWords)
+does: fill the kettle with fresh water            # the plan the conversation reads
+start_line: Fill the kettle and keep it in view.  # spoken as the step starts
+done_line: Water is visible in the kettle.        # spoken when it finishes
+question: Describe whether water is visibly inside the kettle.
+criteria: {instructions: Is there water?, positive: ..., negative: ..., unknown: ...}
 ```
 
 ```python
 from xr_ai_kit.sop import (
-    ReasoningEscalator, Run, SopRunner, StepDefinitions, StepWithEscalator, WaitInputs, WaitStep, WatchModels,
-    WatchStep,
+    EscalationWords, ReasoningEscalator, Run, SopRunner, StepWithEscalator, StepWords, WaitInputs, WaitStep,
+    WatchModels, WatchStep, WatchWords, load_words,
 )
 
 class SteepInputs(WaitInputs):          # what steep runs with: duration_s, and {minutes} for its words
@@ -53,19 +49,20 @@ class SteepInputs(WaitInputs):          # what steep runs with: duration_s, and 
     def minutes(self) -> float:
         return self.duration_s / 60
 
-STEPS = StepDefinitions.load("steps.yaml")
 fill_water = StepWithEscalator(
-    WatchStep(STEPS["fill_water"], WatchModels(perceive=vlm, decide=classifier)),
-    ReasoningEscalator(STEPS["fill_water"], reasoning),
+    WatchStep("fill_water", load_words("steps/fill_water/words.yaml", WatchWords),
+              WatchModels(perceive=vlm, decide=classifier)),
+    ReasoningEscalator(load_words("steps/fill_water/escalation.yaml", EscalationWords), reasoning),
 )
-steep = WaitStep(STEPS["steep"], inputs_schema=SteepInputs)
-STEPS.check_read()  # every section of the file has a reader
+steep = WaitStep("steep", load_words("steps/steep/words.yaml", StepWords), inputs_schema=SteepInputs)
 
 async def make_tea(run: Run) -> None:
     await run.step(fill_water)
     await run.step(steep, SteepInputs(duration_s=180))   # inputs: what earlier steps produced
 
-tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier, plan=STEPS.plan()))
+steps = (fill_water, steep)
+tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier,
+                        plan=[(step.id, step.words.does) for step in steps]))
 # tea.control is a router destination (start, stop, skip, restart; anything else passes on);
 # tea.context is the run's summary, for a Conversation's context=.
 ```
@@ -75,9 +72,10 @@ tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier
   starts with, or `None`), `start_line(inputs)`, `done_line(inputs, result)`
   and `run(environment, inputs)`. Its `StepEnvironment` gives it the camera,
   speaking to the person, asking them something, and reporting its progress.
-  The kit's step types are built from the step's definition (its words from
-  the YAML; each type reads its own section), the models it uses, and its
-  `inputs_schema`; the `{placeholders}` in its words name fields or
+  The kit's step types are built from the step's id, its words (each type
+  defines a words schema, such as `WatchWords`; `load_words` reads one from
+  YAML, and a misspelled key fails when it is loaded), the models it uses,
+  and its `inputs_schema`; the `{placeholders}` in its words name fields or
   properties of its inputs and are checked when it is built. The procedure
   passes each step what earlier steps produced: `run.step(step, inputs)`.
   `WatchStep` labels a frame every few seconds (perceive, then decide) until
@@ -101,8 +99,8 @@ tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier
   escalator is anything with `run(channel, environment)`: the kit's
   `ReasoningEscalator` reasons in text over the evidence and asks the person
   or tells them what to bring into view, with a prompt each step may replace
-  (its `escalation` section: `guidance`, and optionally `instructions` or the
-  whole `prompt`); another could send the frame behind the evidence to a
+  (its words, `EscalationWords`: `guidance`, and optionally `instructions` or
+  the whole `prompt`); another could send the frame behind the evidence to a
   model of its own. A step type supports escalation by implementing
   `run_with_escalation(environment, channel)`; the watch step does.
 - `SopRunner` owns the run: each step is its own task, so skip cancels only

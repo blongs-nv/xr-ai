@@ -86,18 +86,18 @@ class WatchModels:
 
 @dataclass(frozen=True, slots=True)
 class StructuredObservation:
-    """Optional for a check: read each frame into a schema, and work with it in code before anything decides.
+    """Optional for a check: describe each frame in a schema (a structured caption), and optionally judge it in code.
 
-    ``schema`` is what the perceiving model fills in for each frame (a display's number and unit, say).
-    ``apply_known_facts(observation, facts)`` returns the observation corrected with the typed facts known so far
-    (a unit the person stated replacing one the model claims to read): known facts win in code, not by asking the
-    deciding model to prefer them. ``can_judge(observation, facts)`` says whether the observation can be judged at
-    all; when it is false the frame is ``unknown`` without a decision. ``facts`` is ``None`` while none are known.
+    ``schema`` is what the perceiving model fills in for each frame; shaped well (a gate on what is in view, the
+    object named before it is read, values constrained to what is possible: see the step types' README), it is an
+    accurate account of the frame. ``judge(observation, facts, inputs)``, when given, labels it in code (``positive``,
+    ``negative`` or ``unknown``) in place of the deciding model: for a check that compares values (a reading against a
+    target), where code is exact. ``facts`` is the typed facts known so far (``None`` while none are), ``inputs`` the
+    step's inputs for this run.
     """
 
     schema: type[BaseModel]
-    apply_known_facts: Callable[[Any, Any], Any] | None = None
-    can_judge: Callable[[Any, Any], bool] | None = None
+    judge: Callable[[Any, Any, Any], Label] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +114,8 @@ class Check:
     criteria: Criteria
     facts_schema: type[BaseModel] | None = None
     observation: StructuredObservation | None = None
+    inputs: BaseModel | None = None
+    """The step's inputs for this run (what a code judge compares against)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,14 +172,12 @@ async def judge(
     facts: Facts | None = None,
     timeout_s: float | None = None,
 ) -> Judgment:
-    """Describe ``frame`` with ``models.perceive``, then judge the description against ``check`` with
-    ``models.decide``.
+    """Describe ``frame`` with ``models.perceive``, then judge the description against ``check``: with the
+    observation's ``judge`` in code when it has one, else with ``models.decide``.
 
     With ``check.observation`` the observation is an instance of its schema; a reply that does not fit it is
-    ``unknown`` (reason ``unreadable``) without a decision. When its ``can_judge`` is false for the observation and
-    the known facts, the frame is ``unknown`` (reason ``not assessable``) and the deciding model is not asked. The
-    facts reach the decision, never the observation, so what the camera shows is described on its own. ``timeout_s``
-    bounds the observation call.
+    ``unknown`` (reason ``unreadable``) without a decision. The facts reach the judgement, never the observation, so
+    what the camera shows is described on its own. ``timeout_s`` bounds the observation call.
     """
     facts = facts or Facts()
     parsed: BaseModel | None = None
@@ -189,13 +189,10 @@ async def judge(
             )
         except StructuredOutputError:
             return Judgment("unknown", "", frame.timestamp_us, frame.sequence, reason="unreadable", frame=frame)
-        if structured.apply_known_facts is not None:
-            parsed = structured.apply_known_facts(parsed, facts.known)
         description = parsed.model_dump_json(exclude_none=True)
-        if structured.can_judge is not None and not structured.can_judge(parsed, facts.known):
-            return Judgment(
-                "unknown", description, frame.timestamp_us, frame.sequence, parsed, reason="not assessable", frame=frame
-            )
+        if structured.judge is not None:
+            label = structured.judge(parsed, facts.known, check.inputs)
+            return Judgment(label, description, frame.timestamp_us, frame.sequence, parsed, frame=frame)
     else:
         description = str(await models.perceive.ask(frame, check.question, timeout_s=timeout_s)).strip()
     context = f"Observation of the current camera frame:\n{description}"

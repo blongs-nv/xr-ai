@@ -16,7 +16,13 @@ from pathlib import Path
 
 import app as module
 import pytest
-from tea import DisplayFacts, Thermometer, can_judge_reading
+from steps.heat_water.schemas import (
+    DisplayCaption,
+    DisplayFacts,
+    HeatWaterInputs,
+    reached_target,
+)
+from tea import WaterTemperature
 from xr_ai_app.devkit import (
     Scenario,
     fakes_from_file,
@@ -69,18 +75,50 @@ def test_each_change_of_the_run_is_recorded(tmp_path: Path) -> None:
     assert [r["op"] for r in ops][-1] == "completed"
 
 
+def _caption(digits: str | None, letter: str | None = None) -> DisplayCaption:
+    unit = (
+        {"unit_letter_visible": True, "letter": letter}
+        if letter
+        else {"unit_letter_visible": False}
+    )
+    return DisplayCaption.model_validate(
+        {
+            "look": {
+                "display_in_view": True,
+                "display_is_on": "kettle",
+                "display_kind": "lit digital digits",
+                "where_in_image": "center",
+                "text_on_display": [f"{digits}."],
+                "reading": {
+                    "evidence": "the display",
+                    "shown_as": f"{digits}.",
+                    "digits": digits,
+                },
+                "unit": unit,
+                "marked_as": {"evidence": "nothing", "answer": "not shown"},
+            }
+        }
+    )
+
+
 @pytest.mark.parametrize(
-    ("reading", "unit", "ok"),
+    ("caption", "unit", "label"),
     [
-        ({"value": 176, "unit_text": "°F"}, None, True),
-        ({"value": 176}, None, False),  # no unit printed or known
-        ({"value": 176}, "fahrenheit", True),  # the kettle's known unit
-        ({"value": 80, "unit_text": "°C"}, "fahrenheit", True),  # known wins
-        ({"value": 90, "unit_text": "°C", "role": "setpoint"}, None, False),
+        (_caption("176", "F"), None, "positive"),
+        (_caption("176"), None, "unknown"),  # no unit printed or known
+        (_caption("176"), "fahrenheit", "positive"),  # the unit the person gave
+        (_caption("150"), "fahrenheit", "negative"),
+        (
+            _caption("80", "C"),
+            "fahrenheit",
+            "negative",
+        ),  # the person's unit wins
+        (_caption(None), "fahrenheit", "unknown"),  # digits not legible
     ],
 )
-def test_only_a_measured_reading_with_a_unit_is_judged(
-    reading, unit, ok
+def test_the_display_is_judged_in_code_only_with_a_number_and_its_unit(
+    caption, unit, label
 ) -> None:
     known = DisplayFacts(unit=unit) if unit else None
-    assert can_judge_reading(Thermometer(**reading), known) is ok
+    inputs = HeatWaterInputs(target=WaterTemperature(value=80, unit="celsius"))
+    assert reached_target(caption, known, inputs) == label

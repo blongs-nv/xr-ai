@@ -12,11 +12,11 @@ Patterns, what works and what does not, smaller models and speed: README.md, nex
 
 from __future__ import annotations
 
-from .transform_step import TransformSection, TransformSettings, TransformState, TransformStep
+from .transform_step import TransformSettings, TransformState, TransformStep, TransformWords
 
 __all__ = [
-    "TransformSection",
     "TransformSettings",
     "TransformState",
     "TransformStep",
+    "TransformWords",
 ]

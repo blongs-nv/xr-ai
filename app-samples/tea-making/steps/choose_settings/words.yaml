@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# choose_settings's words (xr_ai_kit.sop.TransformWords), loaded in procedure.py.
+does: work out the brewing settings
+done_line: >-
+  I'll brew it at {output.water_temperature.spoken} for
+  {output.steep_time.spoken}.
+instructions: |-
+  Fill in conventional brewing settings for this tea: the water
+  temperature and the steeping time. Use general tea-brewing knowledge for
+  its kind of tea; an unfamiliar brand does not prevent settings for a
+  recognizable kind. Do not change what was read from its package. When
+  nothing identifies the kind of tea, ask the person what kind it is; if
+  they cannot say, give settings that suit most teas.

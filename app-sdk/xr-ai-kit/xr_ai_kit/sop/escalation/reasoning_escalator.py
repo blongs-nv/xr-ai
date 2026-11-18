@@ -16,8 +16,8 @@ is known (:func:`decide_escalation`) and infers what is missing and whether the 
 question, whose answer is added to the step's context) or by doing something, such as bringing the kettle back into
 view (an instruction, spoken only). It sees no frames: the step already looked.
 
-Its prompt is per step: the step's ``escalation`` section gives the guidance and may replace the closing
-``instructions`` or the whole ``prompt`` (:data:`PROMPT`, a template; see :class:`EscalationSection`).
+Its prompt is per step: its words (:class:`EscalationWords`) give the guidance and may replace the closing
+``instructions`` or the whole ``prompt`` (:data:`PROMPT`, a template).
 """
 
 from __future__ import annotations
@@ -27,10 +27,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 from xr_ai_app import Role, StructuredOutputError, clock
 
-from ..steps.step_definitions import StepDefinition
 from .escalation_channel import AddedContext, EscalationChannel, EscalatorEnvironment, Evidence, StepSnapshot
 
 
@@ -131,9 +130,9 @@ async def decide_escalation(
     return EscalationMessage(decision.action, said)
 
 
-class EscalationSection(BaseModel):
-    """A step's ``escalation`` section: its guidance alone (a string), or a mapping that may also replace the closing
-    instructions or the whole prompt for this step."""
+class EscalationWords(BaseModel):
+    """An escalator's words for one step (a step folder's ``escalation.yaml``): its ``guidance``, and optionally this
+    step's own closing ``instructions`` or whole ``prompt``."""
 
     model_config = ConfigDict(extra="forbid")
     guidance: str
@@ -142,11 +141,6 @@ class EscalationSection(BaseModel):
     """What the reasoning model is asked to do (default :data:`INSTRUCTIONS`)."""
     prompt: str = PROMPT
     """The whole prompt (default :data:`PROMPT`)."""
-
-    @model_validator(mode="before")
-    @classmethod
-    def _guidance_alone(cls, value: object) -> object:
-        return {"guidance": value} if isinstance(value, str) else value
 
 
 class EscalationSettings(BaseModel):
@@ -171,24 +165,23 @@ class EscalationSettings(BaseModel):
 class ReasoningEscalator:
     """The kit's escalator for one step; see the module docstring.
 
-    Built from the step's definition: its ``escalation`` section (:class:`EscalationSection`) gives ``guidance`` (how
-    the person can help) and this step's ``instructions`` and ``prompt``. ``reason`` reasons over the step's
+    Built from its ``words`` (:class:`EscalationWords`): ``guidance`` (how the person can help) and this step's
+    ``instructions`` and ``prompt``. ``reason`` reasons over the step's
     evidence; ``answer_reader`` (a text model; default ``reason``) reads an answer into the typed facts the step
     accepts.
     """
 
     def __init__(
         self,
-        definition: StepDefinition,
+        words: EscalationWords,
         reason: Role,
         settings: EscalationSettings | None = None,
         *,
         answer_reader: Role | None = None,
     ) -> None:
-        section = definition.section("escalation", EscalationSection)
-        self.guidance = section.guidance
-        self.instructions = section.instructions
-        self.prompt = section.prompt
+        self.guidance = words.guidance
+        self.instructions = words.instructions
+        self.prompt = words.prompt
         self.reason = reason
         self.answer_reader = answer_reader or reason
         self.settings = settings or EscalationSettings()

@@ -13,9 +13,9 @@ When its prompt allows it, the model may ask the person one short question inste
 ``max_questions`` per run): the step asks it through its environment, and the question and answer go into the next
 prompt. The step is not skippable: it does not wait on the person to do anything, and later steps need its result.
 
-Its definition in the procedure's YAML: the ``transform`` section (:class:`TransformSection`: ``instructions``, the
-prompt), ``start_line``, and ``done_line``, whose placeholders name fields or properties of its inputs and ``output``
-(the result). How an evaluation case of it is scored is in :mod:`.transform_scoring`.
+Its words (:class:`TransformWords`): ``instructions``, the prompt, and what every step says (``does``,
+``start_line``, ``done_line``, whose placeholders name fields or properties of its inputs and ``output``, the
+result). How an evaluation case of it is scored is in :mod:`.transform_scoring`.
 """
 
 from __future__ import annotations
@@ -27,13 +27,12 @@ from pydantic import BaseModel, ConfigDict, create_model
 from xr_ai_app import Role, StructuredOutputError, clock
 
 from ...steps.step_api import StepEnvironment, check_inputs, check_placeholders, fill_placeholders
-from ...steps.step_definitions import StepDefinition
+from ...steps.step_words import StepWords
 
 
-class TransformSection(BaseModel):
-    """A transform step's section of its definition (``transform:``)."""
+class TransformWords(StepWords):
+    """A transform step's words: what every step says, and its ``instructions`` (its prompt)."""
 
-    model_config = ConfigDict(extra="forbid")
     instructions: str
     """The prompt: what to produce from the input, and when the person may be asked."""
 
@@ -77,16 +76,16 @@ class TransformState:
 class TransformStep:
     """Turn each run's input into an ``output_schema`` instance with a reasoning model; see the module docstring.
 
-    Built from the step's ``definition`` and ``reason``, the reasoning text model that does it.
+    Built from the step's id, its ``words`` and ``reason``, the reasoning text model that does it.
     """
 
     scoring: ClassVar[str] = f"{__package__}.transform_scoring"
-    section: ClassVar[str] = "transform"
     skippable: ClassVar[bool] = False
 
     def __init__(
         self,
-        definition: StepDefinition,
+        step_id: str,
+        words: TransformWords,
         reason: Role,
         *,
         input_schema: type[BaseModel],
@@ -95,11 +94,11 @@ class TransformStep:
         required_fields: tuple[str, ...] = (),
         settings: TransformSettings | None = None,
     ) -> None:
-        words = definition.section(self.section, TransformSection)
         unknown = [name for name in required_fields if name not in output_schema.model_fields]
         if unknown:
-            raise ValueError(f"step {definition.id!r}: required_fields {unknown} are not fields of the output schema")
-        self.id = definition.id
+            raise ValueError(f"step {step_id!r}: required_fields {unknown} are not fields of the output schema")
+        self.id = step_id
+        self.words = words
         self.inputs_schema = input_schema
         self.output_schema = output_schema
         self.instructions = words.instructions
@@ -107,11 +106,9 @@ class TransformStep:
         self.keep_input_values = keep_input_values
         self.required_fields = required_fields
         self.settings = settings or TransformSettings()
-        self._start_line = definition.start_line
-        self._done_line = definition.done_line
         check_placeholders(self.id, "instructions", words.instructions, input_schema)
-        check_placeholders(self.id, "start_line", definition.start_line, input_schema)
-        check_placeholders(self.id, "done_line", definition.done_line, input_schema, also=("output",))
+        check_placeholders(self.id, "start_line", words.start_line, input_schema)
+        check_placeholders(self.id, "done_line", words.done_line, input_schema, also=("output",))
         self._reply = create_model(
             f"{output_schema.__name__}Reply",
             output=(output_schema | None, None),
@@ -120,11 +117,11 @@ class TransformStep:
         self._reply_without_question = create_model(f"{output_schema.__name__}Reply", output=(output_schema, ...))
 
     def start_line(self, inputs: BaseModel | None = None) -> str | None:
-        return fill_placeholders(self._start_line, inputs)
+        return fill_placeholders(self.words.start_line, inputs)
 
     def done_line(self, inputs: BaseModel | None, result: BaseModel) -> str | None:
         """``done_line``, filled with the inputs and ``output``."""
-        return fill_placeholders(self._done_line, inputs, output=result)
+        return fill_placeholders(self.words.done_line, inputs, output=result)
 
     def kept(self, inputs: BaseModel) -> dict[str, Any]:
         """The input's values the output keeps: its non-empty fields the output schema shares (with

@@ -1,15 +1,17 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tea-specific data: what is read from the camera and what is filled in.
+"""What the tea steps pass to each other: the Tea that identify reads and
+choose_settings completes, and the measures in it (WaterTemperature, which
+heat_water runs with; SteepTime, which steep's duration comes from).
 
-The step types (xr_ai_kit.sop) know nothing about tea; these schemas and the
-temperature checks are what procedure.py gives them.
+Each step's own types are in its folder (steps/<step>/schemas.py); this file
+has only what crosses from one step to another in make_tea.
 """
 
 from __future__ import annotations
 
-from typing import Any, Generic, Literal, TypeVar
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -58,6 +60,12 @@ class WaterTemperature(BaseModel):
         if self.unit == "celsius":
             return self.value
         return round((self.value - 32) * 5 / 9, 1)
+
+    @property
+    def fahrenheit(self) -> float:
+        if self.unit == "fahrenheit":
+            return self.value
+        return round(self.value * 9 / 5 + 32, 1)
 
     @property
     def spoken(self) -> str:
@@ -154,172 +162,3 @@ class Tea(BaseModel):
         """The tea as said aloud ("Bigelow Premium Green Tea")."""
         what = self.name or (f"{self.tea_type} tea" if self.tea_type else None)
         return " ".join(filter(None, (self.brand, what))) or "an unnamed tea"
-
-
-# How one frame of the tea's package is read. The shape guides the model
-# (thinking is off), and constrained decoding holds it to the shape: it first
-# decides whether a tea package is in view at all (if not, nothing can be
-# read), copies the package's words, gives the brand, name and kind of tea
-# each with the words it comes from, and decides whether brewing directions
-# are printed before it may give any. Measured on the green-tea recording
-# (xr_ai_kit.sop.step_types.read's README): no value from frames without a
-# package, and no brewing settings invented from what the model knows.
-# extract turns a reply into the Tea kept across frames. No class docstrings:
-# they would become schema descriptions (see above).
-V = TypeVar("V")
-
-
-class Quoted(BaseModel, Generic[V]):
-    quote: str = Field(
-        description="the exact words on the tea's package it comes from, copied"
-    )
-    value: V
-
-
-# Each choice below is a gate: the model writes its yes/no first, and on no
-# it cannot write any of the fields the yes allows.
-class BrewingDirectionsPrinted(BaseModel):
-    brewing_directions_visible: Literal[True]
-    quote: str = Field(
-        description="the brewing directions as printed, copied word for word"
-    )
-    water_temperature: WaterTemperature | None = None
-    steep_time: SteepTime | None = None
-
-
-class NoBrewingDirections(BaseModel):
-    brewing_directions_visible: Literal[False]
-
-
-# A tea package in view: its words, copied first; then the brand, name and
-# kind of tea, each with the words it comes from (the kind may be clear from
-# the words: Premium Green Tea is green); then whether brewing directions are
-# printed, before any may be given.
-class PackageInView(BaseModel):
-    tea_package_in_view: Literal[True]
-    text_on_package: list[str] = Field(
-        description="every legible word or phrase on the tea's own package,"
-        " copied"
-    )
-    brand: Quoted[str] | None = Field(
-        default=None, description="the brand, e.g. Bigelow"
-    )
-    name: Quoted[str] | None = Field(
-        default=None, description="the product name, e.g. Premium Green Tea"
-    )
-    tea_type: Quoted[TeaType] | None = Field(
-        default=None,
-        description="the kind of tea, printed or clear from the words",
-    )
-    directions: BrewingDirectionsPrinted | NoBrewingDirections
-
-
-class NoPackage(BaseModel):
-    tea_package_in_view: Literal[False]
-    what_is_in_view: str = Field(
-        description="what the camera shows instead, in a few words"
-    )
-
-
-class TeaPackageLook(BaseModel):
-    look: PackageInView | NoPackage
-
-
-def tea_from_look(reply: TeaPackageLook) -> Tea:
-    """What one look at the package read, as a Tea (empty when no package was
-    in view)."""
-    seen = reply.look
-    if isinstance(seen, NoPackage):
-        return Tea()
-    read: dict[str, Any] = {
-        field: quoted.value if (quoted := getattr(seen, field)) else None
-        for field in ("brand", "name", "tea_type")
-    }
-    if isinstance(seen.directions, BrewingDirectionsPrinted):
-        read["water_temperature"] = seen.directions.water_temperature
-        read["steep_time"] = seen.directions.steep_time
-    return Tea(**read)
-
-
-class Thermometer(BaseModel):
-    """What a temperature display shows; a missing unit is kept as None."""
-
-    model_config = ConfigDict(extra="ignore")
-    value: float | None = None
-    unit_text: str | None = Field(
-        default=None,
-        max_length=40,
-        description="The unit letter printed beside the number, copied"
-        " exactly (°C, °F, C, F); null when the display shows no C or F"
-        " letter (a bare number, or only a degree sign).",
-    )
-    role: Literal["current", "setpoint", "unknown"] = Field(
-        default="unknown",
-        description="current only when a label or indicator shows a measured"
-        " temperature, setpoint only when it shows a target; else unknown.",
-    )
-
-    @property
-    def unit(self) -> Literal["celsius", "fahrenheit"] | None:
-        """The unit from the printed text only, never from the number."""
-        text = "".join((self.unit_text or "").split()).casefold()
-        return {
-            "°c": "celsius",
-            "c": "celsius",
-            "celsius": "celsius",
-            "°f": "fahrenheit",
-            "f": "fahrenheit",
-            "fahrenheit": "fahrenheit",
-        }.get(text)
-
-    @property
-    def reading(self) -> str:
-        """The reading as spoken ("176 °F"; "the target" without a value)."""
-        if not self.value:
-            return "the target"
-        return f"{self.value:g} {self.unit_text or ''}".strip()
-
-
-class DisplayFacts(BaseModel):
-    """What the heating check may need to know that a display may not show:
-    learned from the person when the check gets stuck (its escalator asks)."""
-
-    model_config = ConfigDict(extra="ignore")
-    unit: Literal["celsius", "fahrenheit"] | None = Field(
-        default=None,
-        description="the unit the kettle's display uses, as the person says",
-    )
-
-
-_UNIT_TEXT = {"celsius": "°C", "fahrenheit": "°F"}
-
-
-def use_known_unit(
-    reading: Thermometer, known: DisplayFacts | None
-) -> Thermometer:
-    """The reading with the known unit in place of the unit the model read.
-
-    A unit the person stated wins: on a display that prints none, a read unit
-    is invented, and the decision must not see it.
-    """
-    if known is None or known.unit is None:
-        return reading
-    return reading.model_copy(update={"unit_text": _UNIT_TEXT[known.unit]})
-
-
-def can_judge_reading(reading: Thermometer, known: DisplayFacts | None) -> bool:
-    """Whether a reading can be compared with the target at all.
-
-    A unit the person stated wins over the unit the model says it reads: on a
-    display that prints none, a read unit is invented. A setpoint, or no unit
-    at all (neither known nor read), is not a measurement to judge; the frame
-    then counts as unknown.
-    """
-    if reading.value is None or reading.role == "setpoint":
-        return False
-    unit = known.unit if known is not None else None
-    return (unit or reading.unit) is not None
-
-
-def fahrenheit(celsius: float) -> float:
-    return celsius * 9 / 5 + 32

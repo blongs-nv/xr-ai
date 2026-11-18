@@ -12,7 +12,7 @@ decide:
 perceive:
   by_prompt:
     - ["Is a tea package, bag or tag", {look: {tea_package_in_view: true, text_on_package: [Bigelow, Green Tea], brand: {quote: Bigelow, value: Bigelow}, tea_type: {quote: Green Tea, value: green}, directions: {brewing_directions_visible: false}}}]
-    - ["Transcribe the temperature", {value: 150, role: current}]
+    - ["Is a lit digital temperature display", {look: {display_in_view: true, display_is_on: kettle, display_kind: lit digital digits, where_in_image: center, text_on_display: ["150."], reading: {evidence: the display, shown_as: "150.", digits: "150"}, unit: {unit_letter_visible: false}, marked_as: {evidence: nothing, answer: not shown}}}]
   otherwise: A kettle and a mug on a desk.
 answer_with_reasoning:
   by_prompt:

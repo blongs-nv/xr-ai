@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# How the person can help when start_steeping's camera check cannot decide (xr_ai_kit.sop.EscalationWords),
+# for the escalator beside it.
+guidance: >-
+  The mug has to be in the camera's view. Its inside may still be hard to
+  see; the person knows whether the tea is in the water.
