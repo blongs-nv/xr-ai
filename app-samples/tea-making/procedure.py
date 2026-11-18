@@ -15,8 +15,9 @@ Each camera step has an escalator beside it (StepWithEscalator): when the
 camera alone cannot decide, it asks the person or tells them what to show.
 heat_water and steep depend on the brewing settings, so they are built once
 the tea is identified. Each step says its own lines; the procedure says only
-the settings it decided on. The evaluation (eval/run_steps.py) takes its
-steps from TeaProcedure too, so the step it evaluates is the step that runs.
+when it falls back to the default settings. The evaluation
+(eval/run_steps.py) takes its steps from TeaProcedure too, so the step it
+evaluates is the step that runs.
 """
 
 from __future__ import annotations
@@ -181,26 +182,32 @@ class TeaProcedure:
         """The procedure: identify the tea, decide the settings, brew it."""
         identified = await run.step(self.identify)  # None when skipped
 
-        # The settings: recommended for this tea, or the defaults.
+        # The settings: recommended for this tea; the defaults for what is
+        # not recommended (identify skipped, or a field it could not give).
         recommended = (identified and identified.derived) or Brewing()
         temperature_c = (
             recommended.temperature_c or self.settings.default_temperature_c
         )
         duration_s = recommended.duration_s or self.settings.default_duration_s
-        settings_from = "recommended" if identified else "defaults"
+        uses_defaults = (
+            recommended.temperature_c is None or recommended.duration_s is None
+        )
         await run.note(
             tea=identified.reading if identified else None,
             temperature_c=temperature_c,
             duration_s=duration_s,
-            settings_from=settings_from,
+            settings_from="defaults" if uses_defaults else "recommended",
         )
-        await run.say(
-            DEFINITIONS.procedure_line(
-                settings_from,
-                temperature_c=temperature_c,
-                minutes=duration_s / 60,
+        # A recommendation needs no line here: heat_water and steep say
+        # their temperature and time as they start.
+        if uses_defaults:
+            await run.say(
+                DEFINITIONS.procedure_line(
+                    "defaults",
+                    temperature_c=temperature_c,
+                    minutes=duration_s / 60,
+                )
             )
-        )
 
         await run.step(self.fill_water)
         await run.step(

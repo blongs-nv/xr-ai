@@ -143,8 +143,6 @@ steep:
   done_line: The tea has finished steeping.
 
 procedure_lines:
-  recommended: >-
-    I recommend {temperature_c:g} degrees Celsius for {minutes:g} minutes.
   defaults: >-
-    I'll use the default settings: {temperature_c:g} degrees Celsius for
-    {minutes:g} minutes.
+    Without a full recommendation, I'll use the default settings:
+    {temperature_c:g} degrees Celsius for {minutes:g} minutes.

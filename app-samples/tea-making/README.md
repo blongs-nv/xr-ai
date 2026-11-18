@@ -56,8 +56,9 @@ and one section per owner (`read` or `watch` for the step, `escalation` for
 its escalator). Which type each step is, its models, schemas and escalator
 are in `procedure.py` (`TeaProcedure`), and so is the procedure itself
 (`make_tea`): the order of the steps, and the brewing settings it decides
-from what identify read (the recommendation, or the defaults), which it
-says and which heat_water and steep are built with.
+from what identify read (the recommendation, or the defaults), which
+heat_water and steep are built with and say as they start; the procedure
+itself speaks only when it falls back to the defaults.
 
 Starting the guide starts a run that outlives the turn: a question or an
 interruption never cancels it. "Skip this step" cancels only the current
