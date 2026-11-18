@@ -17,6 +17,7 @@ from typing import Any, Literal, TypeVar
 
 from xr_ai_app import Participant, Sink
 
+from ..escalation.escalation_channel import speaker
 from ..steps.step_api import Frames, Step
 
 T = TypeVar("T")
@@ -137,8 +138,9 @@ class Run:
         await self._changed("note", **{k: plain(v) for k, v in values.items()})
 
     async def say(self, text: str) -> None:
-        """Speak on the assistant's own initiative, tagged with the procedure's name (a newer line replaces it)."""
-        await self.p.say(text, source=f"sop:{self.name}", to=self.output)
+        """Speak on the assistant's own initiative. Lines queue in order: a step's ``done_line`` and the next step's
+        ``start_line`` are both spoken, however close together."""
+        await self.p.say(text, to=self.output)
 
     async def ask(self, question: str, *, timeout_s: float = 60.0) -> str | None:
         """Ask the person ``question`` and wait for the answer; ``None`` when none came within ``timeout_s``.
@@ -150,7 +152,7 @@ class Run:
         """
         future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
         self.asking, self._answer = question, future
-        await self._changed("ask", question=question)
+        await self._changed("ask", question=question, by=speaker())
         await self.say(question)
         answer: str | None = None
         try:

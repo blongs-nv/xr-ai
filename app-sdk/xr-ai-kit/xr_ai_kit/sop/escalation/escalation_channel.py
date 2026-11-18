@@ -25,8 +25,9 @@ It talks to the person on its own, through its :class:`EscalatorEnvironment`; it
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 from xr_ai_app import Frame
@@ -96,6 +97,17 @@ class EscalationChannel:
         if self._add_context is None:
             raise RuntimeError("the step has not started; it takes added context once it runs")
         self._add_context(context)
+
+
+ESCALATOR_SPEAKING: ContextVar[bool] = ContextVar("escalator_speaking", default=False)
+"""True inside an escalator's own task (:class:`~.step_with_escalator.StepWithEscalator` sets it there): what is said
+or asked from that task is the escalator's, not the step's."""
+
+
+def speaker() -> Literal["step", "escalator"]:
+    """Who is speaking from the current task: an escalator beside a step, or the step (or the procedure) itself. The
+    run's record and an evaluation's trace tag each line with it."""
+    return "escalator" if ESCALATOR_SPEAKING.get() else "step"
 
 
 @runtime_checkable

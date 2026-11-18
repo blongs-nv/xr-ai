@@ -161,7 +161,9 @@ class CaseResult:
             "completed": t.completed,
             "completed_at_s": _r(t.completed_at_s),
             "error": t.error,
-            "lines": [{"t_s": _r(x.t_s), "kind": x.kind, "text": x.text, "answer": x.answer} for x in t.lines],
+            "lines": [
+                {"t_s": _r(x.t_s), "by": x.by, "kind": x.kind, "text": x.text, "answer": x.answer} for x in t.lines
+            ],
             "states": [{"t_s": _r(at), "state": _summary(state)} for at, state in t.states],
             "wall_s": _r(self.wall_s),
         }
@@ -238,7 +240,7 @@ def report(results: Sequence[CaseResult]) -> str:
         for r in rows:
             t = r.trace
             done = f"at {t.completed_at_s:.0f} s" if t.completed and t.completed_at_s is not None else "no"
-            said = "; ".join(f"{x.kind} {x.t_s:.0f} s: {x.text}" for x in t.lines) or ""
+            said = "; ".join(f"{x.by} {x.kind} {x.t_s:.0f} s: {x.text}" for x in t.lines) or ""
             wrong = "; ".join(r.problems) or (t.error or "")
             lines.append(f"| {r.case.name} | {'yes' if r.ok else '**no**'} | {done} | {said} | {wrong} |")
         lines.append("")

@@ -18,7 +18,13 @@ from typing import Any
 from xr_ai_app import trace
 
 from ..steps.step_api import StepEnvironment
-from .escalation_channel import EscalationChannel, Escalator, EscalatorEnvironment, SupportsEscalation
+from .escalation_channel import (
+    ESCALATOR_SPEAKING,
+    EscalationChannel,
+    Escalator,
+    EscalatorEnvironment,
+    SupportsEscalation,
+)
 
 SCORING = f"{__package__}.escalation_scoring"
 """What an evaluation case may expect of the escalator (``asks``, ``says``, ``quiet``)."""
@@ -62,6 +68,7 @@ class StepWithEscalator:
                 await escalation
 
     async def _escalate(self, channel: EscalationChannel, environment: EscalatorEnvironment) -> None:
+        ESCALATOR_SPEAKING.set(True)  # this task's own context: what it says is the escalator's
         try:
             await self.escalator.run(channel, environment)
         except Exception as exc:  # noqa: BLE001 - the escalation never fails the step

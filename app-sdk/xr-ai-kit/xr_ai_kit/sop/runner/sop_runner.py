@@ -303,7 +303,7 @@ class SopRunner(Component):
 
     async def _say(self, p: Participant, message: str) -> str:
         text = self._messages[message].format(title=self.title)
-        await p.say(text, source=f"sop:{self.name}", to=self.output)
+        await p.say(text, to=self.output)  # queued after the run's own lines, in order
         return text
 
     async def _changed(self, run: Run, op: str, **data: Any) -> None:

@@ -19,7 +19,8 @@ class EscalationExpect(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     asks: list[str] | None = None
-    """It asks the person something that mentions one of these words (``[]``: any question)."""
+    """It asks the person something that mentions one of these words (``[]``: any question). Only the escalator's
+    lines count; the step's own questions and its ``done_line`` are not the escalator's."""
     says: list[str] | None = None
     """It tells the person something (not a question) that mentions one of these words (``[]``: anything)."""
     quiet: bool = False
@@ -29,7 +30,7 @@ class EscalationExpect(BaseModel):
 def score(trace: StepTrace, expect: EscalationExpect) -> list[str]:
     """What is wrong with ``trace`` against ``expect`` (empty: the case passed)."""
     problems: list[str] = []
-    asked, said = trace.asked(), trace.said()
+    asked, said = trace.asked(by="escalator"), trace.said(by="escalator")
     if expect.asks is not None and not any(mentions(line.text, expect.asks) for line in asked):
         got = "; ".join(repr(line.text) for line in asked) or "nothing"
         problems.append(f"asked {got}, expected a question about {expect.asks or 'anything'}")

@@ -12,6 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from ..escalation.escalation_channel import speaker
 from .scene import SceneFrames
 from .step_trace import Line, StepTrace
 
@@ -46,7 +47,7 @@ class ScriptedEnvironment:
         return self.scene
 
     async def say(self, text: str) -> None:
-        self.trace.lines.append(Line(self.scene.now(), "say", text))
+        self.trace.lines.append(Line(self.scene.now(), "say", text, by=speaker()))
         if self.person.after_tell and not self._switched:
             self._switched = True
             self.scene.switch(self.person.after_tell)
@@ -55,7 +56,7 @@ class ScriptedEnvironment:
         asked_at = self.scene.now()
         await asyncio.sleep(self.person.answer_after_s)
         answer = self._answers.pop(0) if self._answers else None
-        self.trace.lines.append(Line(asked_at, "ask", question, answer))
+        self.trace.lines.append(Line(asked_at, "ask", question, answer, by=speaker()))
         return answer
 
     async def report_progress(self, step_id: str, state: Any) -> None:

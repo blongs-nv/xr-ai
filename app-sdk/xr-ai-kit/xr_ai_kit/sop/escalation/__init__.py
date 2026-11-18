@@ -22,6 +22,7 @@ Optional: the core step contract does not mention it, and a step type supports i
 from __future__ import annotations
 
 from .escalation_channel import (
+    ESCALATOR_SPEAKING,
     AddedContext,
     EscalationChannel,
     Escalator,
@@ -29,6 +30,7 @@ from .escalation_channel import (
     Evidence,
     StepSnapshot,
     SupportsEscalation,
+    speaker,
 )
 from .reasoning_escalator import (
     INSTRUCTIONS,
@@ -44,6 +46,7 @@ from .reasoning_escalator import (
 from .step_with_escalator import StepWithEscalator
 
 __all__ = [
+    "ESCALATOR_SPEAKING",
     "INSTRUCTIONS",
     "PROMPT",
     "STUCK_RULE",
@@ -61,4 +64,5 @@ __all__ = [
     "SupportsEscalation",
     "decide_escalation",
     "is_stuck",
+    "speaker",
 ]

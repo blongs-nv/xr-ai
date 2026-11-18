@@ -198,7 +198,9 @@ def test_watch_step_scoring() -> None:
 
 def test_escalation_scoring_and_a_case_of_an_escalated_step_split_by_owner() -> None:
     expect = escalation_scoring.Expect
-    asked = StepTrace("s", completed=True, lines=[Line(48, "ask", "What unit is the display showing?", "F")])
+    asked = StepTrace(
+        "s", completed=True, lines=[Line(48, "ask", "What unit is the display showing?", "F", by="escalator")]
+    )
     assert escalation_scoring.score(asked, expect(asks=["unit"])) == []
     assert escalation_scoring.score(asked, expect(says=["kettle"]))[0].startswith("said nothing")
     assert escalation_scoring.score(asked, expect(quiet=True))[0].endswith("expected nothing")
@@ -518,7 +520,7 @@ def test_a_case_runs_the_real_step_on_a_scene_and_a_scripted_person(tmp_path: Pa
     result = run_virtual(evaluation.run_case(step, case, _recording(tmp_path, 120)))
     assert result.ok, result.problems
     (line,) = result.trace.lines
-    assert (line.kind, line.answer) == ("ask", "Fahrenheit")
+    assert (line.by, line.kind, line.answer) == ("escalator", "ask", "Fahrenheit")
     prompt = models.calls("reason")[0].prompt
     assert "is it hot yet?" in prompt and "not read" not in prompt  # only the context it is configured with
 
@@ -589,7 +591,25 @@ batch:
     case = evaluation.Case(name="answered", scene=[0, 10], person={"answers": ["B-2"]}, expect={"completes": True})
     result = run_virtual(evaluation.run_case(AskStep(steps["batch"]), case, _recording(tmp_path, 10)))
     assert result.ok, result.problems
-    assert [(line.kind, line.text) for line in result.trace.lines] == [
-        ("ask", "What is the batch number on the label?"),
-        ("done", "Batch B-2 noted."),
+    assert [(line.by, line.kind, line.text) for line in result.trace.lines] == [
+        ("step", "ask", "What is the batch number on the label?"),
+        ("step", "done", "Batch B-2 noted."),
     ]
+    # the step's own question is not an escalator's: it neither satisfies asks nor breaks quiet
+    expect = escalation_scoring.Expect
+    assert escalation_scoring.score(result.trace, expect(quiet=True)) == []
+    assert escalation_scoring.score(result.trace, expect(asks=["batch"]))[0].startswith("asked nothing")
+
+
+async def test_the_runs_lines_queue_in_order_and_none_replaces_another() -> None:
+    """A step's done_line and the next step's start_line follow each other closely; both must be spoken."""
+    said: list[tuple[str, dict]] = []
+
+    class Person:
+        async def say(self, text: str, **options) -> None:
+            said.append((text, options))
+
+    run = Run(Person(), 1, name="tea")  # type: ignore[arg-type]
+    await run.say("Water is visible in the vessel.")
+    await run.say("Heat the water to 80 degrees Celsius.")
+    assert [options.get("source") for _, options in said] == [None, None]  # no source: queued, never replaced

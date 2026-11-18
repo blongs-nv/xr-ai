@@ -72,7 +72,7 @@ a key no one owns is an error:
 | Scored | `expect` keys |
 |---|---|
 | watch step (`fill_water`, `heat_water`, `start_steeping`) | `completes`: true / false / `{after, before}` in scene time |
-| its escalator | `asks`: words its question must include (`[]`: any); `says`: the same for an instruction; `quiet`: says nothing |
+| its escalator | `asks`: words its question must include (`[]`: any); `says`: the same for an instruction; `quiet`: says nothing. Only the escalator's own lines count: each recorded line says who said it (`by`: `step` or `escalator`) |
 | read step (`identify`) | `completes`; `reads` / `derives`: per field, words its value must include (`[]`: not empty) |
 | wait step (`steep`) | `completes` |
 
