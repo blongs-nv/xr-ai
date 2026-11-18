@@ -276,6 +276,8 @@
         "check_placeholders",
         "decide_escalation",
         "fill_placeholders",
+        "gate",
+        "gated_reply",
         "is_stuck",
         "judge",
         "read_until_enough",
@@ -363,6 +365,8 @@
         "ReadSettings",
         "ReadState",
         "ReadStep",
+        "gate",
+        "gated_reply",
         "merge",
         "read_until_enough"
       ]

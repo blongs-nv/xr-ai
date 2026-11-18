@@ -11,7 +11,7 @@ decide:
   otherwise: negative
 perceive:
   by_prompt:
-    - ["Is a tea package, bag or tag", {look: {tea_package_in_view: true, text_on_package: [Bigelow, Green Tea], identity: {brand: {quote: Bigelow, value: Bigelow}, tea_type: {quote: Green Tea, value: green}}, directions: {brewing_directions_visible: false}}}]
+    - ["Is a tea package, bag or tag", {look: {tea_package_in_view: true, text_on_package: [Bigelow, Green Tea], brand: {quote: Bigelow, value: Bigelow}, tea_type: {quote: Green Tea, value: green}, directions: {brewing_directions_visible: false}}}]
     - ["Transcribe the temperature", {value: 150, role: current}]
   otherwise: A kettle and a mug on a desk.
 answer_with_reasoning:

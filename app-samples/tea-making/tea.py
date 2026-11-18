@@ -20,6 +20,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from xr_ai_kit.sop import gate, gated_reply
 
 _UNREADABLE = {
     "",
@@ -176,29 +177,7 @@ class Quoted(BaseModel, Generic[V]):
     value: V
 
 
-class KindOfTea(BaseModel):
-    quote: str = Field(
-        description="the exact words on the tea's package the kind of tea"
-        " follows from, copied"
-    )
-    value: TeaType
-
-
-class TeaIdentity(BaseModel):
-    brand: Quoted[str] | None = Field(
-        default=None, description="the brand, e.g. Bigelow"
-    )
-    name: Quoted[str] | None = Field(
-        default=None, description="the product name, e.g. Premium Green Tea"
-    )
-    tea_type: KindOfTea | None = Field(
-        default=None,
-        description="the kind of tea, printed or clear from the words",
-    )
-
-
-class DirectionsPrinted(BaseModel):
-    brewing_directions_visible: Literal[True]
+class BrewingDirections(BaseModel):
     quote: str = Field(
         description="the brewing directions as printed, copied word for word"
     )
@@ -206,45 +185,51 @@ class DirectionsPrinted(BaseModel):
     steep_time: SteepTime | None = None
 
 
-class NoDirections(BaseModel):
-    brewing_directions_visible: Literal[False]
+DirectionsIfPrinted = gate("brewing_directions_visible", BrewingDirections)
 
 
-class PackageInView(BaseModel):
-    tea_package_in_view: Literal[True]
+# What a tea package in view says: its words, copied first; then the brand,
+# name and kind of tea, each with the words it comes from (the kind may be
+# clear from the words: Premium Green Tea is green); then whether brewing
+# directions are printed, before any may be given.
+class PackageText(BaseModel):
     text_on_package: list[str] = Field(
         description="every legible word or phrase on the tea's own package,"
         " copied"
     )
-    identity: TeaIdentity
-    directions: DirectionsPrinted | NoDirections
-
-
-class NoPackage(BaseModel):
-    tea_package_in_view: Literal[False]
-    what_is_in_view: str = Field(
-        description="what the camera shows instead, in a few words"
+    brand: Quoted[str] | None = Field(
+        default=None, description="the brand, e.g. Bigelow"
     )
+    name: Quoted[str] | None = Field(
+        default=None, description="the product name, e.g. Premium Green Tea"
+    )
+    tea_type: Quoted[TeaType] | None = Field(
+        default=None,
+        description="the kind of tea, printed or clear from the words",
+    )
+    directions: DirectionsIfPrinted  # type: ignore[valid-type]
 
 
-class TeaPackageLook(BaseModel):
-    look: PackageInView | NoPackage
+TeaPackageLook = gated_reply(
+    "tea_package_in_view",
+    PackageText,
+    otherwise={"what_is_in_view": str},
+)
 
 
-def tea_from_look(look: TeaPackageLook) -> Tea:
+def tea_from_look(reply: Any) -> Tea:
     """What one look at the package read, as a Tea (empty when no package was
     in view)."""
-    if not isinstance(look.look, PackageInView):
+    seen = reply.look
+    if not seen.tea_package_in_view:
         return Tea()
-    identity, directions = look.look.identity, look.look.directions
     read: dict[str, Any] = {
-        "brand": identity.brand.value if identity.brand else None,
-        "name": identity.name.value if identity.name else None,
-        "tea_type": identity.tea_type.value if identity.tea_type else None,
+        field: quoted.value if (quoted := getattr(seen, field)) else None
+        for field in ("brand", "name", "tea_type")
     }
-    if isinstance(directions, DirectionsPrinted):
-        read["water_temperature"] = directions.water_temperature
-        read["steep_time"] = directions.steep_time
+    if seen.directions.brewing_directions_visible:
+        read["water_temperature"] = seen.directions.water_temperature
+        read["steep_time"] = seen.directions.steep_time
     return Tea(**read)
 
 
