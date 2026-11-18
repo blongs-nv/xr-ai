@@ -13,8 +13,8 @@ It carries one thing each way:
   decides with, so it takes effect on the step's next decision.
 
 A step type supports escalation by implementing :class:`SupportsEscalation`: ``run_with_escalation(environment,
-channel)``, which runs the step with its end of ``channel`` connected. A channel is made for each run, never shared
-between runs.
+channel, inputs)``, which runs the step with its end of ``channel`` connected. A channel is made for each run, never
+shared between runs.
 
 An escalator is anything with ``run(channel, environment)`` (:class:`Escalator`): the kit's reasons in text over the
 step's evidence (:class:`~.reasoning_escalator.ReasoningEscalator`); another may look at the evidence itself, the
@@ -114,7 +114,9 @@ def speaker() -> Literal["step", "escalator"]:
 class SupportsEscalation(Protocol):
     """A step type that supports escalation."""
 
-    async def run_with_escalation(self, environment: StepEnvironment, channel: EscalationChannel) -> Any:
+    async def run_with_escalation(
+        self, environment: StepEnvironment, channel: EscalationChannel, inputs: Any = None
+    ) -> Any:
         """Run the step (as ``run`` does) with its end of ``channel`` connected."""
         ...
 

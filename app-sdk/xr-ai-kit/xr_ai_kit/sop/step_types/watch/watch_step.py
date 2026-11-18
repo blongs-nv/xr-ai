@@ -14,21 +14,21 @@ knows) and adds the context the escalator sends to its own, which the next frame
 else about the escalator.
 
 Its definition in the procedure's YAML: the ``watch`` section (:class:`WatchSection`: ``question`` and ``criteria``),
-``start_line``, and ``done_line``. ``values`` fill the ``{placeholders}`` in all of them; ``done_line`` also gets
-``observation`` (the observation that completed the check, an instance of its observation schema when it has one).
+``start_line``, and ``done_line``. Each run's inputs fill the ``{placeholders}`` in all of them; ``done_line`` also
+gets ``observation`` (the observation that completed the check, an instance of its observation schema when it has
+one).
 How an evaluation case of it is scored is in :mod:`.watch_scoring`.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
 from xr_ai_app import clock
 
 from ...escalation.escalation_channel import EscalationChannel, Evidence, StepSnapshot
-from ...steps.step_api import StepEnvironment, fill_placeholders
+from ...steps.step_api import StepEnvironment, check_inputs, check_placeholders, fill_placeholders
 from ...steps.step_definitions import StepDefinition
 from .judge import Check, Criteria, Facts, Judgment, StepContext, StructuredObservation, WatchModels
 from .verify import Verification, verify
@@ -61,9 +61,9 @@ class WatchSection(BaseModel):
 class WatchStep:
     """A camera check; see the module docstring.
 
-    Built from the step's ``definition`` and the ``models`` it uses. ``values`` fill the placeholders in its words
-    (targets known only at run time). ``facts_schema`` is the typed facts it may need that the camera may not show,
-    and ``known_facts`` (an instance of it) what is known from the start, such as an app setting. ``observation``
+    Built from the step's ``definition`` and the ``models`` it uses. ``inputs_schema`` is what each run starts with
+    (the values its words name, such as a target temperature; ``None``: nothing). ``facts_schema`` is the typed facts
+    it may need that the camera may not show (an escalator beside it may ask the person for them). ``observation``
     reads each frame into a schema (:class:`~.judge.StructuredObservation`).
     """
 
@@ -75,51 +75,72 @@ class WatchStep:
         definition: StepDefinition,
         models: WatchModels,
         *,
-        values: Mapping[str, object] | None = None,
+        inputs_schema: type[BaseModel] | None = None,
         facts_schema: type[BaseModel] | None = None,
-        known_facts: BaseModel | None = None,
         observation: StructuredObservation | None = None,
         settings: WatchSettings | None = None,
     ) -> None:
-        if known_facts is not None and (facts_schema is None or not isinstance(known_facts, facts_schema)):
-            raise TypeError(f"step {definition.id!r}: known_facts must be an instance of its facts_schema")
-        self.values = dict(values or {})
         words = definition.section(self.section, WatchSection)
-        criteria = words.criteria
         self.id = definition.id
-        self.start_line = fill_placeholders(definition.start_line, self.values)
-        self.check = Check(
-            words.question.format(**self.values),
-            Criteria(
-                criteria.instructions.format(**self.values),
-                criteria.positive.format(**self.values),
-                criteria.negative.format(**self.values),
-                criteria.unknown.format(**self.values),
-            ),
-            facts_schema=facts_schema,
-            observation=observation,
-        )
+        self.inputs_schema = inputs_schema
+        self.check = Check(words.question, words.criteria, facts_schema=facts_schema, observation=observation)
+        """The check as written; each run fills its placeholders from that run's inputs."""
         self.models = models
-        self.known_facts = known_facts
         self.settings = settings or WatchSettings()
+        self._start_line = definition.start_line
         self._done_line = definition.done_line
+        criteria = words.criteria
+        for where, template in (
+            ("question", words.question),
+            ("criteria", criteria.instructions),
+            ("criteria", criteria.positive),
+            ("criteria", criteria.negative),
+            ("criteria", criteria.unknown),
+            ("start_line", definition.start_line),
+        ):
+            check_placeholders(self.id, where, template, inputs_schema)
+        check_placeholders(self.id, "done_line", definition.done_line, inputs_schema, also=("observation",))
 
-    def done_line(self, result: Verification) -> str | None:
-        """``done_line``, filled with the values and the observation that completed the check."""
+    def start_line(self, inputs: BaseModel | None = None) -> str | None:
+        return fill_placeholders(self._start_line, inputs)
+
+    def done_line(self, inputs: BaseModel | None, result: Verification) -> str | None:
+        """``done_line``, filled with the inputs and the observation that completed the check."""
         observation = next((j.parsed for j in reversed(result.judgments) if j.label == "positive"), None)
-        return fill_placeholders(self._done_line, {**self.values, "observation": observation})
+        return fill_placeholders(self._done_line, inputs, observation=observation)
 
-    async def run(self, environment: StepEnvironment) -> Verification:
+    def check_for(self, inputs: BaseModel | None) -> Check:
+        """The check with its placeholders filled from ``inputs``."""
+        criteria = self.check.criteria
+        return Check(
+            fill_placeholders(self.check.question, inputs) or "",
+            Criteria(
+                fill_placeholders(criteria.instructions, inputs) or "",
+                fill_placeholders(criteria.positive, inputs) or "",
+                fill_placeholders(criteria.negative, inputs) or "",
+                fill_placeholders(criteria.unknown, inputs) or "",
+            ),
+            facts_schema=self.check.facts_schema,
+            observation=self.check.observation,
+        )
+
+    async def run(self, environment: StepEnvironment, inputs: BaseModel | None = None) -> Verification:
         """Watch until the check completes; returns its final state. Cancelling the task ends the step."""
-        return await self._watch(environment, None)
+        return await self._watch(environment, inputs, None)
 
-    async def run_with_escalation(self, environment: StepEnvironment, channel: EscalationChannel) -> Verification:
+    async def run_with_escalation(
+        self, environment: StepEnvironment, channel: EscalationChannel, inputs: BaseModel | None = None
+    ) -> Verification:
         """:meth:`run`, showing ``channel`` a snapshot of the step and taking the context it adds."""
-        return await self._watch(environment, channel)
+        return await self._watch(environment, inputs, channel)
 
-    async def _watch(self, environment: StepEnvironment, channel: EscalationChannel | None) -> Verification:
+    async def _watch(
+        self, environment: StepEnvironment, inputs: BaseModel | None, channel: EscalationChannel | None
+    ) -> Verification:
+        check_inputs(self.id, self.inputs_schema, inputs)
         settings = self.settings
-        context = StepContext(self.known_facts)
+        check = self.check_for(inputs)
+        context = StepContext()
         latest: list[Verification] = []
 
         async def on_state(state: Verification) -> None:
@@ -130,13 +151,13 @@ class WatchStep:
             started = clock.now()
             channel.connect_step(
                 snapshot=lambda: watch_step_snapshot(
-                    self.id, self.check, latest[0].judgments if latest else (), context.facts, started
+                    self.id, check, latest[0].judgments if latest else (), context.facts, started
                 ),
                 add_context=lambda added: context.add(added.note, added.facts),
             )
         return await verify(
             environment.frames,  # type: ignore[arg-type]  # any Frames: the participant's, or a recorded scene
-            self.check,
+            check,
             self.models,
             context=context,
             required=settings.required,

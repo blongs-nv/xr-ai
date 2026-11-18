@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tea-specific data: what is read from the camera and what is derived.
+"""Tea-specific data: what is read from the camera and what is filled in.
 
 The step types (xr_ai_kit.sop) know nothing about tea; these schemas and the
 temperature checks are what procedure.py gives them.
@@ -11,7 +11,15 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    ValidatorFunctionWrapHandler,
+    field_validator,
+    model_validator,
+)
 
 _UNREADABLE = {
     "",
@@ -24,57 +32,128 @@ _UNREADABLE = {
 }
 
 
-class TeaLabel(BaseModel):
-    """The tea's name and type as printed on its label (None: unreadable)."""
+TeaType = Literal["green", "black", "oolong", "white", "pu-erh", "herbal"]
 
+
+# A water temperature, in the unit it is given in. The schemas here carry no
+# class docstrings on purpose: a docstring becomes the schema's description,
+# and with one the reasoning model's constrained reply for the old brewing
+# schema left the temperature out (6 of 6 tries; 3 of 3 filled without it).
+# The meaning is in the field descriptions.
+class WaterTemperature(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    tea_name: str | None = Field(default=None, max_length=300)
-    tea_type: str | None = Field(
-        default=None,
-        max_length=300,
-        description="The generic tea type printed on the label (green, black,"
-        " oolong, ...), not the brand; null when not readable.",
+    value: float = Field(description="the number")
+    unit: Literal["celsius", "fahrenheit"] = Field(
+        description="the unit it is given in"
     )
 
-    @field_validator("tea_name", "tea_type", mode="before")
+    @model_validator(mode="after")
+    def _plausible_for_brewing(self) -> WaterTemperature:
+        if not 40 <= self.celsius <= 100:
+            raise ValueError(f"{self.spoken} is not a brewing temperature")
+        return self
+
+    @property
+    def celsius(self) -> float:
+        if self.unit == "celsius":
+            return self.value
+        return round((self.value - 32) * 5 / 9, 1)
+
+    @property
+    def spoken(self) -> str:
+        """As said aloud ("175 degrees Fahrenheit")."""
+        return f"{self.value:g} degrees {self.unit.capitalize()}"
+
+
+# A steeping time as a range in minutes, as packages print it ("2-3
+# minutes"); a single time has both ends the same.
+class SteepTime(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    minimum_minutes: float = Field(
+        gt=0, le=20, description="the shortest steeping time, in minutes"
+    )
+    maximum_minutes: float = Field(
+        gt=0,
+        le=20,
+        description="the longest steeping time, in minutes; the same as the"
+        " shortest for a single time",
+    )
+
+    @model_validator(mode="after")
+    def _ordered(self) -> SteepTime:
+        if self.maximum_minutes < self.minimum_minutes:
+            raise ValueError("the longest steeping time is under the shortest")
+        return self
+
+    @property
+    def minutes(self) -> float:
+        """The middle of the range."""
+        return (self.minimum_minutes + self.maximum_minutes) / 2
+
+    @property
+    def spoken(self) -> str:
+        """As said aloud ("2 to 3 minutes")."""
+        if self.minimum_minutes == self.maximum_minutes:
+            return f"{self.minimum_minutes:g} minutes"
+        return f"{self.minimum_minutes:g} to {self.maximum_minutes:g} minutes"
+
+
+# What is known about the tea being brewed: what its package says (the read
+# step) and the brewing settings it does not print (the transform step).
+# Every field may be empty until then; a value that does not fit (a misread
+# 1755 degrees, a type that is a brand) counts as empty, so it is filled in
+# rather than failing the whole reading.
+class Tea(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    brand: str | None = Field(
+        default=None, max_length=100, description="the brand, e.g. Bigelow"
+    )
+    name: str | None = Field(
+        default=None,
+        max_length=200,
+        description="the product name, e.g. Premium Green Tea",
+    )
+    tea_type: TeaType | None = Field(
+        default=None, description="the kind of tea"
+    )
+    water_temperature: WaterTemperature | None = Field(
+        default=None, description="the water temperature to brew at"
+    )
+    steep_time: SteepTime | None = Field(
+        default=None, description="how long to steep"
+    )
+
+    @field_validator("brand", "name", mode="before")
     @classmethod
     def _unreadable_is_none(cls, value: Any) -> Any:
         if isinstance(value, str) and value.strip().lower() in _UNREADABLE:
             return None
         return value.strip() if isinstance(value, str) else value
 
-    @field_validator("tea_type")
+    @field_validator("tea_type", mode="before")
     @classmethod
-    def _type_has_letters(cls, value: str | None) -> str | None:
-        # A kettle's number read as a "type" is not one.
-        if value is None or any(c.isalpha() for c in value):
+    def _kind_of_tea(cls, value: Any) -> Any:
+        # "Green tea" is green; a word that is no kind of tea is empty.
+        if not isinstance(value, str):
             return value
-        return None
+        kind = value.strip().lower().removesuffix(" tea").strip()
+        return kind if kind in TeaType.__args__ else None
+
+    @field_validator("water_temperature", "steep_time", mode="wrap")
+    @classmethod
+    def _implausible_is_none(
+        cls, value: Any, handler: ValidatorFunctionWrapHandler
+    ) -> Any:
+        try:
+            return handler(value)
+        except ValidationError:
+            return None
 
     @property
     def spoken_name(self) -> str:
-        """The name and type as spoken ("Bigelow Premium Green Tea green")."""
-        return " ".join(filter(None, (self.tea_name, self.tea_type)))
-
-
-# Recommended brewing settings for the identified tea (None: not
-# established). No class docstring on purpose: it would become the schema's
-# description, and with it the reasoning model's constrained reply for this
-# schema left temperature_c out (6 of 6 tries; 3 of 3 filled without it).
-class Brewing(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    temperature_c: float | None = Field(
-        default=None,
-        gt=0,
-        lt=101,
-        description="the recommended water temperature in degrees Celsius",
-    )
-    duration_s: float | None = Field(
-        default=None,
-        gt=0,
-        le=1800,
-        description="the recommended steeping time in seconds",
-    )
+        """The tea as said aloud ("Bigelow Premium Green Tea")."""
+        what = self.name or (f"{self.tea_type} tea" if self.tea_type else None)
+        return " ".join(filter(None, (self.brand, what))) or "an unnamed tea"
 
 
 class Thermometer(BaseModel):
@@ -118,7 +197,7 @@ class Thermometer(BaseModel):
 
 class DisplayFacts(BaseModel):
     """What the heating check may need to know that a display may not show:
-    learned from the person when the check gets stuck, or set in app.yaml."""
+    learned from the person when the check gets stuck (its escalator asks)."""
 
     model_config = ConfigDict(extra="ignore")
     unit: Literal["celsius", "fahrenheit"] | None = Field(
@@ -135,8 +214,8 @@ def use_known_unit(
 ) -> Thermometer:
     """The reading with the known unit in place of the unit the model read.
 
-    A unit the person stated (or app.yaml set) wins: on a display that prints
-    none, a read unit is invented, and the decision must not see it.
+    A unit the person stated wins: on a display that prints none, a read unit
+    is invented, and the decision must not see it.
     """
     if known is None or known.unit is None:
         return reading
@@ -146,10 +225,10 @@ def use_known_unit(
 def can_judge_reading(reading: Thermometer, known: DisplayFacts | None) -> bool:
     """Whether a reading can be compared with the target at all.
 
-    A known unit (the person said it, or app.yaml set it) wins over the unit
-    the model says it reads: on a display that prints none, a read unit is
-    invented. A setpoint, or no unit at all (neither known nor read), is not
-    a measurement to judge; the frame then counts as unknown.
+    A unit the person stated wins over the unit the model says it reads: on a
+    display that prints none, a read unit is invented. A setpoint, or no unit
+    at all (neither known nor read), is not a measurement to judge; the frame
+    then counts as unknown.
     """
     if reading.value is None or reading.role == "setpoint":
         return False
@@ -159,16 +238,3 @@ def can_judge_reading(reading: Thermometer, known: DisplayFacts | None) -> bool:
 
 def fahrenheit(celsius: float) -> float:
     return celsius * 9 / 5 + 32
-
-
-def target_in_display_unit(temperature_c: float, unit: str | None) -> str:
-    """The minimum as the criteria say it, in the display's unit if known."""
-    if unit == "fahrenheit":
-        return f"{fahrenheit(temperature_c):g} degrees Fahrenheit"
-    if unit == "celsius":
-        return f"{temperature_c:g} degrees Celsius"
-    return (
-        f"{temperature_c:g} degrees Celsius or "
-        f"{fahrenheit(temperature_c):g} degrees Fahrenheit, matching the"
-        " reading's unit"
-    )

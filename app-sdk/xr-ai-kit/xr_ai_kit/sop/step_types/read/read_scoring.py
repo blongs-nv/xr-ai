@@ -20,8 +20,6 @@ class ReadExpect(BaseModel):
     completes: bool | None = None
     reads: dict[str, list[str]] | None = None
     """Per field of what was read: the value mentions one of these words (``[]``: the field is not empty)."""
-    derives: dict[str, list[str]] | None = None
-    """The same, per field of the derived result."""
 
 
 def score(trace: StepTrace, expect: ReadExpect) -> list[str]:
@@ -29,15 +27,10 @@ def score(trace: StepTrace, expect: ReadExpect) -> list[str]:
     problems: list[str] = []
     if expect.completes is not None and trace.completed != expect.completes:
         problems.append("completed" if trace.completed else "did not complete")
-    result = trace.result
-    for name, wanted, model in (
-        ("read", expect.reads, getattr(result, "reading", None)),
-        ("derived", expect.derives, getattr(result, "derived", None)),
-    ):
-        for key, words in (wanted or {}).items():
-            value = getattr(model, key, None)
-            if value is None or not mentions(str(value), words):
-                problems.append(f"{name} {key}={value!r}, expected one of {words or 'any value'}")
+    for key, words in (expect.reads or {}).items():
+        value = getattr(trace.result, key, None)
+        if value is None or not mentions(str(value), words):
+            problems.append(f"read {key}={value!r}, expected one of {words or 'any value'}")
     return problems
 
 

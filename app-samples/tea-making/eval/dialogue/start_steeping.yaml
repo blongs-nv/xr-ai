@@ -4,8 +4,8 @@
 # What the user may say while the guide waits for the tea in the water.
 step: start_steeping
 state:
-  steps: {identify: done, fill_water: done, heat_water: done, start_steeping: running}
-  noted: {tea: {tea_name: Bigelow, tea_type: green tea}, temperature_c: 80, duration_s: 120, settings_from: recommended}
+  steps: {identify: done, choose_settings: done, fill_water: done, heat_water: done, start_steeping: running}
+  noted: {tea: Bigelow Premium Green Tea, temperature_c: 80, duration_s: 120}
 utterances:
   - say: Should I pour the water first or put the bag in first?
     expect: {route: conversation}

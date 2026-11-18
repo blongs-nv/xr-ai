@@ -16,13 +16,13 @@ from xr_ai_app._base.app import AppConfig
 from xr_ai_app.devkit import run_virtual
 from xr_ai_app.testing import FakeModels, solid_frame
 from xr_ai_kit.sop import (
+    MESSAGES,
     AddedContext,
     Check,
     Criteria,
     EscalationChannel,
     EscalationSettings,
     EscalatorEnvironment,
-    ReadModels,
     ReadStep,
     ReasoningEscalator,
     Run,
@@ -33,10 +33,14 @@ from xr_ai_kit.sop import (
     StepEnvironment,
     StepWithEscalator,
     StructuredObservation,
+    TransformSettings,
+    TransformStep,
+    WaitInputs,
     WaitStep,
     WatchModels,
     WatchSettings,
     WatchStep,
+    check_placeholders,
     decide_escalation,
     evaluation,
     fill_placeholders,
@@ -89,13 +93,13 @@ async def _until(s, condition, timeout_s: float = 3.0) -> None:
         await s.settle()
 
 
-async def _run_alone(models: FakeModels, step, until=None, then=None):
-    """Run ``step`` as the only step of a procedure; return the run."""
+async def _run_alone(models: FakeModels, step, inputs=None, until=None, then=None):
+    """Run ``step`` with ``inputs`` as the only step of a procedure; return the run."""
     app = App(AppConfig(config_dir=Path(".")))
     results: list[object] = []
 
     async def procedure(run: Run) -> None:
-        results.append(await run.step(step))
+        results.append(await run.step(step, inputs))
 
     runner = app.add(SopRunner("t", procedure, title="T", decide=models.role("decide")))
     async with app.test_session(models=models) as s:
@@ -155,18 +159,21 @@ async def test_a_step_says_its_done_line_when_it_finishes_from_its_result() -> N
     class Reading(BaseModel):
         value: float | None = None
 
+    class Target(BaseModel):
+        minimum: float
+
     models = FakeModels({"observe": [{"value": 81}] * 60, "decide": ["positive"] * 60})
     heat = WatchStep(
-        _water("heat", done_line="It reads {observation.value:g}, at least {minimum}."),
+        _water("heat", done_line="It reads {observation.value:g}, at least {minimum:g}."),
         _camera(models),
-        values={"minimum": 80},
+        inputs_schema=Target,
         observation=StructuredObservation(Reading),
         settings=FAST,
     )
     app = App(AppConfig(config_dir=Path(".")))
 
     async def procedure(run: Run) -> None:
-        await run.step(heat)
+        await run.step(heat, Target(minimum=80))
 
     runner = app.add(SopRunner("t", procedure, title="T", decide=models.role("decide")))
     async with app.test_session(models=models) as s:
@@ -179,7 +186,7 @@ async def test_a_step_says_its_done_line_when_it_finishes_from_its_result() -> N
 
 def test_an_escalator_needs_a_step_that_supports_escalation() -> None:
     with pytest.raises(TypeError, match="WaitStep does not support escalation"):
-        StepWithEscalator(WaitStep(StepDefinition("w"), 1.0), _escalator(FakeModels(), "The person knows."))
+        StepWithEscalator(WaitStep(StepDefinition("w"), duration_s=1.0), _escalator(FakeModels(), "The person knows."))
 
 
 def test_watch_step_scoring() -> None:
@@ -218,12 +225,9 @@ def test_escalation_scoring_and_a_case_of_an_escalated_step_split_by_owner() -> 
 
 
 def test_read_and_wait_step_scoring() -> None:
-    class Read:
-        reading = type("V", (), {"tea_type": "green tea"})()
-        derived = type("R", (), {"temperature_c": 80})()
-
-    trace = StepTrace("identify", completed=True, result=Read())
-    expect = read_scoring.Expect(completes=True, reads={"tea_type": ["green"]}, derives={"temperature_c": []})
+    read = type("Read", (), {"tea_type": "green tea", "temperature_c": 80})()
+    trace = StepTrace("identify", completed=True, result=read)
+    expect = read_scoring.Expect(completes=True, reads={"tea_type": ["green"], "temperature_c": []})
     assert read_scoring.score(trace, expect) == []
     assert read_scoring.score(trace, read_scoring.Expect(reads={"tea_type": ["black"]})) == [
         "read tea_type='green tea', expected one of ['black']"
@@ -235,7 +239,7 @@ def test_evaluation_finds_each_step_types_scoring_and_an_apps_own() -> None:
     models = FakeModels()
     watch = WatchStep(_water(), _camera(models))
     assert evaluation.scoring_for(watch) is watch_scoring
-    assert evaluation.scoring_for(WaitStep(StepDefinition("w"), 1.0)) is wait_scoring
+    assert evaluation.scoring_for(WaitStep(StepDefinition("w"), duration_s=1.0)) is wait_scoring
 
     class Mine:
         id, start_line = "mine", None
@@ -402,24 +406,39 @@ procedure_lines:
     )
     steps = StepDefinitions.load(tmp_path / "steps.yaml")
     models = FakeModels()
-    fill = WatchStep(steps["fill"], _camera(models), values={"level": "the line"})
-    assert (fill.start_line, fill.check.criteria.instructions) == ("Fill the kettle to the line.", "Water at the line?")
+
+    class Level(BaseModel):
+        level: str
+
+    class Steep(WaitInputs):
+        @property
+        def minutes(self) -> float:
+            return self.duration_s / 60
+
+    fill = WatchStep(steps["fill"], _camera(models), inputs_schema=Level)
+    line = Level(level="the line")
+    assert (fill.start_line(line), fill.check_for(line).criteria.instructions) == (
+        "Fill the kettle to the line.",
+        "Water at the line?",
+    )
     assert steps.unread() == ["fill.escalation"]  # nothing has wired its escalator yet
     escalator = ReasoningEscalator(steps["fill"], models.role("reason"), EscalationSettings(context=["dialogue"]))
     assert (escalator.guidance, escalator.settings.context) == ("The person knows.", ["dialogue"])
     steps.check_read()
     with pytest.raises(ValueError, match="'steep' has no 'escalation' section"):
         ReasoningEscalator(steps["steep"], models.role("reason"))
-    steep = WaitStep(steps["steep"], 120, values={"minutes": 2})
-    assert (steep.duration_s, steep.start_line, steep.done_line(None)) == (  # type: ignore[arg-type]
-        120,
+    steep = WaitStep(steps["steep"], inputs_schema=Steep)
+    two_minutes = Steep(duration_s=120)
+    assert (steep.start_line(two_minutes), steep.done_line(two_minutes, None)) == (  # type: ignore[arg-type]
         "Steeping for 2 minutes.",
         "Steeped for 2 minutes.",
     )
     assert steps.plan() == [("fill", "fill the kettle"), ("steep", "wait")]
     assert steps.procedure_line("defaults") == "The default settings."
-    with pytest.raises(KeyError, match="level"):
-        WatchStep(steps["fill"], _camera(models))  # a placeholder without its value fails when the step is built
+    with pytest.raises(ValueError, match=r"its criteria uses \{level\}"):
+        WatchStep(steps["fill"], _camera(models))  # a placeholder its inputs do not have fails when the step is built
+    with pytest.raises(TypeError, match="runs with Level; it got NoneType"):
+        run_virtual(fill.run(None))  # type: ignore[arg-type]  # inputs are checked before anything runs
     with pytest.raises(ValueError, match="'steep' has no 'watch' section"):
         WatchStep(steps["steep"], _camera(models))
     with pytest.raises(KeyError, match="no definition of step 'boil'"):
@@ -430,16 +449,9 @@ def test_each_step_uses_its_own_models_and_a_misspelled_key_fails() -> None:
     class Label(BaseModel):
         name: str | None = None
 
-    read = StepDefinition(
-        "identify", start_line="Show the label.", sections={"read": {"question": "Q.", "instructions": "I."}}
-    )
-    step = ReadStep(
-        read,
-        ReadModels(perceive=FakeModels().role("ocr"), reason=FakeModels().role("big")),
-        reading_schema=Label,
-        derived_schema=Label,
-    )
-    assert (step.models.perceive.name, step.models.reason.name, step.question) == ("ocr", "big", "Q.")
+    read = StepDefinition("identify", start_line="Show the label.", sections={"read": {"question": "Q."}})
+    step = ReadStep(read, FakeModels().role("ocr"), reading_schema=Label)
+    assert (step.perceive.name, step.question) == ("ocr", "Q.")
     criteria = {"instructions": "?", "positive": "y", "negative": "n", "unknown": "u"}
     typo = StepDefinition("fill", sections={"watch": {"question": "Water?", "criteria": {**criteria, "postive": "y"}}})
     with pytest.raises(ValueError, match="postive"):
@@ -526,7 +538,7 @@ def test_a_case_runs_the_real_step_on_a_scene_and_a_scripted_person(tmp_path: Pa
 
 
 def test_a_case_records_the_steps_done_line_apart_from_what_an_escalator_says(tmp_path: Path) -> None:
-    step = WaitStep(StepDefinition("steep", done_line="Steeped for {minutes:g} minutes."), 5.0, values={"minutes": 2})
+    step = WaitStep(StepDefinition("steep", done_line="Steeped for 2 minutes."), duration_s=5.0)
     case = evaluation.Case(name="steeps", scene=[0, 30], expect={"completes": True})
     result = run_virtual(evaluation.run_case(step, case, _recording(tmp_path, 30)))
     assert result.ok, result.problems
@@ -548,16 +560,22 @@ class AskStep:
 
     scoring = wait_scoring.__name__  # scored on whether it completes, like a wait step
 
+    inputs_schema = None
+
     def __init__(self, definition: StepDefinition) -> None:
         self.id = definition.id
-        self.start_line = fill_placeholders(definition.start_line, {})
         self.question = definition.section("ask", AskSection).question
+        self._start_line = definition.start_line
         self._done_line = definition.done_line
+        check_placeholders(self.id, "done_line", self._done_line, None, also=("answer",))
 
-    def done_line(self, answer: str) -> str | None:
-        return fill_placeholders(self._done_line, {"answer": answer})
+    def start_line(self, inputs: None = None) -> str | None:
+        return self._start_line
 
-    async def run(self, environment: StepEnvironment) -> str:
+    def done_line(self, inputs: None, answer: str) -> str | None:
+        return fill_placeholders(self._done_line, answer=answer)
+
+    async def run(self, environment: StepEnvironment, inputs: None = None) -> str:
         while (answer := await environment.ask(self.question)) is None:
             await environment.report_progress(self.id, "no answer yet")
         return answer
@@ -613,3 +631,108 @@ async def test_the_runs_lines_queue_in_order_and_none_replaces_another() -> None
     await run.say("Water is visible in the vessel.")
     await run.say("Heat the water to 80 degrees Celsius.")
     assert [options.get("source") for _, options in said] == [None, None]  # no source: queued, never replaced
+
+
+# ---------------------------------------------------------------------------------- the transform step
+
+
+class Brewing(BaseModel):
+    tea_type: str | None = None
+    temperature_c: float | None = None
+    minutes: float | None = None
+
+
+SETTINGS = StepDefinition(
+    "settings",
+    done_line="{output.temperature_c:g} degrees for {output.minutes:g} minutes.",
+    sections={
+        "transform": {
+            "instructions": "Fill in conventional brewing settings for this tea. Ask the person only when the kind "
+            "of tea is unknown."
+        }
+    },
+)
+
+
+def _settings_step(models: FakeModels, **settings) -> TransformStep:
+    return TransformStep(
+        SETTINGS,
+        models.role("reason"),
+        input_schema=Brewing,
+        output_schema=Brewing,
+        keep_input_values=True,
+        required_fields=("temperature_c", "minutes"),
+        settings=TransformSettings(**settings),
+    )
+
+
+def _transform(tmp_path: Path, step: TransformStep, inputs: dict, answers: list[str] = ()) -> evaluation.CaseResult:
+    case = evaluation.Case(name="t", scene=[0, 120], person={"answers": list(answers)})
+    return run_virtual(evaluation.run_case(step, case, _recording(tmp_path, 120), inputs=inputs))
+
+
+def test_a_transform_fills_in_what_is_missing_and_keeps_what_is_known(tmp_path: Path) -> None:
+    models = FakeModels({"reason": [{"output": {"tea_type": "black", "temperature_c": 80, "minutes": 3}}]})
+    result = _transform(tmp_path, _settings_step(models), {"tea_type": "green", "minutes": 2})
+    assert result.trace.result == Brewing(tea_type="green", temperature_c=80, minutes=2)  # the model's guesses lost
+    assert [(line.kind, line.text) for line in result.trace.lines] == [("done", "80 degrees for 2 minutes.")]
+    prompt = models.calls("reason")[0].prompt
+    assert "already known and are kept as they are: tea_type, minutes" in prompt and '"tea_type":"green"' in prompt
+    (state,) = [state for _, state in result.trace.states if state.status == "completed"]
+    assert state.filled == ("temperature_c",)
+
+
+def test_a_transform_may_ask_the_person_and_reads_their_answer(tmp_path: Path) -> None:
+    question = {"question": "What kind of tea is it?"}
+    models = FakeModels({"reason": [question, {"output": {"tea_type": "oolong", "temperature_c": 90, "minutes": 4}}]})
+    result = _transform(tmp_path, _settings_step(models), {}, answers=["Oolong"])
+    assert result.trace.result.tea_type == "oolong"
+    ask = result.trace.lines[0]
+    assert (ask.by, ask.kind, ask.text, ask.answer) == ("step", "ask", "What kind of tea is it?", "Oolong")
+    assert 'They answered: "Oolong"' in models.calls("reason")[1].prompt
+
+
+def test_a_transform_answers_itself_when_no_answer_comes(tmp_path: Path) -> None:
+    question = {"question": "What kind of tea is it?"}
+    models = FakeModels({"reason": [question, {"output": {"temperature_c": 85, "minutes": 3}}]})
+    result = _transform(tmp_path, _settings_step(models, max_questions=1), {})
+    assert result.trace.result == Brewing(temperature_c=85, minutes=3)
+    second = models.calls("reason")[1].prompt
+    assert "No answer came." in second and "set question" not in second  # its one question is spent
+
+
+def test_a_transform_asks_again_for_a_missing_required_field_then_fails(tmp_path: Path) -> None:
+    models = FakeModels({"reason": [{"output": {"temperature_c": 80}}] * 3})
+    result = _transform(tmp_path, _settings_step(models, max_questions=0), {})
+    assert result.trace.error is not None and "no complete Brewing after 3 replies" in result.trace.error
+    assert "left these empty: minutes" in models.calls("reason")[1].prompt
+
+
+def test_a_transform_names_only_fields_it_has() -> None:
+    with pytest.raises(ValueError, match="required_fields"):
+        TransformStep(
+            SETTINGS, FakeModels().role("r"), input_schema=Brewing, output_schema=Brewing, required_fields=("x",)
+        )
+    wrong = StepDefinition("s", done_line="{result.minutes}", sections=SETTINGS.sections)
+    with pytest.raises(ValueError, match=r"\{result\}"):
+        TransformStep(wrong, FakeModels().role("r"), input_schema=Brewing, output_schema=Brewing)
+
+
+async def test_a_transform_cannot_be_skipped_even_while_it_asks() -> None:
+    question = {"question": "What kind of tea is it?"}
+    models = FakeModels({"reason": [question, {"output": {"tea_type": "green", "temperature_c": 80, "minutes": 2}}]})
+    said: list[str] = []
+
+    async def try_to_skip_then_answer(runner, p) -> None:
+        said.append(await runner.skip(p))
+        runner.run(p).answer("Green")
+
+    run, results = await _run_alone(
+        models,
+        _settings_step(models),
+        Brewing(),
+        until=lambda r: r is not None and r.asking is not None,
+        then=try_to_skip_then_answer,
+    )
+    assert said == [MESSAGES["cannot_skip"]]
+    assert run.steps[0].status == "done" and results == [Brewing(tea_type="green", temperature_c=80, minutes=2)]

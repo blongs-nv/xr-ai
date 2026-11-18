@@ -21,12 +21,11 @@ settings:
   # Dialogue the router sends with each routing decision.
   routing_history_budget_bytes: 6000
   tea:
-    # Used when identification is skipped or recommends nothing.
-    default_temperature_c: 85
-    default_duration_s: 180
-    # The kettle display's unit when it prints none (celsius / fahrenheit);
-    # without it, a reading with no printed unit is not judged.
-    # display_unit: fahrenheit
+    # How the package is read (xr_ai_kit.sop.ReadSettings): a frame every
+    # `interval_s` seconds; `timeout_s` bounds one model call.
+    read:
+      interval_s: 2.0
+      timeout_s: 30.0
     # How the camera steps watch (xr_ai_kit.sop.WatchSettings): a step
     # completes on `required` positives among the last `window` decidable
     # frames, looking every `interval_s` seconds; `timeout_s` bounds one

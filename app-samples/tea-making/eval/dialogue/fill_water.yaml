@@ -4,8 +4,8 @@
 # What the user may say while the guide waits for water in the kettle.
 step: fill_water
 state:
-  steps: {identify: done, fill_water: running}
-  noted: {tea: {tea_name: Bigelow, tea_type: green tea}, temperature_c: 80, duration_s: 120, settings_from: recommended}
+  steps: {identify: done, choose_settings: done, fill_water: running}
+  noted: {tea: Bigelow Premium Green Tea, temperature_c: 80, duration_s: 120}
 utterances:
   - say: I already filled the kettle.
     expect: {route: conversation}

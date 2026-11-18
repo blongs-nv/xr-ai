@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Filling in the brewing settings the package does not print. No camera: the
+# scene only sets the clock. The inputs are what identify might have read.
+step: choose_settings
+cases:
+  - name: green_tea_read
+    scene: [0, 30]
+    inputs: {brand: Bigelow, name: Premium Green Tea, tea_type: green}
+    expect:
+      completes: true
+      output: {water_temperature: [], steep_time: []}
+      quiet: true
+
+  # What the package prints is kept as it is.
+  - name: printed_settings_kept
+    scene: [0, 30]
+    inputs:
+      tea_type: green
+      water_temperature: {value: 175, unit: fahrenheit}
+      steep_time: {minimum_minutes: 2, maximum_minutes: 3}
+    expect:
+      completes: true
+      output: {water_temperature: ["175"], steep_time: ["minimum_minutes=2.0"]}
+      quiet: true
+
+  # Nothing was read: it asks what kind of tea it is.
+  - name: nothing_read_then_answered
+    scene: [0, 60]
+    inputs: {}
+    person: {answers: [It's a black tea.]}
+    expect:
+      completes: true
+      asks: [tea, kind, type]
+      output: {water_temperature: [], steep_time: []}
+
+  # Nothing was read and nobody answers: settings that suit most teas.
+  - name: nothing_read_no_answer
+    scene: [0, 120]
+    inputs: {}
+    expect:
+      completes: true
+      output: {water_temperature: [], steep_time: []}

@@ -6,7 +6,7 @@
 A case file is about one step::
 
     step: heat_water
-    build: {temperature_c: 80}        # passed to the app's step factory (run-time targets, settings)
+    inputs: {temperature_c: 80}       # what the step runs with (its inputs_schema), for every case
     cases:
       - name: unit_unknown_then_answered
         scene: [26, 346]              # parts of the recording (see .scene)
@@ -14,14 +14,15 @@ A case file is about one step::
         expect: {asks: [unit], completes: {after: 330}}   # completes: the step's; asks: its escalator's
       - name: looked_away
         scene: [[26, 36], [5, 12], [5, 12], [5, 12]]
-        build: {display_unit: fahrenheit}   # this case's own factory values
+        inputs: {temperature_c: 85}   # this case's own inputs (over the file's)
         person: {after_tell: [[26, 60]]}
         expect: {says: [kettle, display], completes: false}
 
-The app gives a factory, ``build(values, fakes) -> {step id: step}``, the same one its procedure builds its steps
-with, so the step evaluated is the step that ships. Each case runs on the devkit's virtual-time loop: idle waits are
-skipped and model calls take their real time, so a five-minute scene costs what its model calls cost, and their
-latency counts as it would live. A case ends when the step finishes or the scene does.
+The app gives its steps, ``steps(fakes) -> {step id: step}``, the same ones its procedure runs, so the step evaluated
+is the step that ships; a case gives the inputs the procedure would pass it (validated against its ``inputs_schema``).
+Each case runs on the devkit's virtual-time loop: idle waits are skipped and model calls take their real time, so a
+five-minute scene costs what its model calls cost, and their latency counts as it would live. A case ends when the
+step finishes or the scene does.
 
 Each step type's scoring is a module next to it (``watch_scoring``, ...) with ``Expect`` (what a case may expect) and
 ``score(trace, expect)``; the type names it in its ``scoring`` attribute, an app's own step types too, and
@@ -105,8 +106,8 @@ def scoring_for(step: Step[Any], scorings: Scorings | None = None) -> Scoring:
     return parts[0] if len(parts) == 1 else Combined(parts)  # type: ignore[return-value]
 
 
-Build = Callable[[Mapping[str, Any], Any], Mapping[str, Step[Any]]]
-"""``build(values, fakes)``: the app's steps for these factory values (``fakes``: scripted roles, or ``None``)."""
+Steps = Callable[[Any], Mapping[str, Step[Any]]]
+"""``steps(fakes)``: the app's steps by id (``fakes``: scripted roles for a plumbing run, or ``None``)."""
 
 
 class Case(BaseModel):
@@ -115,7 +116,8 @@ class Case(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str
     scene: list[Any]
-    build: dict[str, Any] = {}
+    inputs: dict[str, Any] = {}
+    """The step's inputs for this case, over the file's (validated against its ``inputs_schema``)."""
     person: Person = Person()
     context: dict[str, str] = {}
     """The text of each context source the step's escalator may read (``run``: the run's summary, ``dialogue``:
@@ -130,7 +132,8 @@ class CaseFile(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     step: str
-    build: dict[str, Any] = {}
+    inputs: dict[str, Any] = {}
+    """The step's inputs for every case (a case's own ``inputs`` add to them)."""
     cases: list[Case]
 
     @classmethod
@@ -169,17 +172,33 @@ class CaseResult:
         }
 
 
+def inputs_for(step: Step[Any], values: Mapping[str, Any]) -> Any:
+    """The inputs a case gives ``step``: ``values`` validated against its ``inputs_schema`` (``None`` without one)."""
+    if step.inputs_schema is None:
+        if values:
+            raise ValueError(f"step {step.id!r} takes no inputs; the case gives {sorted(values)}")
+        return None
+    return step.inputs_schema.model_validate(values)
+
+
 async def run_case(
-    step: Step[Any], case: Case, recording: Recording, *, scorings: Scorings | None = None
+    step: Step[Any],
+    case: Case,
+    recording: Recording,
+    *,
+    inputs: Mapping[str, Any] | None = None,
+    scorings: Scorings | None = None,
 ) -> CaseResult:
-    """Run ``step`` on the case's scene and person until it finishes or the scene ends; score it."""
+    """Run ``step`` with ``inputs`` (default: the case's) on the case's scene and person until it finishes or the scene
+    ends; score it."""
     scoring = scoring_for(step, scorings)
+    step_inputs = inputs_for(step, case.inputs if inputs is None else inputs)
     expect = scoring.Expect.model_validate(case.expect)
     scene = SceneFrames(recording, case.scene)
     environment = ScriptedEnvironment(step.id, scene, case.person, case.context)
     began = time.monotonic()
     scene.begin()
-    task = asyncio.ensure_future(step.run(environment))
+    task = asyncio.ensure_future(step.run(environment, step_inputs))
     while not task.done() and (remaining := scene.remaining_s()) > 0:
         await asyncio.wait({task}, timeout=remaining)
     trace = environment.trace
@@ -190,7 +209,7 @@ async def run_case(
             trace.error = repr(exc)
         else:
             trace.completed, trace.completed_at_s, trace.result = True, scene.now(), task.result()
-            if done_line := step.done_line(trace.result):  # what the runner would say as it finishes
+            if done_line := step.done_line(step_inputs, trace.result):  # what the runner would say as it finishes
                 trace.lines.append(Line(scene.now(), "done", done_line))
     else:
         task.cancel()
@@ -202,7 +221,7 @@ async def run_case(
 
 async def run_files(
     files: Sequence[Path],
-    build: Build,
+    steps: Steps,
     recording: Recording,
     *,
     fakes: Any = None,
@@ -212,17 +231,20 @@ async def run_files(
 ) -> list[CaseResult]:
     """Run every case of ``files`` (``only``: step ids or case names), ``concurrency`` at a time."""
     gate = asyncio.Semaphore(concurrency)
+    by_id = steps(fakes)
     jobs = []
     for path in files:
         spec = CaseFile.load(path)
+        if spec.step not in by_id:
+            raise KeyError(f"{path.name}: no step {spec.step!r}; the app's steps are {sorted(by_id)}")
         for case in spec.cases:
             if only and spec.step not in only and case.name not in only:
                 continue
-            step = build({**spec.build, **case.build}, fakes)[spec.step]
+            step, inputs = by_id[spec.step], {**spec.inputs, **case.inputs}
 
-            async def one(step: Step[Any] = step, case: Case = case) -> CaseResult:
+            async def one(step: Step[Any] = step, case: Case = case, inputs: dict[str, Any] = inputs) -> CaseResult:
                 async with gate:
-                    return await run_case(step, case, recording, scorings=scorings)
+                    return await run_case(step, case, recording, inputs=inputs, scorings=scorings)
 
             jobs.append(one())
     return list(await asyncio.gather(*jobs))
@@ -250,7 +272,7 @@ def report(results: Sequence[CaseResult]) -> str:
 def main(
     argv: Sequence[str] | None,
     *,
-    build: Build,
+    steps: Steps,
     cases: Path,
     fakes_from: Callable[[Path], Any],
     scorings: Scorings | None = None,
@@ -273,7 +295,7 @@ def main(
     fakes = fakes_from(args.fakes) if args.fakes else None
     recording = Recording.load(args.frames_index)
     results = run_virtual(
-        run_files(files, build, recording, fakes=fakes, only=args.only, concurrency=args.concurrency, scorings=scorings)
+        run_files(files, steps, recording, fakes=fakes, only=args.only, concurrency=args.concurrency, scorings=scorings)
     )
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "results.json").write_text(json.dumps([r.as_json() for r in results], indent=2), encoding="utf-8")

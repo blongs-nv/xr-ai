@@ -11,11 +11,11 @@ decide:
   otherwise: negative
 perceive:
   by_prompt:
-    - ["Read only clearly legible text", {tea_name: Bigelow, tea_type: green tea}]
+    - ["Read only clearly legible text", {brand: Bigelow, tea_type: green tea}]
     - ["Transcribe the temperature", {value: 150, role: current}]
   otherwise: A kettle and a mug on a desk.
 answer_with_reasoning:
   by_prompt:
-    - ["Recommend conventional brewing settings", {temperature_c: 80, duration_s: 120}]
+    - ["Fill in conventional brewing settings", {output: {water_temperature: {value: 80, unit: celsius}, steep_time: {minimum_minutes: 2, maximum_minutes: 2}}}]
     - ["what is the check missing", {missing: the unit, action: ask, words: "Does the display show Celsius or Fahrenheit?"}]
   otherwise: You're on reading the label; next, fill the kettle with water.

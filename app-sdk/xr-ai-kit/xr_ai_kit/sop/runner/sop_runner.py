@@ -3,9 +3,9 @@
 
 """Run a procedure written as ordinary Python, one run per participant, with start/stop/skip/restart controls.
 
-The procedure is an ``async def procedure(run)`` that runs its steps in order, each as ``await run.step(step)``
+The procedure is an ``async def procedure(run)`` that runs its steps in order, each as ``await run.step(step, inputs)``
 (a step object: a kit step type from :mod:`..step_types`, an app's own, or one with an escalator beside it) or
-``await run.step(step_id, work)`` around any coroutine of the app's own. There is no step language and no workflow
+``await run.step(step_id, work=...)`` around any coroutine of the app's own. There is no step language and no workflow
 engine: the order, the branches and the data passed between steps are the function's own code. :class:`~.run.Run`
 is what a step touches (a :class:`~..steps.step_api.StepEnvironment`) and what an escalator touches.
 
@@ -218,12 +218,15 @@ class SopRunner(Component):
         return await self._say(p, "stop")
 
     async def skip(self, p: Participant) -> str:
-        """Skip the current step: cancel it, and the procedure continues with the next one."""
+        """Skip the current step: cancel it, and the procedure continues with the next one. A step that is not
+        skippable (it does not wait on the person; later steps need its result) is not cancelled."""
         run = self.run(p)
         if run is None or run.status != "running":
             return await self._say(p, "not_running")
         if run.current is None:
             return await self._say(p, "nothing_to_skip")
+        if not run.current.skippable:
+            return await self._say(p, "cannot_skip")
         text = await self._say(p, "skip")
         await p.cancel(f"sop:{self.name}:step")
         return text

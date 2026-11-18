@@ -4,8 +4,8 @@
 """A step with an escalator beside it: ``StepWithEscalator(step, escalator)``, itself a step.
 
 Each run makes a new :class:`~.escalation_channel.EscalationChannel`, runs the step with its end connected
-(``step.run_with_escalation(environment, channel)``) and the escalator beside it as a task of its own, and ends the
-escalator when the step ends. A failure in the escalator is traced and never fails the step. The runner and the
+(``step.run_with_escalation(environment, channel, inputs)``) and the escalator beside it as a task of its own, and ends
+the escalator when the step ends. A failure in the escalator is traced and never fails the step. The runner and the
 evaluation run it like any step, so an evaluation runs the pairing that ships.
 """
 
@@ -42,7 +42,7 @@ class StepWithEscalator:
         self.step = step
         self.escalator = escalator
         self.id: str = step.id
-        self.start_line: str | None = step.start_line
+        self.inputs_schema = step.inputs_schema
 
     @property
     def scoring(self) -> tuple[str, ...]:
@@ -50,10 +50,17 @@ class StepWithEscalator:
         own = getattr(self.step, "scoring", ())
         return (*((own,) if isinstance(own, str) else own), SCORING)
 
-    def done_line(self, result: Any) -> str | None:
-        return self.step.done_line(result)
+    @property
+    def skippable(self) -> bool:
+        return getattr(self.step, "skippable", True)
 
-    async def run(self, environment: StepEnvironment) -> Any:
+    def start_line(self, inputs: Any = None) -> str | None:
+        return self.step.start_line(inputs)
+
+    def done_line(self, inputs: Any, result: Any) -> str | None:
+        return self.step.done_line(inputs, result)
+
+    async def run(self, environment: StepEnvironment, inputs: Any = None) -> Any:
         """Run the step and, beside it, the escalator, which reaches the person through ``environment`` (it must also
         be an :class:`~.escalation_channel.EscalatorEnvironment`, as the runner's and the evaluation's are)."""
         if not isinstance(environment, EscalatorEnvironment):
@@ -61,7 +68,7 @@ class StepWithEscalator:
         channel = EscalationChannel()
         escalation = asyncio.create_task(self._escalate(channel, environment))
         try:
-            return await self.step.run_with_escalation(environment, channel)
+            return await self.step.run_with_escalation(environment, channel, inputs)
         finally:
             escalation.cancel()
             with contextlib.suppress(BaseException):

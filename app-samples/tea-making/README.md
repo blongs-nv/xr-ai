@@ -19,7 +19,7 @@ is no step language and no workflow engine.
 Voice -> Router (Clef)
            |-- tea           controls only: start, stop, skip, restart
            |                 -> SopRunner -> procedure.py (one run per person)
-           |                                   read, watch x3, wait
+           |                                   read, transform, watch x3, wait
            |                                   |
            |                     tea.context <-+ the run's state
            |                         |
@@ -29,11 +29,12 @@ Voice -> Router (Clef)
 
 | Step | Kit step type | Done when |
 |---|---|---|
-| identify | `ReadStep`: read the label into `TeaLabel`, then recommend `Brewing` settings | a tea type is read; skipping uses the defaults |
+| identify | `ReadStep`: read the package into a `Tea` (brand, name, kind, and brewing directions when printed), merging what each frame shows | a kind of tea is read |
+| choose_settings | `TransformStep`: fill in the brewing settings the package does not print, keeping what it does; asks the person what tea it is when nothing was read | both settings are set; it cannot be skipped |
 | fill_water | `WatchStep` | water is seen in the kettle in 2 of the last 4 decidable frames |
-| heat_water | `WatchStep` on a `Thermometer` reading | the display reads at least the target, with a unit (printed, said by the person, or `display_unit` in `app.yaml`); a setpoint is not judged |
+| heat_water | `WatchStep` on a `Thermometer` reading | the display reads at least the target, with a unit (printed, or said by the person when its escalator asks); a setpoint is not judged |
 | start_steeping | `WatchStep` | a real tea bag touches real water (not packaging art) |
-| steep | `WaitStep` | the recommended time has passed; it starts after the tea goes in, or when that check is skipped |
+| steep | `WaitStep` | the steeping time has passed (the middle of a range); it starts after the tea goes in, or when that check is skipped |
 
 A watch step's **check** judges a frame every 2 s: the omni model
 describes it (or reads it into a schema) and Clef labels that description
@@ -51,14 +52,15 @@ it may speak are app.yaml's `settings.tea.escalation`.
 
 Every step's words are in `steps.yaml`: what it says as it starts
 (`start_line`) and when it finishes (`done_line`, filled from its result:
-identify says the tea it read, heat_water the reading that completed it),
-and one section per owner (`read` or `watch` for the step, `escalation` for
-its escalator). Which type each step is, its models, schemas and escalator
-are in `procedure.py` (`TeaProcedure`), and so is the procedure itself
-(`make_tea`): the order of the steps, and the brewing settings it decides
-from what identify read (the recommendation, or the defaults), which
-heat_water and steep are built with and say as they start; the procedure
-itself speaks only when it falls back to the defaults.
+identify says the tea it read, choose_settings the settings, heat_water the
+reading that completed it), and one section per owner (`read`, `transform`
+or `watch` for the step, `escalation` for its escalator). Each step is
+defined once in `procedure.py` (`TeaProcedure`): its type, models and
+schemas, and what it runs with (`HeatInputs`, `SteepInputs`). The procedure
+itself (`make_tea`) is the order of the steps and what passes between them:
+the `Tea` read from the package goes to choose_settings, and its
+temperature and steeping time to heat_water and steep. There are no default
+settings in code: the model fills in what the package does not print.
 
 Starting the guide starts a run that outlives the turn: a question or an
 interruption never cancels it. "Skip this step" cancels only the current
@@ -66,9 +68,8 @@ step (and any question it is waiting on); "stop" ends the run. Each
 change is traced and written to `artifacts/<participant>/sop-tea.jsonl`.
 
 Compared with the original tea sample, this port does not yet retrieve
-brewing settings from documents (the model recommends them; a `ReadStep`
-takes a `retrieve` function when an embedding service is running), and has
-no live event viewer.
+brewing settings from documents (the model fills them in from what it
+knows), and has no live event viewer.
 
 ## Run
 

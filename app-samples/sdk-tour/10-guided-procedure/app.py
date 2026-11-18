@@ -76,7 +76,7 @@ door_closed = StepWithEscalator(
         DEFINITIONS["door_closed"], answer_with_reasoning, ESCALATION
     ),
 )
-warm_up = WaitStep(DEFINITIONS["warm_up"], WARM_UP_S)
+warm_up = WaitStep(DEFINITIONS["warm_up"], duration_s=WARM_UP_S)
 DEFINITIONS.check_read()  # every section of sop.yaml is used
 
 

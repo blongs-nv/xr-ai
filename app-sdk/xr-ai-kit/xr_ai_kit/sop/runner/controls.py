@@ -39,6 +39,7 @@ MESSAGES: dict[str, str] = {
     "already_running": "{title} is already running.",
     "not_running": "{title} is not running.",
     "nothing_to_skip": "There is no step running to skip.",
+    "cannot_skip": "This step can't be skipped; it only takes a moment.",
     "complete": "{title} is complete.",
     "failed": "{title} could not continue because a step failed. You can start it again when you are ready.",
 }

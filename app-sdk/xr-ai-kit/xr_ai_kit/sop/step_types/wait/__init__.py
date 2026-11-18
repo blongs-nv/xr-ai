@@ -10,10 +10,11 @@
 from __future__ import annotations
 
 from .timer import TimerState, timer
-from .wait_step import WaitStep
+from .wait_step import WaitInputs, WaitStep
 
 __all__ = [
     "TimerState",
+    "WaitInputs",
     "WaitStep",
     "timer",
 ]

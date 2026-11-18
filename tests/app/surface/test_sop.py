@@ -31,7 +31,7 @@ from xr_ai_kit.sop import (
     WatchModels,
     decide_escalation,
     judge,
-    read_and_derive,
+    read_until_enough,
     timer,
     verify,
 )
@@ -62,6 +62,7 @@ class Tea(BaseModel):
 
 
 class Settings(BaseModel):
+    tea_type: str | None = None
     temperature_c: float | None = None
     duration_s: float | None = None
 
@@ -343,40 +344,33 @@ async def test_timer_counts_down_and_reports() -> None:
     assert states[0].status == "running" and states[-1] is final
 
 
-async def test_read_and_derive_keeps_looking_until_the_reading_is_enough_then_derives_the_result() -> None:
-    models = FakeModels(
-        {
-            "observe": [{}, {"tea_type": "green tea"}],
-            "answer": [{"temperature_c": 80, "duration_s": 120}],
-        }
-    )
+async def test_reading_merges_what_each_frame_shows_until_it_is_enough() -> None:
+    """The front of a box shows the type, the back its settings: a field read once is kept, not erased."""
+    models = FakeModels({"observe": [{}, {"tea_type": "green tea"}, {"temperature_c": 80}]})
     app = _app()
+    states = []
 
-    async def retrieve(tea: Tea) -> list[str]:
-        return [f"{tea.tea_type}: 80 C for 2 minutes"]
+    async def on_state(state) -> None:
+        states.append(state)
 
     async with app.test_session(models=models) as s:
         await s.join()
         p = s.participant()
         job = asyncio.ensure_future(
-            read_and_derive(
+            read_until_enough(
                 p.frames,
                 perceive=app.role("observe"),
-                reason=app.role("answer"),
                 question="Read the label.",
-                reading_schema=Tea,
-                derived_schema=Settings,
-                instructions="Give brewing settings.",
-                is_enough=lambda tea: tea.tea_type is not None,
-                retrieve=retrieve,
+                reading_schema=Settings,
+                is_enough=lambda read: read.temperature_c is not None,
                 interval_s=0.01,
+                on_state=on_state,
             )
         )
         await _until(s, job.done, frames=True)
         result = job.result()
-    assert result.derived == Settings(temperature_c=80, duration_s=120)
-    assert result.attempts == 2 and result.passages == ("green tea: 80 C for 2 minutes",)
-    assert "80 C for 2 minutes" in models.calls("answer")[0].prompt
+    assert result == Settings(tea_type="green tea", temperature_c=80)
+    assert [st.status for st in states] == ["reading", "reading", "completed"]
 
 
 # ------------------------------------------------------------------------------- the runner
@@ -395,11 +389,12 @@ async def test_a_run_goes_through_its_steps_and_the_conversation_sees_its_summar
         await run.note(temperature_c=80)
         await run.step(
             "heat",
-            lambda: timer(0.02, interval_s=0.01, on_state=lambda state: run.report_progress("heat", state)),
+            work=lambda: timer(0.02, interval_s=0.01, on_state=lambda state: run.report_progress("heat", state)),
             start_line="Heat the water.",
         )
         await run.step(
-            "steep", lambda: timer(0.02, interval_s=0.01, on_state=lambda state: run.report_progress("steep", state))
+            "steep",
+            work=lambda: timer(0.02, interval_s=0.01, on_state=lambda state: run.report_progress("steep", state)),
         )
 
     models = FakeModels()
@@ -422,8 +417,8 @@ async def test_skip_cancels_only_the_current_step_and_the_procedure_continues() 
     results = []
 
     async def procedure(run: Run) -> None:
-        results.append(await run.step("wait", lambda: asyncio.Event().wait()))
-        results.append(await run.step("next", lambda: asyncio.sleep(0, result="ok")))
+        results.append(await run.step("wait", work=lambda: asyncio.Event().wait()))
+        results.append(await run.step("next", work=lambda: asyncio.sleep(0, result="ok")))
 
     models = FakeModels()
     runner = _runner(app, procedure, models)
@@ -451,7 +446,7 @@ async def test_stop_cancels_the_run_and_its_step_and_restart_starts_a_new_run() 
             raise
 
     async def procedure(run: Run) -> None:
-        await run.step("wait", blocked)
+        await run.step("wait", work=blocked)
 
     models = FakeModels()
     runner = _runner(app, procedure, models)
@@ -477,7 +472,7 @@ async def test_a_failing_step_fails_the_run_and_says_so() -> None:
         raise ValueError("camera service down")
 
     async def procedure(run: Run) -> None:
-        await run.step("look", broken)
+        await run.step("look", work=broken)
 
     models = FakeModels()
     runner = _runner(app, procedure, models)
@@ -497,7 +492,7 @@ async def test_with_a_plan_the_summary_says_what_comes_next() -> None:
     plan = [("heat", "Heat the water."), ("steep", "Steep the tea.")]
 
     async def procedure(run: Run) -> None:
-        await run.step("heat", lambda: asyncio.Event().wait())
+        await run.step("heat", work=lambda: asyncio.Event().wait())
 
     runner = SopRunner("tea", procedure, title="Tea guidance", decide=models.role("decide"), plan=plan)
     app.add(runner)
@@ -523,7 +518,7 @@ async def test_a_step_asks_and_the_guide_sorts_each_reply_while_the_question_is_
         async def unit() -> None:
             answers.append(await run.ask("Celsius or Fahrenheit?", timeout_s=5))
 
-        await run.step("heat", unit)
+        await run.step("heat", work=unit)
 
     runner = _runner(app, procedure, models)
     async with app.test_session(models=models) as s:
@@ -549,7 +544,7 @@ async def test_skipping_while_a_question_is_pending_cancels_the_step_and_the_que
     app = _app()
 
     async def procedure(run: Run) -> None:
-        await run.step("heat", lambda: run.ask("Celsius or Fahrenheit?", timeout_s=5))
+        await run.step("heat", work=lambda: run.ask("Celsius or Fahrenheit?", timeout_s=5))
 
     runner = _runner(app, procedure, models)
     async with app.test_session(models=models) as s:
@@ -572,7 +567,7 @@ async def test_an_unanswered_question_times_out_to_none() -> None:
         async def unit() -> None:
             got.append(await run.ask("Celsius or Fahrenheit?", timeout_s=0.05))
 
-        await run.step("heat", unit)
+        await run.step("heat", work=unit)
 
     models = FakeModels()
     runner = _runner(app, procedure, models)
@@ -589,7 +584,7 @@ async def test_classify_names_the_control_without_performing_it() -> None:
     app = _app()
 
     async def procedure(run: Run) -> None:
-        await run.step("wait", lambda: asyncio.Event().wait())
+        await run.step("wait", work=lambda: asyncio.Event().wait())
 
     runner = _runner(app, procedure, models)
     async with app.test_session(models=models) as s:
@@ -609,7 +604,7 @@ async def test_the_control_destination_runs_controls_and_passes_everything_else(
     app = _app()
 
     async def procedure(run: Run) -> None:
-        await run.step("wait", lambda: asyncio.Event().wait())
+        await run.step("wait", work=lambda: asyncio.Event().wait())
 
     runner = _runner(app, procedure, models)
     async with app.test_session(models=models) as s:

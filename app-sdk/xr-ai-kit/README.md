@@ -38,44 +38,56 @@ fill_water:
     criteria: {instructions: Is there water?, positive: ..., negative: ..., unknown: ...}
   escalation: The kettle has to be in view; the person knows if it is full.
 steep:
-  start_line: Steeping for {minutes:g} minutes.
+  start_line: Steeping for {minutes:g} minutes.   # {minutes}: a property of its inputs
   done_line: The tea is ready.
 ```
 
 ```python
 from xr_ai_kit.sop import (
-    ReasoningEscalator, Run, SopRunner, StepDefinitions, StepWithEscalator, WaitStep, WatchModels, WatchStep,
+    ReasoningEscalator, Run, SopRunner, StepDefinitions, StepWithEscalator, WaitInputs, WaitStep, WatchModels,
+    WatchStep,
 )
+
+class SteepInputs(WaitInputs):          # what steep runs with: duration_s, and {minutes} for its words
+    @property
+    def minutes(self) -> float:
+        return self.duration_s / 60
 
 STEPS = StepDefinitions.load("steps.yaml")
 fill_water = StepWithEscalator(
     WatchStep(STEPS["fill_water"], WatchModels(perceive=vlm, decide=classifier)),
     ReasoningEscalator(STEPS["fill_water"], reasoning),
 )
-steep = WaitStep(STEPS["steep"], 180, values={"minutes": 3})
+steep = WaitStep(STEPS["steep"], inputs_schema=SteepInputs)
 STEPS.check_read()  # every section of the file has a reader
 
 async def make_tea(run: Run) -> None:
     await run.step(fill_water)
-    await run.step(steep)
+    await run.step(steep, SteepInputs(duration_s=180))   # inputs: what earlier steps produced
 
 tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier, plan=STEPS.plan()))
 # tea.control is a router destination (start, stop, skip, restart; anything else passes on);
 # tea.context is the run's summary, for a Conversation's context=.
 ```
 
-- **Steps.** A step is any object with `id`, `start_line`,
-  `done_line(result)` and `run(environment)`; its `StepEnvironment` gives it
-  the camera, speaking to the person, asking them something, and reporting
-  its progress. The kit's step types are each built in one call: the step's
-  definition (its words from the YAML; each type reads its own section), the
-  models it uses, grouped by what each does (`WatchModels(perceive,
-  decide)`), and `values` for the `{placeholders}` in its words (targets
-  known only at run time), plus a few options of its own. `WatchStep` labels
-  a frame every few seconds (perceive, then decide) until N of the last M
-  decidable frames are positive, optionally reading each frame into a schema
-  (`StructuredObservation`); `ReadStep` reads into a schema and derives a
-  result; `WaitStep` counts down. An app's own step type works the same way.
+- **Steps.** A step is defined once and run with inputs, like a function:
+  any object with `id`, `inputs_schema` (a pydantic model of what each run
+  starts with, or `None`), `start_line(inputs)`, `done_line(inputs, result)`
+  and `run(environment, inputs)`. Its `StepEnvironment` gives it the camera,
+  speaking to the person, asking them something, and reporting its progress.
+  The kit's step types are built from the step's definition (its words from
+  the YAML; each type reads its own section), the models it uses, and its
+  `inputs_schema`; the `{placeholders}` in its words name fields or
+  properties of its inputs and are checked when it is built. The procedure
+  passes each step what earlier steps produced: `run.step(step, inputs)`.
+  `WatchStep` labels a frame every few seconds (perceive, then decide) until
+  N of the last M decidable frames are positive, optionally reading each
+  frame into a schema (`StructuredObservation`); `ReadStep` reads into a
+  schema until it has enough, merging what each frame shows;
+  `TransformStep` has a reasoning model turn one schema into another
+  following its prompt (filling in what a reading left empty, keeping what
+  it has), may ask the person a question, and cannot be skipped; `WaitStep`
+  counts down. An app's own step type works the same way.
 - **Escalation** is optional and separate from the steps. An escalator runs
   beside one step (`StepWithEscalator(step, escalator)`) and shares only an
   `EscalationChannel` with it: it reads a `StepSnapshot` of the step (what

@@ -26,7 +26,7 @@ run_dialogue.py      the Router, the guide's controls and the Conversation, in a
 
 ```yaml
 step: heat_water
-build: {temperature_c: 80}          # what the step is built with (run_steps.build)
+inputs: {temperature_c: 80}         # what the step runs with (its inputs_schema)
 cases:
   - name: unit_unknown_then_answered
     scene: [26, 346]                # seconds of the recording
@@ -34,13 +34,14 @@ cases:
     expect: {asks: [unit], completes: {after: 330}}
   - name: looked_away
     scene: [[26, 36], [5, 12], [5, 12], [5, 12]]   # parts played back to back
-    build: {display_unit: fahrenheit}  # this case's own build values
-    person: {after_tell: [[36, 80]]}               # what the camera shows once told
+    person: {answers: [Fahrenheit], after_tell: [[36, 80]]}  # what the camera shows once told
     expect: {says: [kettle, display], completes: false}
 ```
 
 Each case runs the step that ships (taken from `procedure.TeaProcedure`, as
-the procedure builds it) on the devkit's virtual clock: frames from the
+the procedure runs it), with the inputs the case gives (`inputs`, in the file
+for every case and per case; what the procedure would pass it), on the
+devkit's virtual clock: frames from the
 scene at the recording's pace, the person's answers after
 `answer_after_s` (3 s), idle waits skipped, model calls in real time (so
 their latency counts as it would live). The case ends when the step
@@ -73,7 +74,8 @@ a key no one owns is an error:
 |---|---|
 | watch step (`fill_water`, `heat_water`, `start_steeping`) | `completes`: true / false / `{after, before}` in scene time |
 | its escalator | `asks`: words its question must include (`[]`: any); `says`: the same for an instruction; `quiet`: says nothing. Only the escalator's own lines count: each recorded line says who said it (`by`: `step` or `escalator`) |
-| read step (`identify`) | `completes`; `reads` / `derives`: per field, words its value must include (`[]`: not empty) |
+| read step (`identify`) | `completes`; `reads`: per field, words its value must include (`[]`: not empty) |
+| transform step (`choose_settings`) | `completes`; `output`: the same, per field of its result; `asks`: words its own question must include; `quiet`: it asks nothing |
 | wait step (`steep`) | `completes` |
 
 A case without `expect` is run and reported only (ambiguous footage); give
@@ -119,7 +121,7 @@ answered (not acted on) with words of `heat_water`.
 - Something the user may say during one step: one entry in that packet's
   `utterances`; during every step: one entry in `dialogue/common.yaml`.
 - A new step: its entry in `steps.yaml`, the step in `procedure.TeaProcedure`
-  (and its place in `make_tea`), one line in `run_steps.build`, one case
+  (and its place in `make_tea`), one line in `run_steps.steps`, one case
   file, one packet.
 
 ## Run

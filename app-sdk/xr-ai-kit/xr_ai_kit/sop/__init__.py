@@ -11,7 +11,8 @@ The package::
                           sections, each read by its owner)
     step_types/       the kit's step types, one package each; an app's own follow the same shape
       watch/              WatchStep: the fast camera check (judge, verify); supports escalation
-      read/               ReadStep: read the camera into a schema, derive a result (read_and_derive)
+      read/               ReadStep: read the camera into a schema until it is enough (read_until_enough)
+      transform/          TransformStep: a reasoning model turns one schema into another; may ask the person
       wait/               WaitStep: a countdown (timer)
                           (each also has a *_scoring.py module, used only by the evaluation)
     escalation/       an agent of its own beside a step (StepWithEscalator): through an EscalationChannel it reads
@@ -27,19 +28,20 @@ between them. Everything it needs is importable from here.
 A procedure::
 
     STEPS = StepDefinitions.load("steps.yaml")
-    CAMERA = WatchModels(perceive=vision_model, decide=classifier)
     fill_water = StepWithEscalator(
-        WatchStep(STEPS["fill_water"], CAMERA),
+        WatchStep(STEPS["fill_water"], WatchModels(perceive=vision_model, decide=classifier)),
         ReasoningEscalator(STEPS["fill_water"], reasoning_model),
     )
+    steep = WaitStep(STEPS["steep"], inputs_schema=SteepInputs)   # SteepInputs(WaitInputs): {minutes} for its words
 
     async def make_tea(run: Run) -> None:
-        await run.step(fill_water)            # says its start_line, then its done_line
-        await run.step(WaitStep(STEPS["steep"], 120, values={"minutes": 2}))
+        await run.step(fill_water)                                # says its start_line, then its done_line
+        await run.step(steep, SteepInputs(duration_s=120))
 
-Each step is built in one call: its definition, the models it uses, and ``values`` for the placeholders in its
-words. A step type of the app's own (any object with ``id``, ``start_line``, ``done_line(result)`` and
-``run(environment)``) runs and is evaluated like the kit's.
+Each step is defined once, from its definition, the models it uses and its ``inputs_schema``, and each run of it
+gets its inputs: what earlier steps produced, passed on by the procedure. A step type of the app's own (any object
+with ``id``, ``inputs_schema``, ``start_line(inputs)``, ``done_line(inputs, result)`` and ``run(environment,
+inputs)``) runs and is evaluated like the kit's.
 """
 
 from __future__ import annotations
@@ -62,8 +64,9 @@ from .escalation import (
     is_stuck,
 )
 from .runner import CONTROLS, MESSAGES, Run, SopRunner, StepRecord
-from .step_types.read import ReadModels, ReadResult, ReadSection, ReadSettings, ReadStep, read_and_derive
-from .step_types.wait import TimerState, WaitStep, timer
+from .step_types.read import ReadSection, ReadSettings, ReadState, ReadStep, read_until_enough
+from .step_types.transform import TransformSection, TransformSettings, TransformState, TransformStep
+from .step_types.wait import TimerState, WaitInputs, WaitStep, timer
 from .step_types.watch import (
     LABELS,
     Check,
@@ -81,7 +84,16 @@ from .step_types.watch import (
     judge,
     verify,
 )
-from .steps import Frames, Step, StepDefinition, StepDefinitions, StepEnvironment, fill_placeholders
+from .steps import (
+    Frames,
+    Step,
+    StepDefinition,
+    StepDefinitions,
+    StepEnvironment,
+    check_inputs,
+    check_placeholders,
+    fill_placeholders,
+)
 
 __all__ = [
     "CONTROLS",
@@ -101,10 +113,9 @@ __all__ = [
     "LABELS",
     "Label",
     "MESSAGES",
-    "ReadModels",
-    "ReadResult",
     "ReadSection",
     "ReadSettings",
+    "ReadState",
     "ReadStep",
     "ReasoningEscalator",
     "Run",
@@ -121,17 +132,24 @@ __all__ = [
     "StructuredObservation",
     "SupportsEscalation",
     "TimerState",
+    "TransformSection",
+    "TransformSettings",
+    "TransformState",
+    "TransformStep",
     "Verification",
+    "WaitInputs",
     "WaitStep",
     "WatchModels",
     "WatchSection",
     "WatchSettings",
     "WatchStep",
+    "check_inputs",
+    "check_placeholders",
     "decide_escalation",
     "fill_placeholders",
     "is_stuck",
     "judge",
-    "read_and_derive",
+    "read_until_enough",
     "timer",
     "verify",
 ]

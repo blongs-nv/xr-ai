@@ -5,9 +5,9 @@
 # kettle's Fahrenheit display).
 step: heat_water
 state:
-  steps: {identify: done, fill_water: done, heat_water: running}
+  steps: {identify: done, choose_settings: done, fill_water: done, heat_water: running}
   detail: "running: 0 of 2 confirmations in the last 4. Latest: negative: {\"value\":131.0,\"unit_text\":\"°\"}"
-  noted: {tea: {tea_name: Bigelow, tea_type: green tea}, temperature_c: 80, duration_s: 120, settings_from: recommended}
+  noted: {tea: Bigelow Premium Green Tea, temperature_c: 80, duration_s: 120}
 utterances:
   - say: Is the water hot enough yet?
     expect: {route: [observation, conversation]}

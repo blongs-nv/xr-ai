@@ -16,7 +16,8 @@
 #   answer   for conversation answers: mentions (any of), not (none of)
 
 step_words:
-  identify: [label, identif, read the, tea's name, what tea]
+  identify: [label, package, identif, read the, tea's name, what tea]
+  choose_settings: [setting, temperature, how long, brewing]
   fill_water: [fill, water in the kettle, kettle with water, water]
   heat_water: [heat, hot, temperature, degrees]
   start_steeping: [tea bag, put the tea, steep, in the water]

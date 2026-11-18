@@ -5,8 +5,8 @@
 step: null
 state:
   status: completed
-  steps: {identify: done, fill_water: done, heat_water: done, start_steeping: done, steep: done}
-  noted: {tea: {tea_name: Bigelow, tea_type: green tea}, temperature_c: 80, duration_s: 120, settings_from: recommended}
+  steps: {identify: done, choose_settings: done, fill_water: done, heat_water: done, start_steeping: done, steep: done}
+  noted: {tea: Bigelow Premium Green Tea, temperature_c: 80, duration_s: 120}
 utterances:
   - say: What's the next step?
     expect: {route: conversation, answer: {mentions: [done, complete, finished, ready, enjoy]}}

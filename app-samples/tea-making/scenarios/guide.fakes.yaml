@@ -16,11 +16,11 @@ decide:
   otherwise: conversation
 perceive:
   by_prompt:
-    - ["Read only clearly legible text", {tea_name: Bicelon, tea_type: green tea}]
+    - ["Read only clearly legible text", {brand: Bicelon, tea_type: green tea}]
     - ["water is visibly inside", "The kettle holds water; its level shows in the window."]
     - ["Transcribe the temperature", {value: 176, unit_text: "°F", role: unknown}]
     - ["tea-water contact", "A tea bag hangs in the mug and touches the hot water."]
 answer_with_reasoning:
   by_prompt:
-    - ["Recommend conventional brewing settings", {temperature_c: 80, duration_s: 120}]
+    - ["Fill in conventional brewing settings", {output: {water_temperature: {value: 80, unit: celsius}, steep_time: {minimum_minutes: 2, maximum_minutes: 2}}}]
   otherwise: You're on filling the kettle with water.

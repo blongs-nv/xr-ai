@@ -242,10 +242,9 @@
         "LABELS",
         "Label",
         "MESSAGES",
-        "ReadModels",
-        "ReadResult",
         "ReadSection",
         "ReadSettings",
+        "ReadState",
         "ReadStep",
         "ReasoningEscalator",
         "Run",
@@ -262,17 +261,24 @@
         "StructuredObservation",
         "SupportsEscalation",
         "TimerState",
+        "TransformSection",
+        "TransformSettings",
+        "TransformState",
+        "TransformStep",
         "Verification",
+        "WaitInputs",
         "WaitStep",
         "WatchModels",
         "WatchSection",
         "WatchSettings",
         "WatchStep",
+        "check_inputs",
+        "check_placeholders",
         "decide_escalation",
         "fill_placeholders",
         "is_stuck",
         "judge",
-        "read_and_derive",
+        "read_until_enough",
         "timer",
         "verify"
       ]
@@ -314,7 +320,6 @@
     "xr_ai_kit.sop.evaluation": {
       "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/evaluation/__init__.py",
       "all": [
-        "Build",
         "Case",
         "CaseFile",
         "CaseResult",
@@ -327,6 +332,8 @@
         "ScriptedEnvironment",
         "Shot",
         "StepTrace",
+        "Steps",
+        "inputs_for",
         "main",
         "mentions",
         "report",
@@ -352,18 +359,28 @@
     "xr_ai_kit.sop.step_types.read": {
       "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/step_types/read/__init__.py",
       "all": [
-        "ReadModels",
-        "ReadResult",
         "ReadSection",
         "ReadSettings",
+        "ReadState",
         "ReadStep",
-        "read_and_derive"
+        "merge",
+        "read_until_enough"
+      ]
+    },
+    "xr_ai_kit.sop.step_types.transform": {
+      "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/step_types/transform/__init__.py",
+      "all": [
+        "TransformSection",
+        "TransformSettings",
+        "TransformState",
+        "TransformStep"
       ]
     },
     "xr_ai_kit.sop.step_types.wait": {
       "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/step_types/wait/__init__.py",
       "all": [
         "TimerState",
+        "WaitInputs",
         "WaitStep",
         "timer"
       ]
@@ -397,6 +414,8 @@
         "StepDefinition",
         "StepDefinitions",
         "StepEnvironment",
+        "check_inputs",
+        "check_placeholders",
         "fill_placeholders"
       ]
     },

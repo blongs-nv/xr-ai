@@ -34,6 +34,8 @@ class StepRecord:
     status: StepStatus
     detail: str = ""
     """The step's latest reported progress (:meth:`Run.report_progress`), as text."""
+    skippable: bool = True
+    """Whether "skip" may cancel it (a step that does not wait on the person is not)."""
 
 
 @dataclass(slots=True)
@@ -77,28 +79,32 @@ class Run:
     async def step(
         self,
         step: Step[T] | str,
-        work: Callable[[], Awaitable[T]] | None = None,
+        inputs: Any = None,
         *,
+        work: Callable[[], Awaitable[T]] | None = None,
         start_line: str | None = None,
     ) -> T | None:
-        """Run one step as its own task; return its result, or ``None`` when the user skipped it.
+        """Run one step as its own task with ``inputs``; return its result, or ``None`` when the user skipped it.
 
-        ``step`` is a step object (``run.step(heat_water)``: its ``run(self)`` is the work) or a step id with
-        ``work``, any coroutine function of the app's own. The step's ``start_line`` is spoken as it starts
-        (``start_line`` here replaces it) and its ``done_line(result)`` when it finishes (not when it is skipped). A
-        step that fails fails the run (the exception propagates).
+        ``step`` is a step object (``run.step(heat_water, HeatInputs(temperature_c=80))``: its ``run(self, inputs)``
+        is the work; ``inputs`` is an instance of its ``inputs_schema``, or ``None`` when it takes none) or a step id
+        with ``work``, any coroutine function of the app's own. The step's ``start_line(inputs)`` is spoken as it
+        starts (``start_line`` here replaces it) and its ``done_line(inputs, result)`` when it finishes (not when it
+        is skipped). A step that fails fails the run (the exception propagates).
         """
         step_object: Step[T] | None = None
+        skippable = True
         if isinstance(step, str):
             if work is None:
-                raise TypeError("run.step(step_id, work): work is required with a step id")
+                raise TypeError("run.step(step_id, work=...): work is required with a step id")
             step_id = step
         else:
             step_object = step
             step_id = step.id
-            start_line = start_line if start_line is not None else step.start_line
-            work = lambda: step.run(self)  # noqa: E731
-        record = StepRecord(step_id, "running")
+            skippable = getattr(step, "skippable", True)
+            start_line = start_line if start_line is not None else step.start_line(inputs)
+            work = lambda: step.run(self, inputs)  # noqa: E731
+        record = StepRecord(step_id, "running", skippable=skippable)
         self.steps.append(record)
         await self._changed("step", step=step_id, status="running")
         if start_line:
@@ -119,7 +125,7 @@ class Run:
             raise
         record.status = "done"
         await self._changed("step", step=step_id, status="done")
-        if step_object is not None and (done_line := step_object.done_line(result)):
+        if step_object is not None and (done_line := step_object.done_line(inputs, result)):
             await self.say(done_line)
         return result
 
