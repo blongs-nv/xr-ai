@@ -270,7 +270,7 @@ class BoundRole(Role):
         return bool(getattr(capabilities, "json_schema", False))
 
     @_tracing.traced_call("ask")
-    @_virtual.held_call
+    @_virtual.held_role_call
     async def ask(
         self,
         frame: Frame | Sequence[Frame] | None,
@@ -341,10 +341,12 @@ class BoundRole(Role):
         opener = self._call(
             frame, prompt, system=system, thinking=thinking, max_tokens=max_tokens, temperature=temperature, stream=True
         )
-        return _virtual.HeldStream(_BoundStream(self._name, opener, self._limiter, timeout_s=timeout_s))
+        return _virtual.HeldStream(
+            _BoundStream(self._name, opener, self._limiter, timeout_s=timeout_s), label=self._name
+        )
 
     @_tracing.traced_call("decide")
-    @_virtual.held_call
+    @_virtual.held_role_call
     async def decide(
         self,
         question: str,

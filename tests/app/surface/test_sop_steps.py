@@ -521,6 +521,14 @@ def test_a_case_runs_the_real_step_on_a_scene_and_a_scripted_person(tmp_path: Pa
     assert "is it hot yet?" in prompt and "not read" not in prompt  # the conversation, not the run's summary
 
 
+def test_a_run_reports_the_model_latency_it_used_and_measured() -> None:
+    stats = evaluation.latency_stats({"perceive": [1.0, 1.2, 0.9, 5.0]})
+    assert stats["perceive"] == {"calls": 4, "p50_s": 1.2, "p95_s": 5.0}
+    text = evaluation.report([], latency="zero (the scene stands still while models answer)", measured=stats)
+    assert "Model latency on the scene's clock: zero" in text
+    assert "perceive 1.2 s (p95 5 s, 4 calls)" in text
+
+
 def test_a_case_records_the_steps_done_line_apart_from_what_an_escalator_says(tmp_path: Path) -> None:
     step = WaitStep("steep", StepWords(done_line="Steeped for 2 minutes."), duration_s=5.0)
     case = evaluation.Case(name="steeps", scene=[0, 30], expect={"completes": True})

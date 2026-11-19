@@ -144,3 +144,25 @@ numbers then mean nothing). Each writes `report.md` and `results.json`
 (every line said, every reported state, timings) and exits 0 when
 everything passed. The labels come from one recording, derived from
 captions and checked by eye; read the numbers with that in mind.
+
+### Model latency
+
+A step case runs on a virtual clock: idle waits are skipped, but a model
+call's time still moves the scene on (the camera keeps looking while the
+model answers). How much is chosen with `--latency`:
+
+| `--latency` | A model call costs | Use |
+|---|---|---|
+| `real` (default) | what it took on this machine | a live-like run; the result depends on the machine and its load |
+| `zero` | nothing | is the step right, whatever the models' speed? |
+| `eval/latency/rtx-6000-ada.yaml` | the profile's time for its role | the same timeline on any machine |
+
+`--latency-scale 2` runs a profile as a machine twice as slow, to find how
+much margin a case has. Every run writes `latency.json` and
+`measured-latency.yaml` (the median per role on this machine): run once with
+`--latency real` on a target machine and keep that file as its profile.
+
+A profile has one time per role, though a role's calls differ: `perceive`
+takes about 1 s for heat_water's display caption and 0.1 s for a short
+caption, and `answer_with_reasoning` takes a few seconds to read an answer
+and up to 10 s for an escalator's decision.

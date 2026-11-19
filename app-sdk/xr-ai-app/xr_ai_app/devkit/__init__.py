@@ -25,7 +25,7 @@ from .exercise import Exercise, Probe, Unit, components, exercise, resolve_targe
 from .runner import Report, StepResult, run_scenario
 from .scenario import Scenario, Step
 from .server import serve
-from .virtual_time import VirtualTimeLoop, run_virtual
+from .virtual_time import LatencyProfile, VirtualTimeLoop, run_virtual
 
 __all__ = [
     "Exercise",
@@ -36,6 +36,7 @@ __all__ = [
     "Scenario",
     "Step",
     "StepResult",
+    "LatencyProfile",
     "VirtualTimeLoop",
     "Unit",
     "components",

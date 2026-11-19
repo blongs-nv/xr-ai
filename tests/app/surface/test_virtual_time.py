@@ -23,7 +23,7 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel
 from xr_ai_app._base import _virtual
-from xr_ai_app.devkit import exercise, run_virtual
+from xr_ai_app.devkit import LatencyProfile, exercise, run_virtual
 from xr_ai_app.testing import FakeModels
 from xr_ai_kit.sop import Run
 
@@ -88,6 +88,68 @@ def test_idle_waits_are_skipped_real_work_is_not() -> None:
     assert marks["held"][0] == pytest.approx(0.3, abs=0.1) and marks["held"][1] >= 0.29
     assert marks["wall_offset"] == pytest.approx(90, abs=0.2)  # frame ages move with the loop
     assert asyncio.run(asyncio.sleep(0, result=_virtual.wall_us())) - time.time_ns() // 1000 < 1_000_000  # normal loop
+
+
+class _Role:
+    """A role whose call is real work in a thread (``real_s`` here), held like a real role's model call."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    @_virtual.held_role_call
+    async def ask(self, real_s: float) -> None:
+        await asyncio.to_thread(time.sleep, real_s)
+
+
+def test_a_latency_profile_charges_each_role_call_its_declared_time_however_long_it_took_here() -> None:
+    async def scenario() -> tuple[float, float, float, dict[str, list[float]]]:
+        loop = asyncio.get_running_loop()
+        perceive = _Role("perceive")
+        t, wall = loop.time(), time.monotonic()
+        await perceive.ask(0.05)  # faster here than declared
+        faster, faster_wall = loop.time() - t, time.monotonic() - wall
+        t = loop.time()
+        await perceive.ask(0.3)  # slower here than declared
+        slower = loop.time() - t
+        return faster, faster_wall, slower, loop.real_latencies_s
+
+    faster, faster_wall, slower, measured = run_virtual(scenario(), latency=LatencyProfile({"perceive": 0.2}))
+    assert faster == pytest.approx(0.2, abs=1e-6) and faster_wall < 0.2
+    assert slower == pytest.approx(0.2, abs=1e-6)
+    assert len(measured["perceive"]) == 2 and measured["perceive"][1] >= 0.29  # what it really took, recorded
+
+
+def test_under_a_latency_profile_timers_keep_firing_while_a_call_runs() -> None:
+    async def scenario() -> tuple[list[float], float]:
+        loop = asyncio.get_running_loop()
+        started, ticks = loop.time(), []
+
+        async def camera() -> None:  # a look every second, as a watch step's loop
+            while True:
+                await asyncio.sleep(1)
+                ticks.append(round(loop.time() - started, 6))
+
+        looking = asyncio.create_task(camera())
+        await _Role("answer_with_reasoning").ask(0.1)  # declared 5 s: the escalator reasoning
+        took = loop.time() - started
+        looking.cancel()
+        return ticks, took
+
+    ticks, took = run_virtual(scenario(), latency=LatencyProfile({"answer_with_reasoning": 5.0}))
+    assert took == pytest.approx(5.0, abs=1e-6)
+    assert ticks[:4] == [1.0, 2.0, 3.0, 4.0]  # the camera kept looking while the model reasoned
+
+
+def test_a_latency_profile_loads_from_yaml_scales_and_names_every_role(tmp_path: Path) -> None:
+    (tmp_path / "spark.yaml").write_text("perceive: 1.5\ndecide: 0.2\n", encoding="utf-8")
+    profile = LatencyProfile.load(tmp_path / "spark.yaml", scale=2.0)
+    assert (profile.seconds_for("perceive"), profile.seconds_for("decide"), profile.seconds_for(None)) == (3.0, 0.4, 0)
+    with pytest.raises(KeyError, match="answer_with_reasoning"):
+        profile.seconds_for("answer_with_reasoning")  # a role the profile misses is an error, never silent
+    assert LatencyProfile.zero().seconds_for("anything") == 0.0
+    (tmp_path / "bad.yaml").write_text("perceive: fast\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="maps role names"):
+        LatencyProfile.load(tmp_path / "bad.yaml")
 
 
 def test_a_step_agrees_on_both_clocks_and_virtual_is_fast(load_sample, clip: Path) -> None:

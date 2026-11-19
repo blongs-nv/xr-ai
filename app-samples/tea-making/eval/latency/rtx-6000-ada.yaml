@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Model latency per role on an NVIDIA RTX 6000 Ada, for --latency (seconds per
+# call on the scene's clock). Measured 2026-11-19 with --latency real (the
+# medians in measured-latency.yaml), one case at a time.
+perceive: 1.0  # heat_water's display caption; a short free-text caption is about 0.1
+decide: 0.07  # Clef labelling a description
+answer_with_reasoning: 2.6  # an answer or the conversation read into facts; an escalator's decision, with thinking, takes up to 10

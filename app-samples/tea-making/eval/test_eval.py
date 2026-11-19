@@ -95,3 +95,23 @@ def test_a_step_plumbing_run_runs_every_case_of_the_real_steps(
     asked = by_name[("heat_water", "unit_unknown_then_answered")]["lines"]
     assert asked[0]["kind"] == "ask" and asked[0]["answer"] == "Fahrenheit"
     assert "cases passed" in (out / "report.md").read_text()
+
+
+def test_a_step_plumbing_run_takes_a_latency_profile(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    run_steps.main(
+        [
+            "--frames-index",
+            str(gray_recording(tmp_path, 400)),
+            "--only",
+            "steep",
+        ]
+        + ["--fakes", str(HERE / "smoke.fakes.yaml"), "--out", str(out)]
+        + ["--latency", "zero"]
+    )
+    latency = json.loads((out / "latency.json").read_text())
+    assert latency["latency"].startswith("zero")
+    assert (
+        "Model latency on the scene's clock: zero"
+        in (out / "report.md").read_text()
+    )

@@ -97,6 +97,7 @@
       "path": "app-sdk/xr-ai-app/xr_ai_app/devkit/__init__.py",
       "all": [
         "Exercise",
+        "LatencyProfile",
         "LocalDevice",
         "Output",
         "Probe",
@@ -334,6 +335,7 @@
         "ScriptedEnvironment",
         "StepTrace",
         "Steps",
+        "latency_stats",
         "main",
         "mentions",
         "report",

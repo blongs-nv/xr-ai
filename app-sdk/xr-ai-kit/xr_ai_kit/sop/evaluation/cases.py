@@ -20,9 +20,18 @@ A case file is about one step::
 
 The app gives its steps, ``steps(fakes) -> {step id: step}``, the same ones its procedure runs, so the step evaluated
 is the step that ships; a case gives the inputs the procedure would pass it (validated against its ``inputs_schema``).
-Each case runs on the devkit's virtual-time loop: idle waits are skipped and model calls take their real time, so a
-five-minute scene costs what its model calls cost, and their latency counts as it would live. A case ends when the
-step finishes or the scene does.
+Each case runs on the devkit's virtual-time loop: idle waits are skipped, so a five-minute scene costs what its model
+calls cost. How long a model call takes on the scene's clock is chosen with ``--latency``:
+
+- ``real`` (the default): as long as it took on this machine (the result depends on the machine and its load);
+- ``zero``: no time (the scene stands still while models answer: is the step right, whatever the models' speed?);
+- a profile, ``latency/spark.yaml`` (``{role: seconds}``, :class:`~xr_ai_app.devkit.LatencyProfile`): the time it
+  declares for each role, so the same profile gives the same timeline on any machine; ``--latency-scale 2`` runs it
+  as a machine twice as slow, to find how much margin a case has.
+
+Every run records how long each role's calls took here (``latency.json``) and writes them as a profile
+(``measured-latency.yaml``, the median per role), so a ``real`` run on the target machine becomes its profile. A case
+ends when the step finishes or the scene does.
 
 Each step type's scoring is a module next to it (``watch_scoring``, ...) with ``Expect`` (what a case may expect; by
 convention an alias, ``Expect = WatchExpect``, so every module has the same name for it) and ``score(trace,
@@ -253,10 +262,32 @@ async def run_files(
     return list(await asyncio.gather(*jobs))
 
 
-def report(results: Sequence[CaseResult]) -> str:
-    """The results as Markdown: totals, then one table per step."""
+def latency_stats(real_latencies_s: Mapping[str, Sequence[float]]) -> dict[str, dict[str, float]]:
+    """Per role: how many calls, and the median and 95th-percentile time they took, in seconds."""
+    stats = {}
+    for role, times in sorted(real_latencies_s.items()):
+        ordered = sorted(times)
+        stats[role] = {
+            "calls": len(ordered),
+            "p50_s": round(ordered[len(ordered) // 2], 3),
+            "p95_s": round(ordered[min(len(ordered) - 1, int(len(ordered) * 0.95))], 3),
+        }
+    return stats
+
+
+def report(
+    results: Sequence[CaseResult], *, latency: str = "real", measured: Mapping[str, Mapping[str, float]] | None = None
+) -> str:
+    """The results as Markdown: totals, the model latency used and measured, then one table per step."""
     passed = sum(r.ok for r in results)
     lines = ["# Step cases", "", f"**{passed} of {len(results)} cases passed.**", ""]
+    lines.append(f"Model latency on the scene's clock: {latency}.")
+    if measured:
+        took = ", ".join(
+            f"{role} {m['p50_s']:g} s (p95 {m['p95_s']:g} s, {m['calls']:g} calls)" for role, m in measured.items()
+        )
+        lines.append(f"Measured here (median): {took}.")
+    lines.append("")
     by_step: dict[str, list[CaseResult]] = {}
     for r in results:
         by_step.setdefault(r.step, []).append(r)
@@ -291,18 +322,45 @@ def main(
     parser.add_argument("--out", type=Path, default=Path("runs/steps"))
     parser.add_argument("--fakes", type=Path, help="scripted roles (a plumbing run; the numbers mean nothing)")
     parser.add_argument("--concurrency", type=int, default=4)
+    parser.add_argument(
+        "--latency", default="real", help="model latency on the scene's clock: real, zero, or a profile YAML"
+    )
+    parser.add_argument(
+        "--latency-scale", type=float, default=1.0, help="multiply a profile's times (2: twice as slow)"
+    )
     args = parser.parse_args(argv)
-    from xr_ai_app.devkit import run_virtual  # noqa: PLC0415 - only when evaluating
+    from xr_ai_app.devkit import LatencyProfile, run_virtual  # noqa: PLC0415 - only when evaluating
 
     files = sorted(cases.glob("*.yaml"))
     fakes = fakes_from(args.fakes) if args.fakes else None
     recording = Recording.load(args.frames_index)
-    results = run_virtual(
-        run_files(files, steps, recording, fakes=fakes, only=args.only, concurrency=args.concurrency, scorings=scorings)
-    )
+    if args.latency == "real":
+        profile, latency = None, "real (as long as each call took on this machine)"
+    elif args.latency == "zero":
+        profile, latency = LatencyProfile.zero(), "zero (the scene stands still while models answer)"
+    else:
+        profile = LatencyProfile.load(args.latency, scale=args.latency_scale)
+        latency = f"the profile {args.latency}" + (
+            f", scaled {args.latency_scale:g}x" if args.latency_scale != 1 else ""
+        )
+
+    async def run_and_measure() -> tuple[list[CaseResult], dict[str, list[float]]]:
+        results = await run_files(
+            files, steps, recording, fakes=fakes, only=args.only, concurrency=args.concurrency, scorings=scorings
+        )
+        return results, dict(getattr(asyncio.get_running_loop(), "real_latencies_s", {}))
+
+    results, real_latencies_s = run_virtual(run_and_measure(), latency=profile)
+    measured = latency_stats(real_latencies_s)
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "results.json").write_text(json.dumps([r.as_json() for r in results], indent=2), encoding="utf-8")
-    text = report(results)
+    (args.out / "latency.json").write_text(json.dumps({"latency": latency, "measured": measured}, indent=2), "utf-8")
+    if measured:
+        medians = "".join(f"{role}: {m['p50_s']:g}\n" for role, m in measured.items())
+        (args.out / "measured-latency.yaml").write_text(
+            f"# The median time each role's calls took on this machine; use with --latency.\n{medians}", "utf-8"
+        )
+    text = report(results, latency=latency, measured=measured)
     (args.out / "report.md").write_text(text, encoding="utf-8")
     print(text)
     return 0 if all(r.ok for r in results) else 1
