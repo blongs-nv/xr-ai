@@ -13,9 +13,9 @@ Router asks Clef (`decide`) where each turn goes:
                 it reads the guide's state (tea.context) and the dialogue
 
 Starting the guide starts a run that outlives the turn: a question, or an
-interruption, never cancels it. Each step watches the camera on its own
-clock (a read step, a transform step, watch steps, a wait step); the runner
-speaks each step's lines, and the conversation answers from the same state.
+interruption, never cancels it. Each step runs as its own task (a read
+step, a transform step, watch steps, a wait step); the runner speaks each
+step's lines, and the conversation answers from the same state.
 Roles are the jobs, as in the teaching samples: perceive (the omni model on
 images, no reasoning: reading the package, the watch steps' per-frame loop),
 answer_with_reasoning (the same model on text, reasoning: answers, the
@@ -76,7 +76,9 @@ tea = app.add(
         decide=decide,
         output=voice,
         plan=tea_procedure.plan,
-        # The conversation each step and its escalator see.
+        # The dialogue (what was said), which each step and its escalator
+        # see as environment.conversation; not the Conversation component
+        # below, which answers the person.
         conversation=voice.dialogue,
         description=(
             "Only explicit controls of the tea-making guide: start, stop, "

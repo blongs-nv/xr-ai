@@ -19,7 +19,8 @@ shared between runs.
 An escalator is anything with ``run(channel, environment)`` (:class:`Escalator`): the kit's reasons in text over the
 step's evidence (:class:`~.reasoning_escalator.ReasoningEscalator`); another may look at the evidence itself, the
 frame behind each piece (:attr:`Evidence.frame`) or the camera now (``environment.frames``), with a model of its own.
-It talks to the person on its own, through its :class:`EscalatorEnvironment`; it never speaks through the step.
+It talks to the person on its own, through the step's own environment (a :class:`~..steps.step_api.StepEnvironment`,
+whose ``report_progress`` it does not call); it never speaks through the step.
 """
 
 from __future__ import annotations
@@ -32,8 +33,7 @@ from typing import Any, Protocol, runtime_checkable
 from pydantic import BaseModel
 from xr_ai_app import Frame
 
-from ..steps.conversation import Conversation
-from ..steps.step_api import Frames, StepEnvironment
+from ..steps.step_api import StepEnvironment
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,8 +61,8 @@ class StepSnapshot:
     """Lines saying what the step does, when it completes and when it cannot decide."""
     evidence: tuple[Evidence, ...]
     """Its recent attempts to decide, oldest first."""
-    known: str = ""
-    """What it knows beyond its own observations (the app's settings, what the person said); empty when nothing."""
+    knowledge_text: str = ""
+    """What it knows beyond its own observations (what the person said), as text; empty when nothing."""
     facts_schema: type[BaseModel] | None = None
     """The typed facts it accepts as added context (``None``: notes only)."""
 
@@ -118,37 +118,10 @@ class SupportsEscalation(Protocol):
 
 
 @runtime_checkable
-class EscalatorEnvironment(Protocol):
-    """What an escalator touches: the person, the camera, and what is going on around the step. Live it is the
-    procedure's :class:`~..runner.Run`; in an evaluation, the case's scripted person and scene."""
-
-    @property
-    def frames(self) -> Frames:
-        """The camera now (the same frames the step sees)."""
-        ...
-
-    async def say(self, text: str) -> None:
-        """Tell the person something."""
-        ...
-
-    async def ask(self, question: str) -> str | None:
-        """Ask the person and wait for the answer; ``None`` when none came."""
-        ...
-
-    @property
-    def conversation(self) -> Conversation:
-        """The conversation with the person (:mod:`..steps.conversation`): its text, and its changes."""
-        ...
-
-    async def run_summary(self) -> str:
-        """The procedure's run as text: its steps, their states, what was noted (``""`` outside a run)."""
-        ...
-
-
-@runtime_checkable
 class Escalator(Protocol):
     """An agent beside one step: runs until cancelled, reading the step through ``channel`` and reaching the person
-    through ``environment``. The kit's is :class:`~.reasoning_escalator.ReasoningEscalator`; an app may bring its
-    own."""
+    through ``environment`` (the step's own). The kit's is :class:`~.reasoning_escalator.ReasoningEscalator`; an app
+    may bring its own. It may name its evaluation scoring in a ``scoring`` attribute (module paths), as a step type
+    does."""
 
-    async def run(self, channel: EscalationChannel, environment: EscalatorEnvironment) -> None: ...
+    async def run(self, channel: EscalationChannel, environment: StepEnvironment) -> None: ...

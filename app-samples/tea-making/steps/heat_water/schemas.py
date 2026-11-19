@@ -23,9 +23,9 @@ class HeatWaterInputs(BaseModel):
     target: WaterTemperature
 
     @property
-    def minimum(self) -> str:
-        """{minimum} in heat_water's criteria: the target in both units,
-        since the display may print none."""
+    def target_in_both_units(self) -> str:
+        """{target_in_both_units} in heat_water's criteria: the target in
+        both units, since the display may print none."""
         target = self.target
         if target.unit == "celsius":
             other = f"{target.fahrenheit:g} degrees Fahrenheit"
@@ -80,6 +80,9 @@ class NoUnitPrinted(BaseModel):
     unit_letter_visible: Literal[False]
 
 
+# reached_target does not read this: it is kept because it is part of the
+# caption shape that was measured (xr_ai_kit.sop.step_types.watch's README),
+# and asking for it made the model look at what the number is.
 class MarkedAs(BaseModel):
     evidence: str = Field(
         description="what in the image shows it, or that nothing does"
@@ -143,8 +146,8 @@ _UNIT_LETTERS = {"C": "celsius", "F": "fahrenheit"}
 
 
 def reached_target(
-    caption: DisplayCaption,
-    known: DisplayFacts | None,
+    observation: DisplayCaption,
+    facts: DisplayFacts | None,
     inputs: HeatWaterInputs,
 ) -> Label:
     """Whether the display shows the target reached: positive or negative
@@ -153,7 +156,7 @@ def reached_target(
     The unit is the one the person stated, else a letter printed on the
     display; a number without a unit is not judged, so the escalator beside
     the step notices and asks for it."""
-    look = caption.look
+    look = observation.look
     if isinstance(look, NoDisplayInView) or look.reading.digits is None:
         return "unknown"
     printed = (
@@ -161,7 +164,7 @@ def reached_target(
         if isinstance(look.unit, UnitPrinted)
         else None
     )
-    unit = (known.unit if known is not None else None) or printed
+    unit = (facts.unit if facts is not None else None) or printed
     if unit is None:
         return "unknown"
     target = inputs.target

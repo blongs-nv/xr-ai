@@ -12,14 +12,13 @@ Patterns, what works and what does not, smaller models and speed: README.md, nex
 
 from __future__ import annotations
 
-from .read_step import ReadSettings, ReadStep, ReadWords
-from .read_until_enough import ReadState, merge, read_until_enough
+from .read_step import ReadStep, ReadWords
+from .read_until_enough import ReadSettings, ReadState, read_until_enough
 
 __all__ = [
     "ReadSettings",
     "ReadState",
     "ReadStep",
     "ReadWords",
-    "merge",
     "read_until_enough",
 ]

@@ -9,20 +9,17 @@ from __future__ import annotations
 
 from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationError,
+    ValidatorFunctionWrapHandler,
+    field_validator,
+)
 from tea import SteepTime, Tea, TeaType, WaterTemperature
 
-# How one frame of the tea's package is read. The shape guides the model
-# (thinking is off), and constrained decoding holds it to the shape: it first
-# decides whether a tea package is in view at all (if not, nothing can be
-# read), copies the package's words, gives the brand, name and kind of tea
-# each with the words it comes from, and decides whether brewing directions
-# are printed before it may give any. Measured on the green-tea recording
-# (xr_ai_kit.sop.step_types.read's README): no value from frames without a
-# package, and no brewing settings invented from what the model knows.
-# tea_from_look turns a reply into the Tea kept across frames. No class
-# docstrings: they would become schema descriptions, and with one a model left
-# a field out of its reply.
+# No class docstrings in this file: they would become schema descriptions,
+# and with one a model left a field out of its reply.
 V = TypeVar("V")
 
 
@@ -42,6 +39,19 @@ class BrewingDirectionsPrinted(BaseModel):
     )
     water_temperature: WaterTemperature | None = None
     steep_time: SteepTime | None = None
+
+    # The schema the model fills in has no bounds, so it can write a misread
+    # value (1755 degrees). Such a value counts as empty, as in Tea, so the
+    # brand and name read from the same frame are kept.
+    @field_validator("water_temperature", "steep_time", mode="wrap")
+    @classmethod
+    def _implausible_is_none(
+        cls, value: Any, handler: ValidatorFunctionWrapHandler
+    ) -> Any:
+        try:
+            return handler(value)
+        except ValidationError:
+            return None
 
 
 class NoBrewingDirections(BaseModel):
@@ -78,6 +88,16 @@ class NoPackage(BaseModel):
     )
 
 
+# How one frame of the tea's package is read. The shape guides the model
+# (thinking is off), and constrained decoding holds it to the shape: it first
+# decides whether a tea package is in view at all (if not, nothing can be
+# read), copies the package's words, gives the brand, name and kind of tea
+# each with the words it comes from, and decides whether brewing directions
+# are printed before it may give any. Measured on the green-tea recording
+# (xr_ai_kit.sop.step_types.read's README): no value from frames without a
+# package, and no brewing settings invented from what the model knows.
+# tea_from_look turns a reply into the Tea kept across frames. No class
+# docstrings (see the top of the file).
 class TeaPackageLook(BaseModel):
     look: PackageInView | NoPackage
 

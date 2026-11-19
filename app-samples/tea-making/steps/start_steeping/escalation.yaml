@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # How the person can help when start_steeping's camera check cannot decide (xr_ai_kit.sop.EscalationWords),
-# for the escalator beside it.
+# for the escalator beside it. start_steeping has no facts_schema, so an
+# answer reaches its check as a note the deciding model reads, not as typed
+# facts.
 guidance: >-
   The mug has to be in the camera's view. Its inside may still be hard to
   see; the person knows whether the tea is in the water.

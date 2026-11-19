@@ -34,7 +34,9 @@ from xr_ai_kit.sop import Step, evaluation  # noqa: E402
 def steps(fakes: Any) -> Mapping[str, Step[Any]]:
     """The tea steps by id: the app's, or on scripted models (a plumbing
     run)."""
-    import app  # the app's models and settings  # noqa: PLC0415
+    # The app's real roles and settings (importing it builds the app, which is
+    # why it happens only here).
+    import app  # noqa: PLC0415
 
     tea_procedure = app.tea_procedure
     if fakes is not None:

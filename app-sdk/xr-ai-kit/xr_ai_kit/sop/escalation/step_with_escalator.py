@@ -12,28 +12,19 @@ evaluation run it like any step, so an evaluation runs the pairing that ships.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from typing import Any
 
 from xr_ai_app import trace
 
 from ..steps.step_api import SPEAKER, StepEnvironment
-from .escalation_channel import (
-    EscalationChannel,
-    Escalator,
-    EscalatorEnvironment,
-    SupportsEscalation,
-)
-
-SCORING = f"{__package__}.escalation_scoring"
-"""What an evaluation case may expect of the escalator (``asks``, ``says``, ``quiet``)."""
+from .escalation_channel import EscalationChannel, Escalator, SupportsEscalation
 
 
 class StepWithEscalator:
     """``step`` (a step type that supports escalation, :class:`~.escalation_channel.SupportsEscalation`) with
     ``escalator`` (any :class:`~.escalation_channel.Escalator`) beside it."""
 
-    def __init__(self, step: Any, escalator: Escalator) -> None:
+    def __init__(self, step: SupportsEscalation, escalator: Escalator) -> None:
         if not isinstance(step, SupportsEscalation):
             raise TypeError(f"{type(step).__name__} does not support escalation (it has no run_with_escalation)")
         if not isinstance(escalator, Escalator):
@@ -41,14 +32,14 @@ class StepWithEscalator:
         self.step = step
         self.escalator = escalator
         self.id: str = step.id
-        self.words = getattr(step, "words", None)
+        self.words = step.words
+        """The step's words (what it does, its lines), as the runner's ``plan`` reads them."""
         self.inputs_schema = step.inputs_schema
 
     @property
     def scoring(self) -> tuple[str, ...]:
-        """The step's own scoring, and the escalator's."""
-        own = getattr(self.step, "scoring", ())
-        return (*((own,) if isinstance(own, str) else own), SCORING)
+        """The step's own scoring, and the escalator's, if it has one."""
+        return (*getattr(self.step, "scoring", ()), *getattr(self.escalator, "scoring", ()))
 
     @property
     def skippable(self) -> bool:
@@ -61,21 +52,19 @@ class StepWithEscalator:
         return self.step.done_line(inputs, result)
 
     async def run(self, environment: StepEnvironment, inputs: Any = None) -> Any:
-        """Run the step and, beside it, the escalator, which reaches the person through ``environment`` (it must also
-        be an :class:`~.escalation_channel.EscalatorEnvironment`, as the runner's and the evaluation's are)."""
-        if not isinstance(environment, EscalatorEnvironment):
-            raise TypeError(f"an escalator needs an EscalatorEnvironment; {type(environment).__name__} is not one")
+        """Run the step and, beside it, the escalator, which reaches the person through the same ``environment``."""
         channel = EscalationChannel()
         escalation = asyncio.create_task(self._escalate(channel, environment))
         try:
             return await self.step.run_with_escalation(environment, channel, inputs)
         finally:
             escalation.cancel()
-            with contextlib.suppress(BaseException):
-                await escalation
+            await asyncio.wait({escalation})  # let it end; its failures are traced in _escalate, never raised here
 
-    async def _escalate(self, channel: EscalationChannel, environment: EscalatorEnvironment) -> None:
-        SPEAKER.set("escalator")  # this task's own context: what it says is the escalator's
+    async def _escalate(self, channel: EscalationChannel, environment: StepEnvironment) -> None:
+        # create_task copied the caller's context, so this is set only in the escalator's own task: Run.ask and
+        # Run.say read it to tag the escalator's lines, while the step's task still reads "step".
+        SPEAKER.set("escalator")
         try:
             await self.escalator.run(channel, environment)
         except Exception as exc:  # noqa: BLE001 - the escalation never fails the step

@@ -9,12 +9,13 @@ is the merged record.
 
 ```python
 identify = ReadStep(
-    DEFINITIONS["identify"],          # start_line, done_line, and its `read: {question}` section
+    "identify",
+    load_words(STEPS / "identify" / "words.yaml", ReadWords),   # question, start_line, done_line
     perceive,                         # a vision model; thinking off (see below)
     reply_schema=TeaPackageLook,      # what the model fills in for one frame
+    is_enough=lambda tea: tea.tea_type is not None,   # required: when what was read is enough
     extract=tea_from_look,            # one reply -> the record kept (a Tea)
-    is_enough=lambda tea: tea.tea_type is not None,
-    settings=ReadSettings(interval_s=0.0, timeout_s=30.0),
+    settings=ReadSettings(interval_s=0.0, model_timeout_s=30.0),
 )
 tea = await run.step(identify)        # a Tea, or None when the person skipped it
 ```

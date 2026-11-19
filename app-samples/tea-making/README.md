@@ -43,8 +43,8 @@ with the target (positive, negative or unknown); unknowns take
 no slot, so an obscured view neither confirms nor resets it. Beside each
 camera step runs its **escalator** (`StepWithEscalator`), an agent of its
 own that shares only an escalation channel with the step: it reads a
-snapshot of the step (its task, its latest evidence, what it knows). As the step starts, and each time the
-conversation changes, it reads what the person has said into the facts
+snapshot of the step (its task, its latest evidence, what it knows). As
+the step starts, and each time the conversation changes, it reads what the person has said into the facts
 the step accepts (`learns_from_conversation`: the kettle's unit, said when
 the target was announced or while the water heats), so the check has it
 without anyone asking. When the evidence is mostly unknown, it asks the
@@ -80,9 +80,25 @@ interruption never cancels it. "Skip this step" cancels only the current
 step (and any question it is waiting on); "stop" ends the run. Each
 change is traced and written to `artifacts/<participant>/sop-tea.jsonl`.
 
-Compared with the original tea sample, this port does not yet retrieve
-brewing settings from documents (the model fills them in from what it
-knows), and has no live event viewer.
+Brewing settings come from the model's knowledge, not from documents, and
+there is no live event viewer.
+
+## Adding a step
+
+1. `steps/<id>/words.yaml`: its words, in its type's words schema
+   (`WatchWords`, `ReadWords`, `TransformWords`, or `StepWords` for a wait).
+2. `steps/<id>/escalation.yaml`, for a camera step with an escalator: how
+   the person can help when its check is stuck.
+3. `steps/<id>/schemas.py`, when it has its own types: its inputs, the facts
+   the person may give it, or a caption schema and its code judge.
+4. Build it in `TeaProcedure.__init__` and add it to `self.steps` (that
+   tuple drives both the plan the conversation sees and `eval/run_steps.py`).
+5. Run it in `make_tea`, where it gets what earlier steps produced; then add
+   its cases in `eval/steps/<id>.yaml`.
+
+The sdk-tour's guided procedure keeps every step's words in one file
+(`load_words(..., key="bed_clear.step")`); this sample gives each step a
+folder. Copy the folder layout once a step has types of its own.
 
 ## Run
 

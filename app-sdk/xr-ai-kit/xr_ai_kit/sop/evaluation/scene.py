@@ -50,7 +50,11 @@ class Shot:
 
 
 class Recording:
-    """A recording's frames: an index CSV with ``source_time_s`` and ``frame_image`` (paths relative to the CSV)."""
+    """A recording's frames: an index CSV with ``source_time_s`` and ``frame_image`` (paths relative to the CSV;
+    ``time_s`` and ``path`` are accepted too).
+
+    A capture packet (:mod:`..capture`) indexes its frames in ``frames/index.jsonl`` instead; write its lines out as
+    such a CSV (time in seconds from the start, and the frame's path) to evaluate on it."""
 
     def __init__(self, frames: list[tuple[float, Path]]) -> None:
         if not frames:
@@ -67,7 +71,7 @@ class Recording:
             t = row.get("source_time_s") or row.get("time_s")
             image = row.get("frame_image") or row.get("path")
             if t is None or image is None:
-                raise ValueError(f"{index}: needs source_time_s and frame_image columns")
+                raise ValueError(f"{index}: needs source_time_s (or time_s) and frame_image (or path) columns")
             frames.append((float(t), (index.parent / image).resolve()))
         return cls(frames)
 
@@ -140,13 +144,14 @@ class SceneFrames:
         index = max((i for i, shot in enumerate(self.shots) if shot.t_s <= now), default=0)
         return index, self.shots[index]
 
-    def _frame(self, index: int, shot: Shot) -> Frame:
+    def _frame(self, shot: Shot) -> Frame:
         self._served += 1
         return replace(self.recording.image(shot.path), timestamp_us=clock.wall_us(), sequence=self._served)
 
     async def current(self, *, max_age_s: float = 2.0, timeout_s: float = 5.0) -> Frame | None:
+        """The scene's frame now (``max_age_s`` and ``timeout_s`` do not apply: a recorded frame is always there)."""
         found = self._shot()
-        return None if found is None else self._frame(*found)
+        return None if found is None else self._frame(found[1])
 
     async def every(self, interval_s: float, *, timeout_s: float = 5.0) -> AsyncIterator[Frame]:
         last: int | None = None
@@ -161,5 +166,5 @@ class SceneFrames:
                 await asyncio.sleep(max(0.01, following - self.now()))
                 continue
             last = index
-            yield self._frame(index, shot)
+            yield self._frame(shot)
             await asyncio.sleep(interval_s)

@@ -3,7 +3,7 @@
 
 """A transform step: a reasoning model turns one schema's instance into another's, following the step's prompt.
 
-No camera. Its input is each run's inputs (an instance of ``input_schema``, from earlier steps); its result is an
+No camera. Its input is each run's inputs (an instance of ``inputs_schema``, from earlier steps); its result is an
 instance of ``output_schema``. The two may be the same schema: then, with ``keep_input_values``, the step fills in
 what the input leaves empty (settings a package does not print) and keeps, in code, every value the input has, so the
 model never overwrites what was read. ``required_fields`` must be set in the result; a reply that leaves one empty is
@@ -45,7 +45,7 @@ class TransformSettings(BaseModel):
     """How many questions it may ask the person per run (0: never)."""
     attempts: int = 3
     """Replies it asks for before failing (an unreadable reply, or one missing a required field)."""
-    timeout_s: float = 60.0
+    model_timeout_s: float = 60.0
     """Bound on one model call."""
     thinking: bool | None = None
     """Whether the model reasons before replying (``None``: the role's default)."""
@@ -53,7 +53,7 @@ class TransformSettings(BaseModel):
 
 @dataclass(frozen=True, slots=True)
 class TransformState:
-    """The state of one transform, reported as it goes and when it completes."""
+    """The state of one transform, reported as it starts, while it asks the person, and when it completes."""
 
     status: Literal["working", "asking", "completed"]
     output: BaseModel | None
@@ -79,7 +79,7 @@ class TransformStep:
     Built from the step's id, its ``words`` and ``reason``, the reasoning text model that does it.
     """
 
-    scoring: ClassVar[str] = f"{__package__}.transform_scoring"
+    scoring: ClassVar[tuple[str, ...]] = (f"{__package__}.transform_scoring",)
     skippable: ClassVar[bool] = False
 
     def __init__(
@@ -88,7 +88,7 @@ class TransformStep:
         words: TransformWords,
         reason: Role,
         *,
-        input_schema: type[BaseModel],
+        inputs_schema: type[BaseModel],
         output_schema: type[BaseModel],
         keep_input_values: bool = False,
         required_fields: tuple[str, ...] = (),
@@ -99,16 +99,17 @@ class TransformStep:
             raise ValueError(f"step {step_id!r}: required_fields {unknown} are not fields of the output schema")
         self.id = step_id
         self.words = words
-        self.inputs_schema = input_schema
+        self.inputs_schema = inputs_schema
         self.output_schema = output_schema
-        self.instructions = words.instructions
         self.reason = reason
         self.keep_input_values = keep_input_values
         self.required_fields = required_fields
         self.settings = settings or TransformSettings()
-        check_placeholders(self.id, "instructions", words.instructions, input_schema)
-        check_placeholders(self.id, "start_line", words.start_line, input_schema)
-        check_placeholders(self.id, "done_line", words.done_line, input_schema, also=("output",))
+        check_placeholders(self.id, "instructions", words.instructions, inputs_schema)
+        check_placeholders(self.id, "start_line", words.start_line, inputs_schema)
+        check_placeholders(self.id, "done_line", words.done_line, inputs_schema, also=("output",))
+        # The reply schemas the model fills in. Their names are the schemas' titles, which the model sees, so they
+        # stay as they are; the second is used once the person may no longer be asked.
         self._reply = create_model(
             f"{output_schema.__name__}Reply",
             output=(output_schema | None, None),
@@ -123,7 +124,7 @@ class TransformStep:
         """``done_line``, filled with the inputs and ``output``."""
         return fill_placeholders(self.words.done_line, inputs, output=result)
 
-    def kept(self, inputs: BaseModel) -> dict[str, Any]:
+    def _kept(self, inputs: BaseModel) -> dict[str, Any]:
         """The input's values the output keeps: its non-empty fields the output schema shares (with
         ``keep_input_values``; otherwise none)."""
         if not self.keep_input_values:
@@ -131,15 +132,20 @@ class TransformStep:
         shared = [name for name in self.output_schema.model_fields if name in type(inputs).model_fields]
         return {name: value for name in shared if (value := getattr(inputs, name)) is not None}
 
-    def prompt(
-        self, inputs: BaseModel, asked: list[tuple[str, str | None]], *, may_ask: bool, missing: list[str]
+    def _prompt(
+        self,
+        inputs: BaseModel,
+        kept: dict[str, Any],
+        asked: list[tuple[str, str | None]],
+        *,
+        may_ask: bool,
+        missing: list[str],
     ) -> str:
         """What the model is asked: the instructions, the input, what the person said, and what it must do."""
         parts = [
-            fill_placeholders(self.instructions, inputs) or "",
+            fill_placeholders(self.words.instructions, inputs) or "",
             f"The input ({type(inputs).__name__}):\n{inputs.model_dump_json(exclude_none=True)}",
         ]
-        kept = self.kept(inputs)
         if kept:
             parts.append(f"These fields are already known and are kept as they are: {', '.join(kept)}.")
         if self.required_fields:
@@ -163,16 +169,18 @@ class TransformStep:
         assert inputs is not None  # noqa: S101 - check_inputs: a transform always has an input schema
         settings = self.settings
         started = clock.now()
+        kept = self._kept(inputs)
         asked: list[tuple[str, str | None]] = []
         missing: list[str] = []
+        await environment.report_progress(self.id, TransformState("working", None, (), (), started, started))
         attempts = 0
         while attempts < settings.attempts:
             may_ask = len(asked) < settings.max_questions
-            text = self.prompt(inputs, asked, may_ask=may_ask, missing=missing)
+            text = self._prompt(inputs, kept, asked, may_ask=may_ask, missing=missing)
             schema = self._reply if may_ask else self._reply_without_question
             try:
                 reply = await self.reason.ask(
-                    None, text, response_format=schema, thinking=settings.thinking, timeout_s=settings.timeout_s
+                    None, text, response_format=schema, thinking=settings.thinking, timeout_s=settings.model_timeout_s
                 )
             except (StructuredOutputError, TimeoutError):
                 attempts += 1
@@ -188,11 +196,10 @@ class TransformStep:
             attempts += 1
             if reply.output is None:
                 continue
-            output = reply.output.model_copy(update=self.kept(inputs))
+            output = reply.output.model_copy(update=kept)
             missing = [name for name in self.required_fields if getattr(output, name) is None]
             if missing:
                 continue
-            kept = self.kept(inputs)
             filled = tuple(
                 n for n in self.output_schema.model_fields if n not in kept and getattr(output, n) is not None
             )

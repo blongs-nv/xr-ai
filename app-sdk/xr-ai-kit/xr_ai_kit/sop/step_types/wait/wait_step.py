@@ -6,7 +6,7 @@
 Its duration is either fixed (``WaitStep("warm_up", words, duration_s=90)``) or each run's input (an
 ``inputs_schema`` that extends :class:`WaitInputs`, known only once earlier steps have run). Its words are what every
 step says (:class:`~...steps.step_words.StepWords`): ``start_line`` and ``done_line``, whose placeholders name fields
-or properties of its inputs."""
+or properties of its inputs, or, with a fixed duration, ``{duration_s}`` and ``{minutes}``."""
 
 from __future__ import annotations
 
@@ -26,9 +26,10 @@ class WaitInputs(BaseModel):
 
 
 class WaitStep:
-    """Wait ``duration_s`` seconds (fixed, or each run's input), reporting the time left every ``interval_s``."""
+    """Wait ``duration_s`` seconds (fixed, or each run's input), reporting the time left every ``interval_s`` (its one
+    setting: a countdown has nothing else to tune)."""
 
-    scoring: ClassVar[str] = f"{__package__}.wait_scoring"
+    scoring: ClassVar[tuple[str, ...]] = (f"{__package__}.wait_scoring",)
 
     def __init__(
         self,
@@ -48,14 +49,16 @@ class WaitStep:
         self.inputs_schema = inputs_schema
         self.duration_s = duration_s
         self.interval_s = interval_s
-        check_placeholders(self.id, "start_line", words.start_line, inputs_schema)
-        check_placeholders(self.id, "done_line", words.done_line, inputs_schema)
+        self._fixed = {} if duration_s is None else {"duration_s": f"{duration_s:g}", "minutes": f"{duration_s / 60:g}"}
+        """What a fixed duration's words may name ({duration_s}, {minutes})."""
+        check_placeholders(self.id, "start_line", words.start_line, inputs_schema, also=tuple(self._fixed))
+        check_placeholders(self.id, "done_line", words.done_line, inputs_schema, also=tuple(self._fixed))
 
     def start_line(self, inputs: WaitInputs | None = None) -> str | None:
-        return fill_placeholders(self.words.start_line, inputs)
+        return fill_placeholders(self.words.start_line, inputs, **self._fixed)
 
     def done_line(self, inputs: WaitInputs | None, result: TimerState) -> str | None:
-        return fill_placeholders(self.words.done_line, inputs)
+        return fill_placeholders(self.words.done_line, inputs, **self._fixed)
 
     async def run(self, environment: StepEnvironment, inputs: WaitInputs | None = None) -> TimerState:
         check_inputs(self.id, self.inputs_schema, inputs)

@@ -20,7 +20,7 @@ bed_clear:
       Describe the 3D printer's print bed: whether it is in view, and whether
       anything (a print, a spool, a tool, debris) lies on it.
     criteria:
-      instructions: Is the print bed clear?
+      question: Is the print bed clear?
       positive: The print bed is in view and nothing lies on it.
       negative: Something lies on the print bed.
       unknown: >-
@@ -41,7 +41,7 @@ door_closed:
       Describe the 3D printer's door or enclosure front: whether it is in view,
       and whether it is open or closed.
     criteria:
-      instructions: Is the printer door closed?
+      question: Is the printer door closed?
       positive: The printer door is in view and fully closed.
       negative: The printer door is open or ajar.
       unknown: >-
@@ -56,6 +56,6 @@ door_closed:
 warm_up:
   step:
     does: wait 90 seconds while the printer warms up (a timer)
-    start_line: Warming up for ninety seconds.
+    start_line: Warming up for {duration_s} seconds.
     done_line: Warm-up done. You can start the print.
 

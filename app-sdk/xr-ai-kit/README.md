@@ -18,7 +18,7 @@ and test kit); anything composed from those lives here, however common.
 | `xr_ai_kit.conversation` | `Conversation`: multi-turn answers from one role over the context channels it lists, spoken on an output, with a streaming tool loop over `@tool` functions (`xr_ai_app.tools` calls each tool); a `return_direct` tool's result (text, or a stream of text) is spoken as the answer and ends the loop; the loop speaks the answer, the tool returns it |
 | `xr_ai_kit.routing` | the routing names, and `choose` (one pick for a turn: `role.decide` plus focus, retries and the dialogue); the devkit's `destination:<name>` exercise target (`resolve_destination`, `destinations`) |
 | `xr_ai_kit.delegate` | `Delegate`, `Job`, `JobUpdate` and the job back ends: `FunctionBackend`, `A2ABackend` (remote agents over A2A; extra `xr-ai-kit[a2a]`) |
-| `xr_ai_kit.sop` | standard operating procedures: steps (`steps`: what every step shares; `step_types`: `WatchStep`, `ReadStep`, `WaitStep`), an optional escalator beside a step (`escalation`), and `SopRunner`, which runs a procedure written as plain Python, one run per participant, with controls and a summary for the conversation (see below) |
+| `xr_ai_kit.sop` | standard operating procedures: steps (`steps`: what every step shares; `step_types`: `WatchStep`, `ReadStep`, `TransformStep`, `WaitStep`), an optional escalator beside a step (`escalation`), and `SopRunner`, which runs a procedure written as plain Python, one run per participant, with controls and a summary for the conversation (see below) |
 
 Routing by hand, without a `Router`, is the core's `role.decide`.
 
@@ -35,7 +35,7 @@ does: fill the kettle with fresh water            # the plan the conversation re
 start_line: Fill the kettle and keep it in view.  # spoken as the step starts
 done_line: Water is visible in the kettle.        # spoken when it finishes
 question: Describe whether water is visibly inside the kettle.
-criteria: {instructions: Is there water?, positive: ..., negative: ..., unknown: ...}
+criteria: {question: Is there water?, positive: ..., negative: ..., unknown: ...}
 ```
 
 ```python
@@ -106,11 +106,12 @@ tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier
   the whole `prompt`), and gives the step what the person says in the
   conversation; another could send the frame behind the evidence to a model
   of its own. A step type supports escalation by implementing
-  `run_with_escalation(environment, channel)`; the watch step does.
+  `run_with_escalation(environment, channel, inputs)`; the watch step does.
 - `SopRunner` owns the run: each step is its own task, so skip cancels only
   the step and stop cancels the run; a new turn never cancels either. Every
   change is traced, written to the participant's artifacts (`sop-<name>.jsonl`)
-  when the app has an artifacts folder, and summarized in `runner.context`.
+  when the app has an artifacts folder (each line said or asked, with who said
+  it: the step or its escalator), and summarized in `runner.context`.
   The runner gives each step the app's conversation
   (`SopRunner(conversation=voice.dialogue)`) and the run's summary.
 - `xr_ai_kit.sop.evaluation` runs one step at a time on a recorded scene and

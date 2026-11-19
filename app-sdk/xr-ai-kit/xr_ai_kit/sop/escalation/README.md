@@ -4,7 +4,8 @@ An escalator runs beside one step (`StepWithEscalator`) and helps the person
 when the step cannot decide. The kit's, `ReasoningEscalator`, looks at the
 step's recent evidence every `every_s`; when most of it is undecided
 (`is_stuck`), a reasoning model reads the step's task, `guidance`, the
-evidence and what is known, and replies with one decision:
+evidence and what is known, and replies with one decision (simplified: the
+real schema gives each field a description):
 
 ```python
 class _Decision(BaseModel):
@@ -22,9 +23,9 @@ never learns it.
 
 With `learns_from_conversation`, the escalator also reads the conversation
 (`environment.conversation`) into the step's `facts_schema`: once as the
-step starts, and again each time the conversation changes, stuck or not. The unit said when the
-target was announced, or volunteered while the water heats, reaches the step
-without anyone asking:
+step starts, and again each time the conversation changes, stuck or not.
+The unit said when the target was announced, or volunteered while the water
+heats, reaches the step without anyone asking:
 
 ```
 the step starts ───────────────┐
@@ -40,9 +41,14 @@ the conversation changes ──────┤  (environment.conversation.change
 - The escalator says nothing while the conversation is being read, or right
   after it gave the step something new: the step decides with that first.
 - Nothing is spoken: the conversation answers the person's turn as usual.
-- Separately, `reads_conversation` and `reads_run_summary` put the
-  conversation and the run's summary in what it reads when it decides what
-  to say.
+
+Its three switches, in `EscalationSettings`:
+
+| Setting | What it does |
+|---|---|
+| `learns_from_conversation` | the conversation is read into the step's facts (above) |
+| `reads_conversation` | the conversation goes into the escalator's own prompt when it decides what to say |
+| `reads_run_summary` | the run's summary (the plan, the steps' states) goes into that prompt too |
 
 The reader, measured on 14 tea dialogues (2026-11-19), every one with the
 assistant saying "Heat the water to 80 degrees Celsius": 6 where the person

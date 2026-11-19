@@ -58,22 +58,15 @@ STEPS = Path(__file__).resolve().parent / "steps"
 
 
 class TeaSettings(BaseModel):
-    """The procedure's settings (app.yaml's settings.tea)."""
+    """The procedure's settings: app.yaml's settings.tea, where each is set
+    and explained (the defaults here are the kit's)."""
 
     read: ReadSettings = Field(default_factory=ReadSettings)
     """How the package is read."""
     watch: WatchSettings = Field(default_factory=WatchSettings)
     """How every camera step watches."""
-    escalation: EscalationSettings = Field(
-        default_factory=lambda: EscalationSettings(
-            reads_run_summary=True,
-            reads_conversation=True,
-            learns_from_conversation=True,
-        )
-    )
-    """How every camera step's escalator works: it reads the run's summary
-    and the conversation, and gives its step what the person says (the
-    kettle's unit) as the step starts and as the conversation grows."""
+    escalation: EscalationSettings = Field(default_factory=EscalationSettings)
+    """How every camera step's escalator works."""
 
 
 class TeaProcedure:
@@ -85,6 +78,8 @@ class TeaProcedure:
     roles.
     """
 
+    # make_tea comes first: it is the procedure. __init__ below builds its
+    # steps.
     async def make_tea(self, run: Run) -> None:
         """Read the package, fill in its settings, brew."""
         read = await run.step(self.identify)  # None when skipped
@@ -93,8 +88,8 @@ class TeaProcedure:
         assert tea is not None
         assert tea.water_temperature is not None and tea.steep_time is not None
         duration_s = tea.steep_time.minutes * 60
-        # For the conversation, until the runner records each step's inputs
-        # and result itself.
+        # For the conversation. Open: whether the runner should record each
+        # step's inputs and result itself, which would make this unneeded.
         await run.note(
             tea=tea.spoken_name,
             temperature_c=tea.water_temperature.celsius,
@@ -133,7 +128,7 @@ class TeaProcedure:
                 STEPS / "choose_settings" / "words.yaml", TransformWords
             ),
             answer_with_reasoning,
-            input_schema=Tea,
+            inputs_schema=Tea,
             output_schema=Tea,
             keep_input_values=True,
             required_fields=("water_temperature", "steep_time"),
@@ -161,7 +156,7 @@ class TeaProcedure:
                 inputs_schema=HeatWaterInputs,
                 facts_schema=DisplayFacts,
                 observation=StructuredObservation(
-                    schema=DisplayCaption, judge=reached_target
+                    schema=DisplayCaption, code_judge=reached_target
                 ),
                 settings=settings.watch,
             ),

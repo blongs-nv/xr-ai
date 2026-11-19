@@ -14,12 +14,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from xr_ai_app import Role
 
 from ...steps.step_api import StepEnvironment, check_inputs, check_placeholders, fill_placeholders
 from ...steps.step_words import StepWords
-from .read_until_enough import ReadState, read_until_enough
+from .read_until_enough import ReadSettings, ReadState, read_until_enough
 
 
 class ReadWords(StepWords):
@@ -27,16 +27,6 @@ class ReadWords(StepWords):
 
     question: str
     """What the perceiving model reads from each frame into the reading schema."""
-
-
-class ReadSettings(BaseModel):
-    """How a read step looks (an app's settings may embed this)."""
-
-    model_config = ConfigDict(extra="forbid")
-    interval_s: float = 0.0
-    """At least this long between two frames read (0: the next new frame as soon as the last one is read)."""
-    timeout_s: float = 30.0
-    """Bound on one model call."""
 
 
 class ReadStep:
@@ -48,11 +38,12 @@ class ReadStep:
     makes it decide what is in view and copy what it sees before it interprets it, without reasoning (the tea
     sample's). ``reply_schema`` is what the model fills in for one frame, ``extract`` turns a reply into the record
     that is kept (default: the reply itself; fields read in different frames are merged), and ``is_enough`` decides in
-    code whether what has been read is enough to go on. ``inputs_schema`` is what each run starts with (``None``:
+    code whether what has been read is enough to go on (``lambda reading: True`` stops at the first frame that shows
+    anything). ``inputs_schema`` is what each run starts with (``None``:
     nothing).
     """
 
-    scoring: ClassVar[str] = f"{__package__}.read_scoring"
+    scoring: ClassVar[tuple[str, ...]] = (f"{__package__}.read_scoring",)
 
     def __init__(
         self,
@@ -61,15 +52,14 @@ class ReadStep:
         perceive: Role,
         *,
         reply_schema: type[BaseModel],
+        is_enough: Callable[[Any], bool],
         extract: Callable[[Any], BaseModel] | None = None,
-        is_enough: Callable[[Any], bool] = lambda _reading: True,
         inputs_schema: type[BaseModel] | None = None,
         settings: ReadSettings | None = None,
     ) -> None:
         self.id = step_id
         self.words = words
         self.inputs_schema = inputs_schema
-        self.question = words.question
         self.perceive = perceive
         self.reply_schema = reply_schema
         self.extract = extract
@@ -94,12 +84,11 @@ class ReadStep:
 
         return await read_until_enough(
             environment.frames,  # type: ignore[arg-type]  # any Frames: the participant's, or a recorded scene
+            self.settings,
             perceive=self.perceive,
-            question=fill_placeholders(self.question, inputs) or "",
+            question=fill_placeholders(self.words.question, inputs) or "",
             reply_schema=self.reply_schema,
-            extract=self.extract,
             is_enough=self.is_enough,
-            interval_s=self.settings.interval_s,
-            timeout_s=self.settings.timeout_s,
+            extract=self.extract,
             on_state=on_state,
         )

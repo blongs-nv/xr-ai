@@ -37,7 +37,7 @@ from typing import Any, Protocol, TypeVar, runtime_checkable
 from pydantic import BaseModel
 from xr_ai_app import Frame
 
-from .conversation import Conversation
+from .conversation import ConversationHistory
 
 T_co = TypeVar("T_co", covariant=True)
 
@@ -77,11 +77,12 @@ class StepEnvironment(Protocol):
         ...
 
     async def report_progress(self, step_id: str, state: Any) -> None:
-        """Record the step's latest state (its ``summary()``, if it has one), for the conversation and the record."""
+        """Record the step's latest state (its ``summary()``, if it has one), for the conversation and the record. The
+        step names itself: a ``run.step(step_id, work=...)`` coroutine is not a step object the run could ask."""
         ...
 
     @property
-    def conversation(self) -> Conversation:
+    def conversation(self) -> ConversationHistory:
         """The conversation with the person (:mod:`.conversation`)."""
         ...
 
@@ -131,9 +132,9 @@ def check_placeholders(
     """Raise when ``template`` names a placeholder that is neither a field or property of ``inputs_schema`` nor one
     of ``also`` (what a done line gets from the result): a misspelled name fails when the step is built."""
     for name in placeholder_names(template):
-        known = name in also or (inputs_schema is not None and hasattr(inputs_schema, name))
-        known = known or (inputs_schema is not None and name in inputs_schema.model_fields)
-        if not known:
+        # A property is a class attribute; a pydantic field with a default is not, so both are looked for.
+        given = inputs_schema is not None and (hasattr(inputs_schema, name) or name in inputs_schema.model_fields)
+        if name not in also and not given:
             offered = sorted({*also, *(inputs_schema.model_fields if inputs_schema else ())})
             raise ValueError(
                 f"step {step_id!r}: its {where} uses {{{name}}}, which it is not given (it has: {offered or 'none'})"
@@ -141,7 +142,8 @@ def check_placeholders(
 
 
 class _Placeholders(Mapping[str, Any]):
-    """The values a template's placeholders name: ``extra`` first, then the inputs' fields and properties."""
+    """The values a template's placeholders name: ``extra`` first, then the inputs' fields and properties. Only
+    ``__getitem__`` matters (``format_map`` looks names up); iterating covers ``extra`` alone."""
 
     def __init__(self, inputs: Any, extra: Mapping[str, Any]) -> None:
         self._inputs, self._extra = inputs, extra

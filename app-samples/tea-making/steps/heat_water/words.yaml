@@ -21,14 +21,15 @@ question: |-
   if so, give it; then whether a label or indicator marks the number as the
   water's temperature or a target setting.
 criteria:
-  instructions: >-
+  question: >-
     Has the water reached the target? The observation describes the
     kettle's display: reading.digits is the number shown, and unit the unit
     letter printed beside it, if any (or the unit the person stated, in the
-    known facts). The target minimum is {minimum}. An already-high reading
-    qualifies; no rising trend is needed.
-  positive: The reading is equal to or greater than {minimum}.
-  negative: The reading is less than {minimum}.
+    known facts). The target minimum is {target_in_both_units}. An
+    already-high reading qualifies; no rising trend is needed.
+  positive: The reading is equal to or greater than {target_in_both_units}.
+  negative: The reading is less than {target_in_both_units}.
   unknown: >-
-    No numeric reading or unit is available, a setpoint or a
-    non-temperature unit is shown, or the units conflict.
+    No numeric reading, or no unit: none printed beside the reading and
+    none stated by the person (a unit the person stated wins over a
+    printed letter).

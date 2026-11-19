@@ -66,13 +66,14 @@ cases:
     person: {answers: [Fahrenheit], after_tell: [[36, 80]]}
     expect: {asks: [unit, celsius, fahrenheit], says: [kettle, display, view], completes: false}
 
-  - name: setpoint_flash
+  - name: setpoint_shown_unit_unknown
     scene: [20, 30]
     expect: {completes: false}
     why: >-
       176 shows at 22.5-25.5 s while the button is pressed; it is the
-      kettle's target setting. Without a known unit nothing is judged in so
-      short a scene, so this case no longer tests the setpoint on its own.
+      kettle's target setting, not the water's temperature. With no unit
+      known nothing is judged, so it cannot complete the step. (Once the
+      unit is known the flash could: the watch README's known gap.)
 
   - name: label_held_up
     scene: [4, 16]

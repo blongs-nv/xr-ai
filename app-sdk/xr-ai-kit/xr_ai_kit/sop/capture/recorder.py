@@ -17,8 +17,9 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, Field
 from xr_ai_app import Component, trace
+from xr_ai_app.clock import wall_us
 
-from .packet import CaptureSession, SavedFrame, iso, now_us, packet, safe, session_stamp, summary, update_hierarchy
+from .packet import CaptureSession, SavedFrame, iso, packet, path_safe, session_stamp, summary, update_hierarchy
 
 if TYPE_CHECKING:
     from xr_ai_app import Frame, Participant, Role, Sink
@@ -110,7 +111,7 @@ class ProcedureCapture(Component):
         self._caption_timeout_s = caption_timeout_s
         self._caption_system = caption_system if caption_system is not None else caption_prompt()
         self._messages = {**DEFAULT_CAPTURE_MESSAGES, **(messages or {})}
-        self._first_frame_s = _FIRST_FRAME_S
+        self._first_frame_s = _FIRST_FRAME_S  # an attribute so a test can shorten it
         self._queues: dict[str, asyncio.Queue[_Action]] = {}
         self._recording: dict[str, bool] = {}  # accepted, not yet applied: a start may wait behind a seal
         self._open: dict[str, CaptureSession] = {}
@@ -127,14 +128,14 @@ class ProcedureCapture(Component):
         if self.recording(p):
             return False
         self._recording[p.id] = True
-        self._queue(p).put_nowait(_Action("start", "", timestamp_us or now_us()))
+        self._queue(p).put_nowait(_Action("start", "", timestamp_us or wall_us()))
         return True
 
     def narrate(self, p: Participant, text: str, *, timestamp_us: int | None = None) -> bool:
         """Add one narrated utterance to the running capture; ``False`` when none is running."""
         if not self.recording(p) or not text.strip():
             return False
-        self._queue(p).put_nowait(_Action("narrate", text.strip(), timestamp_us or now_us()))
+        self._queue(p).put_nowait(_Action("narrate", text.strip(), timestamp_us or wall_us()))
         return True
 
     def stop(self, p: Participant, *, said: str = "", timestamp_us: int | None = None) -> bool:
@@ -142,7 +143,7 @@ class ProcedureCapture(Component):
         if not self.recording(p):
             return False
         self._recording[p.id] = False
-        self._queue(p).put_nowait(_Action("stop", said.strip(), timestamp_us or now_us()))
+        self._queue(p).put_nowait(_Action("stop", said.strip(), timestamp_us or wall_us()))
         return True
 
     async def settled(self, p: Participant) -> None:
@@ -225,14 +226,13 @@ class ProcedureCapture(Component):
         return f"sessions/{session.session_id}/{relative}"
 
     async def _start(self, p: Participant, timestamp_us: int) -> None:
-        session = CaptureSession(p.id, f"{session_stamp()}-{safe(p.id)[:48]}", iso(timestamp_us), timestamp_us)
+        session = CaptureSession(p.id, f"{session_stamp()}-{path_safe(p.id)[:48]}", iso(timestamp_us), timestamp_us)
         self._open[p.id] = session
         try:
             await p.artifacts.write_blob(self._name(session, "transcript.jsonl"), b"")
             await self._write_views(p, session)
         except Exception:  # noqa: BLE001 - a failed start leaves an incomplete packet and a fresh start possible
             logger.exception("capture start failed for %s", p.id)
-            session.status = "incomplete"
             await self._seal(p, session, status="incomplete")
             self._recording[p.id] = False
             await self._say(p, "failed")
@@ -260,7 +260,7 @@ class ProcedureCapture(Component):
             raise
 
     async def _expect_video(self, p: Participant, session: CaptureSession) -> None:
-        """Say so when no frame was saved soon after the start: a capture records streamed video only."""
+        """Say so when no frame was saved soon after the start (the device gives none)."""
         await asyncio.sleep(self._first_frame_s)
         if session.active and session.frame_count == 0:
             await self._say(p, "no_video")
@@ -329,7 +329,7 @@ class ProcedureCapture(Component):
         if not session.active:
             return
         caption = {k: v.strip() for k, v in reply.model_dump().items()}
-        generated = now_us()
+        generated = wall_us()
         session.caption_count += 1
         entry = {
             "caption_id": session.caption_count,
@@ -352,7 +352,7 @@ class ProcedureCapture(Component):
             return
         try:
             await p.artifacts.write_jsonl(
-                self._name(session, "errors"), {"timestamp_us": now_us(), "kind": kind, "message": message}
+                self._name(session, "errors"), {"timestamp_us": wall_us(), "kind": kind, "message": message}
             )
         except Exception:  # noqa: BLE001
             logger.exception("capture error log failed for %s (%s)", p.id, kind)
@@ -381,7 +381,9 @@ class ProcedureCapture(Component):
         if session.narration_status != "failed":
             session.narration_status = "complete"
 
-    async def _seal(self, p: Participant, session: CaptureSession, *, status: str) -> None:
+    async def _seal(
+        self, p: Participant, session: CaptureSession, *, status: Literal["complete", "incomplete"]
+    ) -> None:
         """Stop the frame and caption work, wait for the writes, rebuild from the logs, write the final packet."""
         if session.sealed:
             return
@@ -389,7 +391,7 @@ class ProcedureCapture(Component):
         await p.cancel("capture.captions")
         await p.cancel("capture.video")
         session.active = False
-        session.ended_at = session.ended_at or iso(now_us())
+        session.ended_at = session.ended_at or iso(wall_us())
         if self._open.get(p.id) is session:
             del self._open[p.id]
         try:

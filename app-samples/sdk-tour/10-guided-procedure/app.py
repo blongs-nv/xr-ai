@@ -7,19 +7,18 @@ SHAPE: a PROCEDURE (xr_ai_kit.sop). The procedure is a plain async function
 that runs its steps in order; a SopRunner runs it for each participant who
 starts it, and the user can say start, stop, skip or restart, or ask about
 it. Each camera step judges a frame a second (perceive, then decide) until
-two of the last three agree; beside it, an escalator of its own
-(StepWithEscalator) watches what the step sees and, when the camera cannot
-tell for a while, tells the user what to show, or asks them. Each step says
-its own lines.
+two of the last three decided looks are yes; beside it, an escalator of its
+own (StepWithEscalator) watches what the step sees and, when the camera
+cannot tell for a while, tells the user what to show, or asks them. Each
+step says its own lines.
 
-  xr_ai_kit.sop                     this file
-  -------------------------------   ----------------------------------------
-  SopRunner (component)             preflight(run): the steps and their order
-  WatchStep, WaitStep (steps)       sop.yaml: the steps' words
-  StepWithEscalator,                 what each escalator reads (ESCALATION)
-    ReasoningEscalator              the models each step uses
-  controls: start | stop |
-    skip | restart
+From xr_ai_kit.sop: SopRunner (the component, with the controls start, stop,
+skip and restart), WatchStep and WaitStep (the steps), StepWithEscalator and
+ReasoningEscalator (an escalator beside a camera step).
+
+In this file: preflight(run), the steps and their order; the models each
+step uses; what each escalator reads (ESCALATION). In sop.yaml: the steps'
+words.
 
 The runner publishes a summary of where the run is to `preflight.context`;
 the conversation reads it, so "what step am I on?" just works.
@@ -48,7 +47,7 @@ from xr_ai_kit.sop import (
 HERE = Path(__file__).resolve().parent
 
 app = App.from_config(HERE / "app.yaml", enrollment=PerConnection(admit=None))
-hub = app.add(Hub())
+app.add(Hub())
 perceive = app.role("perceive")
 decide = app.role("decide")
 answer_with_reasoning = app.role("answer_with_reasoning")

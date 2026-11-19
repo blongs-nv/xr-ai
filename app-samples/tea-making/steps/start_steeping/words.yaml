@@ -11,7 +11,7 @@ question: |-
   describe whether a real tea bag, infuser or leaves visibly touch its real
   water. If the view is a depiction or the contact is unclear, say so.
 criteria:
-  instructions: >-
+  question: >-
     Does this observation establish tea touching real water in an actual
     physical vessel? Printed packaging, illustrated cups, photos and screens
     do not establish it, even when they show tea and water.

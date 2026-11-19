@@ -7,7 +7,8 @@ can stand in its place: one that sends the frame behind a piece of evidence to a
 
 It knows the step only through the run's :class:`~.escalation_channel.EscalationChannel`: it reads the step's
 snapshot (what it does, its recent evidence, what it knows) and adds context to it (what the person said). It talks
-to the person itself, through its :class:`~.escalation_channel.EscalatorEnvironment`, never through the step, and it
+to the person itself, through the step's own environment (a :class:`~..steps.step_api.StepEnvironment`), never
+through the step, and it
 never completes, skips or slows the step. Which step it is beside is :class:`~.step_with_escalator.StepWithEscalator`.
 
 While the step runs it looks at the step's evidence every ``every_s``; when most of the latest is undecided
@@ -33,12 +34,13 @@ import contextlib
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
-from xr_ai_app import Role, StructuredOutputError, clock
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from xr_ai_app import Role, StructuredOutputError, clock, trace
 
-from .escalation_channel import AddedContext, EscalationChannel, EscalatorEnvironment, Evidence, StepSnapshot
+from ..steps.step_api import StepEnvironment
+from .escalation_channel import AddedContext, EscalationChannel, Evidence, StepSnapshot
 
 
 class _Decision(BaseModel):
@@ -57,20 +59,15 @@ class EscalationMessage:
     text: str
 
 
-STUCK_RULE = (3, 4)
-"""Stuck: at least 3 of the step's last 4 pieces of evidence are undecided."""
-
-
-def is_stuck(evidence: Sequence[Evidence], rule: tuple[int, int] = STUCK_RULE) -> bool:
-    """Whether the step has mostly stopped deciding: ``rule[0]`` of its last ``rule[1]`` pieces of evidence are
-    undecided.
+def is_stuck(evidence: Sequence[Evidence], *, undecided: int = 3, of_last: int = 4) -> bool:
+    """Whether the step has mostly stopped deciding: at least ``undecided`` of its last ``of_last`` pieces of evidence
+    are undecided.
 
     One undecided piece among decisions is noise; mostly undecided ones, even with a stray misread among them (a
     number read off a display cut off by the edge of the view), mean the step is missing something.
     """
-    undecided, of = rule
-    recent = evidence[-of:]
-    return len(recent) >= of and sum(not e.decided for e in recent) >= undecided
+    recent = evidence[-of_last:]
+    return len(recent) >= of_last and sum(not e.decided for e in recent) >= undecided
 
 
 INSTRUCTIONS = (
@@ -100,40 +97,43 @@ person: ...`` or empty) and ``{instructions}``. Literal braces in a step's own t
 async def decide_escalation(
     step: StepSnapshot,
     reason: Role,
+    words: EscalationWords,
+    settings: EscalationSettings | None = None,
     *,
-    guidance: str,
     situation: str = "",
-    asked: Sequence[str] = (),
-    rule: tuple[int, int] = STUCK_RULE,
-    thinking: bool | None = True,
-    timeout_s: float | None = None,
-    instructions: str = INSTRUCTIONS,
-    prompt: str = PROMPT,
+    said_lines: Sequence[str] = (),
 ) -> EscalationMessage | None:
     """One judgement over a snapshot of the step: what to say to the person now, or ``None``.
 
-    ``reason`` is a reasoning text model. It reads ``prompt`` filled in: the step's task, ``guidance`` (how the
-    person can help), the step's recent evidence, ``situation`` (what is going on), what the step knows, the lines
-    already said (``asked``) and ``instructions``. ``None`` without guidance, while the step is not :func:`is_stuck`,
-    on an unreadable reply, or for a line already said. Asks nobody: an evaluation calls it on recorded evidence.
+    ``reason`` is a reasoning text model. It reads ``words.prompt`` filled in: the step's task, ``words.guidance``
+    (how the person can help), the step's recent evidence, ``situation`` (what is going on), what the step knows, the
+    lines already said to the person (``said_lines``) and ``words.instructions``. ``None`` without guidance, while the
+    step is not :func:`is_stuck`, on an unreadable reply, or for a line already said. Asks nobody: an evaluation calls
+    it on recorded evidence.
     """
-    if not guidance or not is_stuck(step.evidence, rule):
+    settings = settings or EscalationSettings()
+    stuck = is_stuck(step.evidence, undecided=settings.stuck_undecided, of_last=settings.stuck_of_last)
+    if not words.guidance or not stuck:
         return None
-    text = prompt.format(
+    text = words.prompt.format(
         task="\n".join(step.task),
-        guidance=guidance,
+        guidance=words.guidance,
         evidence="\n".join(f"- {e.label}: {e.description}" for e in step.evidence),
         situation=f"\nWhat is going on:\n{situation}" if situation else "",
-        known=f"Already known:\n{step.known}" if step.known else "Nothing has been learned from the person yet.",
-        asked=("\nAlready said to the person: " + " | ".join(asked)) if asked else "",
-        instructions=instructions,
+        known=(
+            f"Already known:\n{step.knowledge_text}"
+            if step.knowledge_text
+            else "Nothing has been learned from the person yet."
+        ),
+        asked=("\nAlready said to the person: " + " | ".join(said_lines)) if said_lines else "",
+        instructions=words.instructions,
     )
     try:
-        decision = await reason.ask(None, text, response_format=_Decision, thinking=thinking, timeout_s=timeout_s)
+        decision = await reason.ask(None, text, response_format=_Decision, thinking=settings.thinking)
     except (StructuredOutputError, TimeoutError):
         return None
     said = (decision.words or "").strip()
-    if decision.action == "none" or not said or said in asked:
+    if decision.action == "none" or not said or said in said_lines:
         return None
     return EscalationMessage(decision.action, said)
 
@@ -171,7 +171,10 @@ async def read_facts_from_conversation(
         for name, value in first.model_dump(mode="json", exclude_none=True).items()
         if other.get(name) == value
     }
-    return facts_schema.model_validate(agreed)
+    try:
+        return facts_schema.model_validate(agreed)
+    except ValidationError:  # a field without a default that the reads did not agree on
+        return None
 
 
 class EscalationWords(BaseModel):
@@ -192,7 +195,7 @@ class EscalationSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     reads_run_summary: bool = False
-    """Whether it reads the run's summary (the plan, the steps' states, noted values) besides the step's snapshot."""
+    """Whether it reads the run's summary (the plan, the steps' states, noted values) when it decides what to say."""
     reads_conversation: bool = False
     """Whether it reads the conversation with the person when it decides what to say (the person may already have
     said what it would ask)."""
@@ -205,19 +208,24 @@ class EscalationSettings(BaseModel):
     """How many things it may say during one step."""
     min_gap_s: float = 30.0
     """At least this long between two things it says."""
-    stuck: tuple[int, int] = STUCK_RULE
-    """When the step counts as stuck: this many undecided among its last so many pieces of evidence."""
+    stuck_undecided: int = 3
+    stuck_of_last: int = 4
+    """The step is stuck when at least ``stuck_undecided`` of its last ``stuck_of_last`` pieces of evidence are
+    undecided (:func:`is_stuck`)."""
     thinking: bool | None = True
+    """Whether the reasoning model thinks before it decides (``None``: the role's default)."""
 
 
 class ReasoningEscalator:
     """The kit's escalator for one step; see the module docstring.
 
-    Built from its ``words`` (:class:`EscalationWords`): ``guidance`` (how the person can help) and this step's
-    ``instructions`` and ``prompt``. ``reason`` reasons over the step's
-    evidence; ``answer_reader`` (a text model; default ``reason``) reads an answer into the typed facts the step
-    accepts.
+    Built from its ``words`` (:class:`EscalationWords`: ``guidance``, and this step's ``instructions`` and
+    ``prompt``). ``reason`` reasons over the step's evidence; ``facts_reader`` (a text model; default ``reason``)
+    reads the person's answers, and the conversation, into the typed facts the step accepts.
     """
+
+    scoring: ClassVar[tuple[str, ...]] = (f"{__package__}.escalation_scoring",)
+    """What an evaluation case may expect of it (``asks``, ``says``, ``quiet``)."""
 
     def __init__(
         self,
@@ -225,16 +233,31 @@ class ReasoningEscalator:
         reason: Role,
         settings: EscalationSettings | None = None,
         *,
-        answer_reader: Role | None = None,
+        facts_reader: Role | None = None,
     ) -> None:
-        self.guidance = words.guidance
-        self.instructions = words.instructions
-        self.prompt = words.prompt
+        self.words = words
         self.reason = reason
-        self.answer_reader = answer_reader or reason
+        self.facts_reader = facts_reader or reason
         self.settings = settings or EscalationSettings()
 
-    async def describe_situation(self, step: StepSnapshot, environment: EscalatorEnvironment) -> str:
+    async def run(self, channel: EscalationChannel, environment: StepEnvironment) -> None:
+        """Run until cancelled, two loops side by side once the step has started:
+
+        - :meth:`_follow_conversation`, with ``learns_from_conversation``: read the conversation into the step's facts
+          at once, and again each time it changes;
+        - :meth:`_help_when_stuck`: every ``every_s`` seconds, if the step is stuck, decide what to say, and pass
+          answers on. While the conversation is being read, or within ``every_s`` of the step being given facts, it
+          says nothing: the step decides with them first.
+
+        An error in one turn of either loop is traced and that loop goes on; neither ends the other.
+        """
+        await channel.step_started()
+        learning = _Learning()
+        async with asyncio.TaskGroup() as both:
+            both.create_task(self._follow_conversation(channel, environment, learning))
+            both.create_task(self._help_when_stuck(channel, environment, learning))
+
+    async def _describe_situation(self, step: StepSnapshot, environment: StepEnvironment) -> str:
         """What it reads about what is going on: how long the step has run, then the run's summary and the
         conversation, as its settings say."""
         lines = [f"The step '{step.step_id}' has been running for {clock.now() - step.started_s:.0f} s."]
@@ -244,70 +267,58 @@ class ReasoningEscalator:
             lines.append(f"The conversation so far:\n{said}")
         return "\n".join(lines)
 
-    async def run(self, channel: EscalationChannel, environment: EscalatorEnvironment) -> None:
-        """Run until cancelled, two things side by side once the step has started:
-
-        - with ``learns_from_conversation``, read the conversation into the step's facts at once, and again each
-          time it changes;
-        - every ``every_s`` seconds, if the step is stuck, judge what to say, and pass answers on. At most
-          ``max_lines`` lines, never the same one twice, at least ``min_gap_s`` apart. A question is asked with
-          ``environment.ask`` and its answer added to the step's context; an instruction is spoken with
-          ``environment.say``. While the conversation is being read, or just after it gave the step something new, it
-          says nothing: the step decides with that first.
-        """
-        await channel.step_started()
-        learning = _Learning()
-        async with asyncio.TaskGroup() as both:
-            both.create_task(self._follow_conversation(channel, environment, learning))
-            both.create_task(self._help_when_stuck(channel, environment, learning))
-
     async def _help_when_stuck(
-        self, channel: EscalationChannel, environment: EscalatorEnvironment, learning: _Learning
+        self, channel: EscalationChannel, environment: StepEnvironment, learning: _Learning
     ) -> None:
+        """Every ``every_s``: if the step is stuck, ask or tell the person what is missing. At most ``max_lines``
+        lines, never the same one twice, at least ``min_gap_s`` apart. A question is asked with ``environment.ask``
+        and its answer added to the step's context; an instruction is spoken with ``environment.say``."""
         settings = self.settings
-        asked: list[str] = []
-        last_said: float | None = None
-        given = learning.given
-        while len(asked) < settings.max_lines:
-            await asyncio.sleep(settings.every_s)
+        said_lines: list[str] = []
+        last_said_s: float | None = None
+        while len(said_lines) < settings.max_lines:
+            await asyncio.sleep(settings.every_s)  # also what keeps a failing turn from spinning
             step = channel.snapshot()
-            if step is None or not is_stuck(step.evidence, settings.stuck):
+            if step is None or not is_stuck(
+                step.evidence, undecided=settings.stuck_undecided, of_last=settings.stuck_of_last
+            ):
                 continue  # deciding: nothing is missing
-            if learning.reading or learning.given != given:
-                given = learning.given
-                continue  # the step is about to know more, or just did: it decides with that first
-            if last_said is not None and clock.now() - last_said < settings.min_gap_s:
+            if learning.reading_conversation:
+                continue  # the step may know more in a moment: let it decide with that first
+            if learning.last_given_s is not None and clock.now() - learning.last_given_s < settings.every_s:
+                continue  # the step was just given facts: give it one look period to use them
+            if last_said_s is not None and clock.now() - last_said_s < settings.min_gap_s:
                 continue
-            message = await decide_escalation(
-                step,
-                self.reason,
-                guidance=self.guidance,
-                situation=await self.describe_situation(step, environment),
-                asked=asked,
-                rule=settings.stuck,
-                thinking=settings.thinking,
-                instructions=self.instructions,
-                prompt=self.prompt,
-            )
-            if message is None:
-                continue
-            asked.append(message.text)
-            last_said = clock.now()
-            if message.kind == "tell":
-                await environment.say(message.text)
-                continue
-            question = message.text
-            answer = await environment.ask(question)
-            if answer is None:
-                channel.add_context(AddedContext(f'Asked the person: "{question}" No answer came.'))
-                continue
-            facts = await _read_answer(step.facts_schema, self.answer_reader, question, answer)
-            learning.know(facts)
-            channel.add_context(AddedContext(f'Asked the person: "{question}" They answered: "{answer}"', facts))
-            given = learning.given
+            try:
+                message = await decide_escalation(
+                    step,
+                    self.reason,
+                    self.words,
+                    settings,
+                    situation=await self._describe_situation(step, environment),
+                    said_lines=said_lines,
+                )
+                if message is None:
+                    continue
+                said_lines.append(message.text)
+                last_said_s = clock.now()
+                if message.kind == "tell":
+                    await environment.say(message.text)
+                    continue
+                answer = await environment.ask(message.text)
+                if answer is None:
+                    channel.add_context(AddedContext(f'Asked the person: "{message.text}" No answer came.'))
+                    continue
+                facts = await _read_answer(step.facts_schema, self.facts_reader, message.text, answer)
+                learning.give(facts)
+                channel.add_context(
+                    AddedContext(f'Asked the person: "{message.text}" They answered: "{answer}"', facts)
+                )
+            except Exception as exc:  # noqa: BLE001 - one failed turn (a model server error) never ends the escalator
+                trace.emit("sop", step.step_id, op="escalator_error", loop="help_when_stuck", error=repr(exc))
 
     async def _follow_conversation(
-        self, channel: EscalationChannel, environment: EscalatorEnvironment, learning: _Learning
+        self, channel: EscalationChannel, environment: StepEnvironment, learning: _Learning
     ) -> None:
         """Read the conversation into the step's facts now and after each change; add only what the step has not
         been given. Nothing to follow without ``learns_from_conversation`` or a step that accepts facts."""
@@ -317,19 +328,22 @@ class ReasoningEscalator:
         conversation = environment.conversation
         last_read = ""
         async with contextlib.aclosing(conversation.changes()) as changes:
-            async for _ in changes:
-                said = await conversation.text()
-                if not said or said == last_read:
-                    continue
-                last_read = said
-                learning.reading = True
+            async for _ in changes:  # a failed turn waits for the next change: it never spins
                 try:
-                    facts = await read_facts_from_conversation(step.facts_schema, self.answer_reader, said)
-                finally:
-                    learning.reading = False
-                if stated := learning.new_in(facts):
-                    learning.know(facts)
-                    channel.add_context(AddedContext(f"From the conversation so far: {json.dumps(stated)}", facts))
+                    said = await conversation.text()
+                    if not said or said == last_read:
+                        continue
+                    last_read = said
+                    learning.reading_conversation = True
+                    try:
+                        facts = await read_facts_from_conversation(step.facts_schema, self.facts_reader, said)
+                    finally:
+                        learning.reading_conversation = False
+                    if stated := learning.new_in(facts):
+                        learning.give(facts)
+                        channel.add_context(AddedContext(f"From the conversation so far: {json.dumps(stated)}", facts))
+                except Exception as exc:  # noqa: BLE001 - as in _help_when_stuck
+                    trace.emit("sop", step.step_id, op="escalator_error", loop="follow_conversation", error=repr(exc))
 
 
 @dataclass(slots=True)
@@ -338,20 +352,21 @@ class _Learning:
 
     facts: dict[str, Any] = field(default_factory=dict)
     """The typed facts given so far, by field (from answers and from the conversation)."""
-    given: int = 0
-    """How many times new facts were given."""
-    reading: bool = False
-    """Whether the conversation is being read now."""
+    last_given_s: float | None = None
+    """When new facts were last given to the step (core clock)."""
+    reading_conversation: bool = False
+    """Whether the conversation is being read now: its facts may arrive any moment."""
 
     def new_in(self, facts: BaseModel | None) -> dict[str, Any]:
         """The facts ``facts`` states (all of them) if any of them is new; empty otherwise."""
         stated = facts.model_dump(mode="json", exclude_none=True) if facts is not None else {}
         return stated if any(self.facts.get(name) != value for name, value in stated.items()) else {}
 
-    def know(self, facts: BaseModel | None) -> None:
+    def give(self, facts: BaseModel | None) -> None:
+        """Record that the step was given ``facts`` (when any of them is new)."""
         if stated := self.new_in(facts):
             self.facts.update(stated)
-            self.given += 1
+            self.last_given_s = clock.now()
 
 
 async def _read_answer(

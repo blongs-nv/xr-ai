@@ -22,7 +22,7 @@ cases:
       steep_time: {minimum_minutes: 2, maximum_minutes: 3}
     expect:
       completes: true
-      output: {water_temperature: ["175"], steep_time: ["minimum_minutes=2.0"]}
+      output: {water_temperature: ["175"], steep_time: ["minimum_minutes=2"]}
       quiet: true
 
   # Nothing was read: it asks what kind of tea it is.

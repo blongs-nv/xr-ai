@@ -3,21 +3,20 @@
 
 """One camera frame judged against a check: the unit every visual check is built from.
 
-A :class:`Check` declares what a step verifies: the question asked of each frame, the criteria for done, and,
+A :class:`Check` is what one run of a step verifies: the question asked of each frame, the criteria for done, and,
 optionally, the typed facts it may need that the camera cannot show (``facts_schema``; a step's escalator may ask the
 person for them) and how to read each frame into a schema (:class:`StructuredObservation`). The perceiving model
 (:class:`WatchModels`) describes the frame (free text, or an instance of the schema); the deciding model reads that
-description, with the :class:`Facts` known so far, and picks ``positive``, ``negative`` or ``unknown`` against the
-criteria. Keeping the two apart means the observation can be read back and evaluated on its own, and
-the same function runs live (inside :func:`verify`) and offline (an evaluation over recorded frames).
+description, with the :class:`Knowledge` the step has beyond the camera, and picks ``positive``, ``negative`` or
+``unknown`` against the criteria. Keeping the two apart means the observation can be read back and evaluated on its
+own, and the same function runs live (inside :func:`verify`) and offline (an evaluation over recorded frames).
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel
 from xr_ai_app import Frame, Role, StructuredOutputError
@@ -30,8 +29,9 @@ LABELS: tuple[Label, ...] = ("positive", "negative", "unknown")
 class Criteria:
     """What counts as done for one check: the question the deciding role answers and one criterion per label."""
 
-    instructions: str
-    """The question the deciding role answers about an observation (for example "Is there water in the kettle?")."""
+    question: str
+    """The question the deciding role answers about an observation (for example "Is there water in the kettle?").
+    Not the step's ``question``, which the perceiving model answers about the frame."""
 
     positive: str
     """When the observation establishes the step is done."""
@@ -55,8 +55,8 @@ class Judgment:
     description: str
     """What the observing role said about the frame (JSON text when an observation schema was used)."""
 
-    frame_us: int
-    """The frame's capture time (Unix microseconds)."""
+    frame_timestamp_us: int
+    """The frame's capture time (Unix microseconds, as ``Frame.timestamp_us``)."""
 
     sequence: int
     """The frame's per-participant sequence number (0 when the source does not number frames)."""
@@ -84,30 +84,39 @@ class WatchModels:
     """Labels a description against the criteria (a fast classifier)."""
 
 
+class CodeJudge(Protocol):
+    """Labels one observation in code, in place of the deciding model (:class:`StructuredObservation`).
+
+    ``observation`` is the frame read into the observation schema; ``facts`` the typed facts the step has been given
+    (an instance of its ``facts_schema``; ``None`` while it has none); ``inputs`` the step's inputs for this run.
+    """
+
+    def __call__(self, observation: Any, facts: Any, inputs: Any) -> Label: ...
+
+
 @dataclass(frozen=True, slots=True)
 class StructuredObservation:
     """Optional for a check: describe each frame in a schema (a structured caption), and optionally judge it in code.
 
     ``schema`` is what the perceiving model fills in for each frame; shaped well (a gate on what is in view, the
     object named before it is read, values constrained to what is possible: see the step types' README), it is an
-    accurate account of the frame. ``judge(observation, facts, inputs)``, when given, labels it in code (``positive``,
-    ``negative`` or ``unknown``) in place of the deciding model: for a check that compares values (a reading against a
-    target), where code is exact. ``facts`` is the typed facts known so far (``None`` while none are), ``inputs`` the
-    step's inputs for this run.
+    accurate account of the frame. ``code_judge``, when given, labels it in code (``positive``, ``negative`` or
+    ``unknown``) in place of the deciding model: for a check that compares values (a reading against a target), where
+    code is exact. The step's criteria then only describe the check to its escalator.
     """
 
     schema: type[BaseModel]
-    judge: Callable[[Any, Any, Any], Label] | None = None
+    code_judge: CodeJudge | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class Check:
-    """What one visual check verifies; run by :func:`verify`.
+    """What one run of a watch step verifies, run by :func:`verify`: its words with that run's inputs filled in.
 
     ``question`` is asked of each frame and ``criteria`` define done. ``facts_schema`` is a schema of facts the check
     may need but the camera may not establish (a display's unit, a vessel's contents); the step's escalator
     (``...escalation``) may ask the person for them. ``observation``, when given, reads each frame into a schema
-    (:class:`StructuredObservation`).
+    (:class:`StructuredObservation`). ``inputs`` are this run's inputs (what a code judge compares against).
     """
 
     question: str
@@ -115,53 +124,44 @@ class Check:
     facts_schema: type[BaseModel] | None = None
     observation: StructuredObservation | None = None
     inputs: BaseModel | None = None
-    """The step's inputs for this run (what a code judge compares against)."""
 
 
 @dataclass(frozen=True, slots=True)
-class Facts:
-    """What is known beyond the camera: typed facts (an instance of a check's ``facts_schema``) and notes (what the
-    person said)."""
+class Knowledge:
+    """What a step knows beyond the camera: typed ``facts`` (an instance of its ``facts_schema``) and ``notes`` (what
+    its escalator learned, as text)."""
 
-    known: BaseModel | None = None
-    said: tuple[str, ...] = field(default=())
+    facts: BaseModel | None = None
+    notes: tuple[str, ...] = field(default=())
 
     def text(self) -> str:
-        """The facts as context for a decision (empty when there are none)."""
+        """The knowledge as context for a decision (empty when there is none)."""
         parts = []
-        if self.known is not None:
-            values = self.known.model_dump(exclude_none=True)
+        if self.facts is not None:
+            values = self.facts.model_dump(exclude_none=True)
             if values:
                 parts.append("Known facts (from the person or the app's settings): " + json.dumps(values))
-        parts += list(self.said)
+        parts += list(self.notes)
         return "\n".join(parts)
 
-    def with_answer(self, line: str, known: BaseModel | None = None) -> Facts:
-        """These facts plus one exchange with the person, and the typed facts it established."""
-        merged = self.known
-        if known is not None:
-            update = known.model_dump(exclude_none=True)
-            merged = known if merged is None else merged.model_copy(update=update)
-        return Facts(merged, (*self.said, line))
 
+class StepKnowledge:
+    """What one run of a watch step knows beyond the camera, as it grows.
 
-class StepContext:
-    """What a watch step knows from outside its fast loop, for one run of the step.
-
-    The check reads :attr:`facts` on every frame and never writes; anything outside the loop (an app setting at the
-    start, the escalator beside the step with what the person answered) adds to it with :meth:`add`.
+    The check reads :attr:`knowledge` on every frame and never writes; the escalator beside the step adds to it
+    (:meth:`add`) with what the person answered or said.
     """
 
-    def __init__(self, known: BaseModel | None = None) -> None:
-        self._facts = Facts(known)
+    def __init__(self) -> None:
+        self.knowledge = Knowledge()
 
-    @property
-    def facts(self) -> Facts:
-        return self._facts
-
-    def add(self, line: str, known: BaseModel | None = None) -> None:
-        """Add one piece of context (and the typed facts it established, if any)."""
-        self._facts = self._facts.with_answer(line, known)
+    def add(self, note: str, facts: BaseModel | None = None) -> None:
+        """Add a note, and the typed facts it established (merged over earlier ones: a later value replaces)."""
+        merged = self.knowledge.facts
+        if facts is not None:
+            update = facts.model_dump(exclude_none=True)
+            merged = facts if merged is None else merged.model_copy(update=update)
+        self.knowledge = Knowledge(merged, (*self.knowledge.notes, note))
 
 
 async def judge(
@@ -169,17 +169,17 @@ async def judge(
     check: Check,
     models: WatchModels,
     *,
-    facts: Facts | None = None,
+    knowledge: Knowledge | None = None,
     timeout_s: float | None = None,
 ) -> Judgment:
     """Describe ``frame`` with ``models.perceive``, then judge the description against ``check``: with the
-    observation's ``judge`` in code when it has one, else with ``models.decide``.
+    observation's ``code_judge`` when it has one, else with ``models.decide``.
 
     With ``check.observation`` the observation is an instance of its schema; a reply that does not fit it is
-    ``unknown`` (reason ``unreadable``) without a decision. The facts reach the judgement, never the observation, so
-    what the camera shows is described on its own. ``timeout_s`` bounds the observation call.
+    ``unknown`` (reason ``unreadable``) without a decision. The knowledge reaches the judgement, never the
+    observation, so what the camera shows is described on its own. ``timeout_s`` bounds the observation call.
     """
-    facts = facts or Facts()
+    knowledge = knowledge or Knowledge()
     parsed: BaseModel | None = None
     structured = check.observation
     if structured is not None:
@@ -190,15 +190,19 @@ async def judge(
         except StructuredOutputError:
             return Judgment("unknown", "", frame.timestamp_us, frame.sequence, reason="unreadable", frame=frame)
         description = parsed.model_dump_json(exclude_none=True)
-        if structured.judge is not None:
-            label = structured.judge(parsed, facts.known, check.inputs)
+        if structured.code_judge is not None:
+            label = structured.code_judge(observation=parsed, facts=knowledge.facts, inputs=check.inputs)
             return Judgment(label, description, frame.timestamp_us, frame.sequence, parsed, frame=frame)
     else:
         description = str(await models.perceive.ask(frame, check.question, timeout_s=timeout_s)).strip()
     context = f"Observation of the current camera frame:\n{description}"
-    if known := facts.text():
+    if known := knowledge.text():
         context += f"\n\n{known}"
     criteria = check.criteria
-    decision = await models.decide.decide(criteria.instructions, choices=criteria.choices(), context=context)
-    label: Label = str(decision) if str(decision) in LABELS else "unknown"  # type: ignore[assignment]
+    decision = await models.decide.decide(criteria.question, choices=criteria.choices(), context=context)
+    if str(decision) not in LABELS:
+        return Judgment(
+            "unknown", description, frame.timestamp_us, frame.sequence, parsed, reason="undecidable reply", frame=frame
+        )
+    label: Label = str(decision)  # type: ignore[assignment]
     return Judgment(label, description, frame.timestamp_us, frame.sequence, parsed, decision.confidence, frame=frame)

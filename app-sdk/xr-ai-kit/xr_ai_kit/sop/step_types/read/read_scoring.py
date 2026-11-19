@@ -18,6 +18,7 @@ class ReadExpect(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     completes: bool | None = None
+    """Whether what was read became enough within the scene."""
     reads: dict[str, list[str]] | None = None
     """Per field of what was read: the value mentions one of these words (``[]``: the field is not empty)."""
 
@@ -34,5 +35,4 @@ def score(trace: StepTrace, expect: ReadExpect) -> list[str]:
     return problems
 
 
-Expect = ReadExpect
-"""What a case of this step type may expect (the name evaluation looks up)."""
+Expect = ReadExpect  # the name evaluation looks up

@@ -45,5 +45,4 @@ def score(trace: StepTrace, expect: TransformExpect) -> list[str]:
     return problems
 
 
-Expect = TransformExpect
-"""What a case of this step type may expect (the name evaluation looks up)."""
+Expect = TransformExpect  # the name evaluation looks up

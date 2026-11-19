@@ -53,16 +53,17 @@ repeated, to build what the recording never had (the person looking away
 for a minute while the kettle heats). Scene time starts at the first
 part's start, so for one part it is the recording's own time.
 
-**Person**: `answers` (to the step's questions, in order; beyond them,
-none), `answer_after_s`, `after_tell` (the scene parts shown once the
-step told the person to do something).
+**Person**: `answers` (to any question asked, the step's or its
+escalator's, in order; beyond them, none), `answer_after_s`, `after_tell`
+(the scene parts shown once the person was first told to do something).
 
-**Context**: what the step's escalator reads besides the step, as the live
-runner would render it, by source: `context: {run: "...", dialogue:
-"user: it shows Fahrenheit"}`. The escalator reads only the sources its
-settings name (app.yaml's `settings.tea.escalation.context`), so a case
-tests the prompt that step ships with; a source the case leaves out is
-empty.
+**Conversation and run summary**: what the step and its escalator see
+besides the camera, as fixed text: `conversation: "user: it shows
+Fahrenheit"` (one line each, `user:` or `assistant:`) and `run_summary:
+"..."`. The escalator reads them as its settings say (app.yaml's
+`settings.tea.escalation`: `reads_conversation`, `reads_run_summary`,
+`learns_from_conversation`), so a case tests what that step ships with; one
+a case leaves out is empty.
 
 **Expectations** belong to whoever is scored: the step's type (its
 scoring module, next to the step: `xr_ai_kit.sop.step_types.watch.watch_scoring`
@@ -120,9 +121,9 @@ answered (not acted on) with words of `heat_water`.
   the recording lacks is spliced from its parts.
 - Something the user may say during one step: one entry in that packet's
   `utterances`; during every step: one entry in `dialogue/common.yaml`.
-- A new step: its folder under `steps/` (words.yaml), the step in `procedure.TeaProcedure`
-  (and its place in `make_tea`), one line in `run_steps.steps`, one case
-  file, one packet.
+- A new step: its folder under `steps/` (words.yaml), the step built in
+  `TeaProcedure.__init__` and added to `TeaProcedure.steps` (run_steps takes
+  the steps from there), its place in `make_tea`, one case file, one packet.
 
 ## Run
 

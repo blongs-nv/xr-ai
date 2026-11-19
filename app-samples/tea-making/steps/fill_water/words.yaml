@@ -13,7 +13,7 @@ question: |-
   vessel. If no vessel is shown, or its contents cannot be seen, say the
   contents are unknown.
 criteria:
-  instructions: Is there water inside the kettle or pot the user is showing?
+  question: Is there water inside the kettle or pot the user is showing?
   positive: >-
     A visible liquid surface or level establishes water inside the target
     kettle or pot, shown directly or in a focused photo of that vessel.

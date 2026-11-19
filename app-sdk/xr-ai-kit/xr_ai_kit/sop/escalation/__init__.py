@@ -7,10 +7,11 @@
 ``escalation_channel``     :class:`EscalationChannel`, the only thing a step and its escalator share: a
                            :class:`StepSnapshot` of the step for the escalator, and :class:`AddedContext` from the
                            escalator for the step; :class:`SupportsEscalation`, what a step type implements to
-                           support it; :class:`Escalator`, what any escalator implements; :class:`EscalatorEnvironment`,
-                           how an escalator reaches the person and the camera
+                           support it; :class:`Escalator`, what any escalator implements (it reaches the person and
+                           the camera through the step's own environment)
 ``reasoning_escalator``    :class:`ReasoningEscalator`, the kit's :class:`Escalator`: when the step is stuck, reason
-                           over its evidence and ask the person or tell them what to do; its prompt is per step
+                           over its evidence and ask the person or tell them what to do, and give the step what the
+                           person says in the conversation; its prompt is per step
 ``step_with_escalator``    :class:`StepWithEscalator`: a step with an escalator beside it, itself a step
 ``escalation_scoring``     what an evaluation case may expect of an escalator (evaluation only; not imported here)
 =========================  ===========================================================================================
@@ -25,7 +26,6 @@ from .escalation_channel import (
     AddedContext,
     EscalationChannel,
     Escalator,
-    EscalatorEnvironment,
     Evidence,
     StepSnapshot,
     SupportsEscalation,
@@ -33,7 +33,6 @@ from .escalation_channel import (
 from .reasoning_escalator import (
     INSTRUCTIONS,
     PROMPT,
-    STUCK_RULE,
     EscalationMessage,
     EscalationSettings,
     EscalationWords,
@@ -47,14 +46,12 @@ from .step_with_escalator import StepWithEscalator
 __all__ = [
     "INSTRUCTIONS",
     "PROMPT",
-    "STUCK_RULE",
     "AddedContext",
     "EscalationChannel",
     "EscalationMessage",
     "EscalationSettings",
     "EscalationWords",
     "Escalator",
-    "EscalatorEnvironment",
     "Evidence",
     "ReasoningEscalator",
     "StepSnapshot",

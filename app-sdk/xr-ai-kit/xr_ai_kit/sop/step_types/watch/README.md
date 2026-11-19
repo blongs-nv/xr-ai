@@ -17,9 +17,9 @@ heat_water = StepWithEscalator(
         "heat_water",
         load_words(STEPS / "heat_water" / "words.yaml", WatchWords),   # question, criteria, lines
         WatchModels(perceive=perceive, decide=decide),
-        inputs_schema=HeatWaterInputs,                  # the target; {minimum} in its criteria
-        facts_schema=DisplayFacts,                      # what the person may need to say (the unit)
-        observation=StructuredObservation(schema=DisplayCaption, judge=reached_target),
+        inputs_schema=HeatWaterInputs,                  # the target; {target_in_both_units} in its criteria
+        facts_schema=DisplayFacts,                      # what the person may say (the unit); fields default to None
+        observation=StructuredObservation(schema=DisplayCaption, code_judge=reached_target),
     ),
     ReasoningEscalator(load_words(STEPS / "heat_water" / "escalation.yaml", EscalationWords), reasoning),
 )
@@ -35,9 +35,12 @@ await run.step(heat_water, HeatWaterInputs(target=WaterTemperature(value=80, uni
   grammar: see [the step types' README](../README.md#shaping-a-schema-for-a-vision-model)
   and the measurements below.
 - **Judge in code what is a comparison; by the classifier what is a
-  judgement.** "Is the reading at least 176 °F" is code (`judge=`): exact, and
+  judgement.** "Is the reading at least 176 °F" is code (`code_judge=`,
+  called as `code_judge(observation=..., facts=..., inputs=...)`): exact, and
   it can say `unknown` when the unit is missing. "Is there water in the
-  kettle" stays with the classifier and the criteria.
+  kettle" stays with the classifier and the criteria. With a code judge the
+  criteria decide nothing: they are the step's task as its escalator reads
+  it, so write them to say what the code does.
 - **Criteria with an explicit unknown.** `unknown` says what does not count:
   nothing relevant in view, a picture of the thing, the view obscured.
 - **What the camera cannot show comes from the person.** `facts_schema` names
@@ -105,4 +108,7 @@ unit is not known yet when the flash happens (the person is asked later).
   classifier call, or none with a code judge.
 - `required` of `window` sets how fast it can complete: 2 of 4 at 2 s is about
   4 s once the thing is in view.
-- The step keeps its last 8 judgments (with their frames) for an escalator.
+- The step keeps its last 8 judgments (with their frames) for an escalator; that
+  is fixed, not a setting.
+- `model_timeout_s` bounds one model call; `frame_timeout_s` bounds the wait for
+  a picture from a camera that takes one on request.

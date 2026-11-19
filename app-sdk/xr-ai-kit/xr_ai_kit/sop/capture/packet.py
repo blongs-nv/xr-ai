@@ -13,23 +13,19 @@ from __future__ import annotations
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from xr_ai_app import Frame
-from xr_ai_app.clock import wall_us
 
 _SAFE = re.compile(r"[^A-Za-z0-9_.-]+")
-
-
-def now_us() -> int:
-    return wall_us()
 
 
 def iso(timestamp_us: int) -> str:
     return datetime.fromtimestamp(timestamp_us / 1_000_000, UTC).isoformat()
 
 
-def safe(value: str) -> str:
+def path_safe(value: str) -> str:
+    """``value`` with anything but letters, digits, ``_``, ``.`` and ``-`` replaced, for a file or folder name."""
     return _SAFE.sub("-", value).strip("-._") or "participant"
 
 
@@ -37,7 +33,8 @@ def session_stamp() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
 
 
-def clock(timestamp_us: int, started_at_us: int) -> str:
+def elapsed_hms(timestamp_us: int, started_at_us: int) -> str:
+    """The time from ``started_at_us`` to ``timestamp_us`` as ``hh:mm:ss``."""
     elapsed = max(0, timestamp_us - started_at_us) // 1_000_000
     minutes, seconds = divmod(elapsed, 60)
     hours, minutes = divmod(minutes, 60)
@@ -57,7 +54,7 @@ class SavedFrame:
     width: int
     height: int
     frame: Frame | None = None
-    """The live frame, kept in memory for captioning (the original re-read the saved file)."""
+    """The live frame, kept in memory for captioning (so the saved file is not read back)."""
 
 
 @dataclass(slots=True)
@@ -91,7 +88,7 @@ class CaptureSession:
     started_at_us: int
     frame_count: int = 0
     transcript_count: int = 0
-    narration_status: str = "pending"
+    narration_status: Literal["pending", "complete", "failed"] = "pending"
     caption_count: int = 0
     last_frame_key: tuple[int, int] | None = None
     last_captioned_frame: SavedFrame | None = None
@@ -101,7 +98,7 @@ class CaptureSession:
     # (timestamp_us, "Heard" | "Saw", text): narration and captions merged by time.
     timeline: list[tuple[int, str, str]] = field(default_factory=list)
     active: bool = True
-    status: str = "recording"
+    status: Literal["recording", "complete", "incomplete"] = "recording"
     ended_at: str | None = None
     stop_command: dict[str, Any] | None = None
     sealed: bool = False
@@ -183,7 +180,7 @@ def _timeline_lines(state: CaptureSession) -> list[str]:
         return lines
     # Heard sorts before Saw at the same instant; both timestamps are alignment hints.
     for timestamp_us, kind, text in sorted(state.timeline, key=lambda item: (item[0], item[1] != "Heard")):
-        lines.append(f"- `{clock(timestamp_us, state.started_at_us)}` **{kind}:** {_markdown(text)}")
+        lines.append(f"- `{elapsed_hms(timestamp_us, state.started_at_us)}` **{kind}:** {_markdown(text)}")
     return lines
 
 
@@ -205,13 +202,13 @@ def summary(state: CaptureSession) -> str:
         lines.append("| Activity | 00:00:00 | Waiting for the first visual caption |  |  |")
     for number, activity in enumerate(state.activities, start=1):
         t0 = state.started_at_us
-        span = f"{clock(activity.started_at_us, t0)}–{clock(activity.ended_at_us, t0)}"
+        span = f"{elapsed_hms(activity.started_at_us, t0)}–{elapsed_hms(activity.ended_at_us, t0)}"
         lines.append(
             f"| **Activity {number}** | {span} | **{_markdown(activity.name)}** |  | "
             f"{activity.caption_count} captions |"
         )
         for phase in activity.phases:
-            span = f"{clock(phase.started_at_us, t0)}–{clock(phase.ended_at_us, t0)}"
+            span = f"{elapsed_hms(phase.started_at_us, t0)}–{elapsed_hms(phase.ended_at_us, t0)}"
             lines.append(
                 f"| ↳ Phase | {span} | **{_markdown(phase.name)}:** {_markdown(phase.summary)} | "
                 f"{_markdown(phase.latest_delta)} | [frame {phase.evidence_frame_id}]({phase.evidence_path}) |"

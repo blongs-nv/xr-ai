@@ -42,5 +42,4 @@ def score(trace: StepTrace, expect: EscalationExpect) -> list[str]:
     return problems
 
 
-Expect = EscalationExpect
-"""What a case may expect of the escalator (the name evaluation looks up)."""
+Expect = EscalationExpect  # the name evaluation looks up

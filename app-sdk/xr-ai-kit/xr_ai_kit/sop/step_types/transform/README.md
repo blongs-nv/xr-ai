@@ -1,16 +1,16 @@
 # Transform step
 
 `TransformStep` has a reasoning model turn one schema's instance into
-another's, following the step's prompt (its `transform: {instructions}`
-section). No camera. Its inputs are what earlier steps produced; its result is
+another's, following the step's prompt (its words' `instructions`). No camera. Its inputs are what earlier steps produced; its result is
 an instance of `output_schema`. Uses: fill in what a reading left empty, work
 out settings from what is known, turn a description into a category.
 
 ```python
 choose_settings = TransformStep(
-    DEFINITIONS["choose_settings"],
+    "choose_settings",
+    load_words(STEPS / "choose_settings" / "words.yaml", TransformWords),   # instructions, lines
     answer_with_reasoning,             # a reasoning text model
-    input_schema=Tea,
+    inputs_schema=Tea,
     output_schema=Tea,                 # the same schema: fill in the gaps
     keep_input_values=True,            # what was read is kept, in code
     required_fields=("water_temperature", "steep_time"),

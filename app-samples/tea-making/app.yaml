@@ -23,19 +23,19 @@ settings:
   tea:
     # How the package is read (xr_ai_kit.sop.ReadSettings): frame after frame
     # (`interval_s` 0: the next new frame as soon as the last is read);
-    # `timeout_s` bounds one model call.
+    # `model_timeout_s` bounds one model call.
     read:
       interval_s: 0.0
-      timeout_s: 30.0
+      model_timeout_s: 30.0
     # How the camera steps watch (xr_ai_kit.sop.WatchSettings): a step
     # completes on `required` positives among the last `window` decidable
-    # frames, looking every `interval_s` seconds; `timeout_s` bounds one
-    # model call.
+    # frames, looking every `interval_s` seconds; `model_timeout_s` bounds
+    # one model call.
     watch:
       required: 2
       window: 4
       interval_s: 2.0
-      timeout_s: 30.0
+      model_timeout_s: 30.0
     # Each camera step's escalator (xr_ai_kit.sop.EscalationSettings): when
     # the check is stuck it asks the person or tells them what to show.
     # It reads the procedure's summary and the conversation when it decides

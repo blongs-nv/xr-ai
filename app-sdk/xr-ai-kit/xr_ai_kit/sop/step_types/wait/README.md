@@ -5,7 +5,8 @@ camera, no models. Its duration is either fixed, or each run's input when it
 is known only once earlier steps have run:
 
 ```python
-warm_up = WaitStep(DEFINITIONS["warm_up"], duration_s=90)
+warm_up = WaitStep("warm_up", load_words(STEPS / "warm_up" / "words.yaml", StepWords), duration_s=90)
+# a fixed duration's words may name {duration_s} and {minutes}: "Warming up for {duration_s} seconds."
 
 
 class SteepInputs(WaitInputs):        # duration_s, and {minutes} for its words
@@ -14,7 +15,7 @@ class SteepInputs(WaitInputs):        # duration_s, and {minutes} for its words
         return self.duration_s / 60
 
 
-steep = WaitStep(DEFINITIONS["steep"], inputs_schema=SteepInputs)
+steep = WaitStep("steep", load_words(STEPS / "steep" / "words.yaml", StepWords), inputs_schema=SteepInputs)
 await run.step(steep, SteepInputs(duration_s=150))
 ```
 

@@ -39,8 +39,8 @@ TeaType = Literal["green", "black", "oolong", "white", "pu-erh", "herbal"]
 
 # A water temperature, in the unit it is given in. The schemas here carry no
 # class docstrings on purpose: a docstring becomes the schema's description,
-# and with one the reasoning model's constrained reply for the old brewing
-# schema left the temperature out (6 of 6 tries; 3 of 3 filled without it).
+# and with one the reasoning model's constrained reply for a brewing schema
+# left the temperature out (6 of 6 tries; 3 of 3 filled without it).
 # The meaning is in the field descriptions.
 class WaterTemperature(BaseModel):
     model_config = ConfigDict(extra="ignore")

@@ -8,8 +8,9 @@
 | [`wait/`](wait/README.md) | `WaitStep` | a countdown | none |
 
 Every step type has the same shape (`..steps.step_api`): it is defined once
-from its definition in the procedure's YAML, the models it uses and its
-`inputs_schema`, and each run gets its inputs: `await run.step(step, inputs)`.
+from its id, its words (its type's words schema, loaded with `load_words`),
+the models it uses and its `inputs_schema`, and each run gets its inputs:
+`await run.step(step, inputs)`.
 An app's own step type follows the same shape, and is evaluated the same way.
 
 Each package's README covers what works, what does not, how it works with

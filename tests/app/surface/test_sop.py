@@ -22,14 +22,16 @@ from xr_ai_kit.sop import (
     EscalationChannel,
     EscalationSettings,
     EscalationWords,
-    Facts,
     Judgment,
+    Knowledge,
+    ReadSettings,
     ReasoningEscalator,
     Run,
     SopRunner,
-    StepContext,
+    StepKnowledge,
     StructuredObservation,
     WatchModels,
+    WatchSettings,
     decide_escalation,
     judge,
     read_facts_from_conversation,
@@ -37,7 +39,7 @@ from xr_ai_kit.sop import (
     timer,
     verify,
 )
-from xr_ai_kit.sop.step_types.watch import watch_step_snapshot
+from xr_ai_kit.sop.step_types.watch.watch_step import watch_step_snapshot
 
 WATER = Criteria(
     "Is there water in the kettle?",
@@ -77,12 +79,12 @@ def _models(app: App) -> WatchModels:
     return WatchModels(perceive=app.role("observe"), decide=app.role("decide"))
 
 
-def _at_least_176(reading: Reading, known: Display | None, inputs: object) -> str:
+def _at_least_176(observation: Reading, facts: Display | None, inputs: object) -> str:
     """A code judge: no unit (read, or known) means the reading cannot be judged."""
-    unit = reading.unit or (known.unit if known is not None else None)
-    if reading.value is None or unit is None:
+    unit = observation.unit or (facts.unit if facts is not None else None)
+    if observation.value is None or unit is None:
         return "unknown"
-    return "positive" if reading.value >= 176 else "negative"
+    return "positive" if observation.value >= 176 else "negative"
 
 
 def _display_check() -> Check:
@@ -91,7 +93,7 @@ def _display_check() -> Check:
         "Read the display.",
         WATER,
         facts_schema=Display,
-        observation=StructuredObservation(Reading, judge=_at_least_176),
+        observation=StructuredObservation(Reading, code_judge=_at_least_176),
     )
 
 
@@ -143,10 +145,10 @@ async def test_without_a_code_judge_the_deciding_model_reads_the_schema_observat
 async def test_facts_reach_the_judge_and_never_the_observation() -> None:
     models = FakeModels({"observe": [{"value": 176}], "decide": []})
     app = _app()
-    facts = Facts(Display(unit="fahrenheit"), ('Asked the person: "Unit?" They answered: "Fahrenheit"',))
+    knowledge = Knowledge(Display(unit="fahrenheit"), ('Asked the person: "Unit?" They answered: "Fahrenheit"',))
     async with app.test_session(models=models) as s:
         await s.join()
-        j = await judge(solid_frame(), _display_check(), _models(app), facts=facts)
+        j = await judge(solid_frame(), _display_check(), _models(app), knowledge=knowledge)
     assert j.label == "positive"
     assert "Fahrenheit" not in models.calls("observe")[0].prompt
 
@@ -175,24 +177,22 @@ async def test_verify_completes_on_n_of_the_last_m_decidable_frames_and_unknowns
                 p.frames,
                 WATER_CHECK,
                 _models(app),
-                required=2,
-                window=3,
-                interval_s=0.01,
+                WatchSettings(required=2, window=3, interval_s=0.01),
                 on_state=on_state,
             )
         )
         await _until(s, check.done, frames=True)
         result = check.result()
     assert result.status == "completed"
-    assert result.window == ("negative", "positive", "positive")
+    assert result.decidable_labels == ("negative", "positive", "positive")
     assert [st.positives for st in states] == [0, 0, 1, 2]
-    assert len({j.frame_us for j in result.judgments}) == 4  # never the same frame twice
+    assert len({j.frame_timestamp_us for j in result.judgments}) == 4  # never the same frame twice
 
 
 async def test_the_fast_loop_reads_context_added_while_it_runs() -> None:
     models = FakeModels({"observe": [{"value": 176}] * 8, "decide": ["positive", "positive"]})
     app = _app()
-    context = StepContext()
+    context = StepKnowledge()
     async with app.test_session(models=models) as s:
         await s.join()
         p = s.participant()
@@ -201,8 +201,8 @@ async def test_the_fast_loop_reads_context_added_while_it_runs() -> None:
                 p.frames,
                 _display_check(),
                 _models(app),
-                context=context,
-                interval_s=0.01,
+                WatchSettings(interval_s=0.01),
+                knowledge=context,
             )
         )
         await _until(s, lambda: len(models.calls("observe")) >= 3, frames=True)
@@ -210,7 +210,7 @@ async def test_the_fast_loop_reads_context_added_while_it_runs() -> None:
         context.add('Asked the person: "Unit?" They answered: "F"', Display(unit="fahrenheit"))
         await _until(s, job.done, frames=True)
         result = job.result()
-    assert result.status == "completed" and result.facts.known == Display(unit="fahrenheit")
+    assert result.status == "completed" and result.knowledge.facts == Display(unit="fahrenheit")
 
 
 def _reports(*labels: str) -> list[Judgment]:
@@ -243,7 +243,7 @@ class _Conversation:
 
 
 class _Environment:
-    """An escalator's EscalatorEnvironment: the person, the conversation and the run's summary."""
+    """An escalator's environment (a StepEnvironment): the person, the conversation and the run's summary."""
 
     def __init__(self, *, ask=None, say=None, conversation: str = "", run_summary: str = "") -> None:
         self._ask, self._say, self._run_summary = ask, say, run_summary
@@ -260,23 +260,23 @@ class _Environment:
         return self._run_summary
 
 
-def _channel(context: StepContext, labels: tuple[str, ...]) -> EscalationChannel:
+def _channel(context: StepKnowledge, labels: tuple[str, ...]) -> EscalationChannel:
     """A channel as a running watch step connects it: its snapshot from ``context`` and ``labels``, added context
     into ``context``."""
     started, channel = clock.now(), EscalationChannel()
     channel.connect_step(
-        snapshot=lambda: watch_step_snapshot("heat", _display_check(), _reports(*labels), context.facts, started),
+        snapshot=lambda: watch_step_snapshot("heat", _display_check(), _reports(*labels), context.knowledge, started),
         add_context=lambda added: context.add(added.note, added.facts),
     )
     return channel
 
 
-def _escalator(role, *, answer_reader=None, **settings) -> ReasoningEscalator:
+def _escalator(role, *, facts_reader=None, **settings) -> ReasoningEscalator:
     return ReasoningEscalator(
         EscalationWords(guidance=UNIT_GUIDANCE),
         role,
         EscalationSettings(every_s=0.01, min_gap_s=0, **settings),
-        answer_reader=answer_reader,
+        facts_reader=facts_reader,
     )
 
 
@@ -290,14 +290,14 @@ async def test_an_escalator_reads_a_snapshot_of_the_step_and_answers_only_by_add
             "reader": [{"unit": "fahrenheit"}],
         }
     )
-    context = StepContext()
+    context = StepKnowledge()
     asked: list[str] = []
 
     async def ask(question: str) -> str | None:
         asked.append(question)
         return "Fahrenheit"
 
-    escalator = _escalator(models.role("reviewer"), answer_reader=models.role("reader"))
+    escalator = _escalator(models.role("reviewer"), facts_reader=models.role("reader"))
     side = asyncio.ensure_future(
         escalator.run(_channel(context, ("negative", "unknown", "unknown", "unknown")), _Environment(ask=ask))
     )
@@ -307,8 +307,8 @@ async def test_an_escalator_reads_a_snapshot_of_the_step_and_answers_only_by_add
         await asyncio.sleep(0.01)
     side.cancel()
     assert asked == ["Celsius or Fahrenheit?"]
-    assert context.facts.known == Display(unit="fahrenheit")
-    assert "They answered" in context.facts.text()
+    assert context.knowledge.facts == Display(unit="fahrenheit")
+    assert "They answered" in context.knowledge.text()
     calls = models.calls("reviewer")
     assert all(call.thinking for call in calls)  # reasoning, off the fast loop
     assert all(call.frame is None for call in calls)  # it reads the evidence as text, never frames
@@ -326,19 +326,19 @@ async def test_an_escalator_tells_the_person_what_to_do_without_waiting_for_an_a
     async def ask(question: str) -> str | None:
         raise AssertionError("an instruction is not a question")
 
-    context = StepContext()
+    context = StepKnowledge()
     escalator = _escalator(models.role("reviewer"), max_lines=1)
     labels = ("unknown", "unknown", "unknown", "unknown")
     await asyncio.wait_for(escalator.run(_channel(context, labels), _Environment(ask=ask, say=say)), 2)
     assert said == ["Show me the kettle."]
-    assert context.facts.text() == ""
+    assert context.knowledge.text() == ""
 
 
 async def test_an_escalator_stays_quiet_while_the_check_still_decides() -> None:
     models = FakeModels({"reviewer": []})
     escalator = _escalator(models.role("reviewer"))
     side = asyncio.ensure_future(
-        escalator.run(_channel(StepContext(), ("unknown", "negative", "negative", "unknown")), _Environment())
+        escalator.run(_channel(StepKnowledge(), ("unknown", "negative", "negative", "unknown")), _Environment())
     )
     await asyncio.sleep(0.1)
     side.cancel()
@@ -357,7 +357,7 @@ async def test_each_escalator_reads_the_run_summary_and_the_conversation_only_wh
             conversation="user: it's in Fahrenheit",
             run_summary="Tea guidance (run 1): running.",
         )
-        await asyncio.wait_for(escalator.run(_channel(StepContext(), labels), environment), 2)
+        await asyncio.wait_for(escalator.run(_channel(StepKnowledge(), labels), environment), 2)
         prompts[reads] = models.calls("reviewer")[0].prompt
     assert "Fahrenheit" not in prompts[(False, False)] and "run 1" not in prompts[(False, False)]
     assert "Fahrenheit" in prompts[(False, True)] and "run 1" not in prompts[(False, True)]
@@ -376,33 +376,33 @@ async def _until_true(condition, timeout_s: float = 2.0) -> None:
 
 async def test_an_escalator_gives_the_step_what_the_person_already_said_as_it_starts() -> None:
     models = FakeModels({"reviewer": [], "reader": [{"unit": "fahrenheit"}] * 2})  # read twice, agreeing
-    context = StepContext()
+    context = StepKnowledge()
     dialogue = "assistant: Heat the water to 80 degrees Celsius.\nuser: my kettle shows Fahrenheit"
-    escalator = _escalator(models.role("reviewer"), answer_reader=models.role("reader"), learns_from_conversation=True)
+    escalator = _escalator(models.role("reviewer"), facts_reader=models.role("reader"), learns_from_conversation=True)
     side = asyncio.ensure_future(
         escalator.run(_channel(context, ("negative", "negative")), _Environment(conversation=dialogue))
     )
-    await _until_true(lambda: context.facts.known is not None)
+    await _until_true(lambda: context.knowledge.facts is not None)
     side.cancel()
-    assert context.facts.known == Display(unit="fahrenheit")
-    assert "From the conversation so far" in context.facts.text()
+    assert context.knowledge.facts == Display(unit="fahrenheit")
+    assert "From the conversation so far" in context.knowledge.text()
     assert "my kettle shows Fahrenheit" in models.calls("reader")[0].prompt
     assert models.calls("reviewer") == []  # nobody was asked anything
 
 
 async def test_an_escalator_reads_the_conversation_again_each_time_it_changes_and_only_then() -> None:
     models = FakeModels({"reviewer": [], "reader": [{"unit": None}] * 2 + [{"unit": "fahrenheit"}] * 2})
-    context = StepContext()
+    context = StepKnowledge()
     environment = _Environment(conversation="user: okay")
-    escalator = _escalator(models.role("reviewer"), answer_reader=models.role("reader"), learns_from_conversation=True)
+    escalator = _escalator(models.role("reviewer"), facts_reader=models.role("reader"), learns_from_conversation=True)
     side = asyncio.ensure_future(escalator.run(_channel(context, ("negative", "negative")), environment))
     await _until_true(lambda: len(models.calls("reader")) == 2)
     await asyncio.sleep(0.05)
-    assert len(models.calls("reader")) == 2 and context.facts.known is None  # unchanged: not read again
+    assert len(models.calls("reader")) == 2 and context.knowledge.facts is None  # unchanged: not read again
     environment.conversation.say("user: by the way, it's in Fahrenheit")
-    await _until_true(lambda: context.facts.known is not None)
+    await _until_true(lambda: context.knowledge.facts is not None)
     side.cancel()
-    assert context.facts.known == Display(unit="fahrenheit")
+    assert context.knowledge.facts == Display(unit="fahrenheit")
     assert len(models.calls("reader")) == 4
 
 
@@ -430,18 +430,18 @@ async def test_a_stuck_step_learning_from_the_conversation_decides_with_it_befor
         return await real_ask(*args, **kwargs)
 
     reader.ask = slow_ask  # type: ignore[method-assign]
-    context = StepContext()
+    context = StepKnowledge()
     environment = _Environment(conversation="user: it's Fahrenheit", ask=lambda q: None)
-    escalator = _escalator(models.role("reviewer"), answer_reader=reader, learns_from_conversation=True)
+    escalator = _escalator(models.role("reviewer"), facts_reader=reader, learns_from_conversation=True)
     labels = ("unknown", "unknown", "unknown", "unknown")
     side = asyncio.ensure_future(escalator.run(_channel(context, labels), environment))
     await asyncio.sleep(0.1)  # stuck for ten checks while the history is read
     assert models.calls("reviewer") == []
     reader_reply.set_result(None)
-    await _until_true(lambda: context.facts.known is not None)
+    await _until_true(lambda: context.knowledge.facts is not None)
     await asyncio.sleep(0.005)
     side.cancel()
-    assert context.facts.known == Display(unit="fahrenheit")
+    assert context.knowledge.facts == Display(unit="fahrenheit")
 
 
 async def test_a_run_gives_its_steps_the_conversation_and_its_summary() -> None:
@@ -452,8 +452,8 @@ async def test_a_run_gives_its_steps_the_conversation_and_its_summary() -> None:
         "tea", lambda run: asyncio.sleep(0), title="Tea", decide=FakeModels({}).role("d"), conversation=dialogue
     )
     p = Participant("p")
-    await runner.assume(p, Run(p, 1))
-    run = runner.run(p)
+    await runner.restore_run(p, Run(p, 1))
+    run = runner.latest_run(p)
     assert run is not None
     changes = run.conversation.changes()
     await asyncio.wait_for(anext(changes), 1)  # at once
@@ -472,8 +472,8 @@ async def test_a_run_gives_its_steps_the_conversation_and_its_summary() -> None:
 async def test_without_guidance_there_is_no_escalation() -> None:
     models = FakeModels({"reviewer": []})
     unknowns = _reports("unknown", "unknown", "unknown", "unknown")
-    step = watch_step_snapshot("fill", WATER_CHECK, unknowns, Facts(), clock.now())
-    assert await decide_escalation(step, models.role("reviewer"), guidance="") is None
+    step = watch_step_snapshot("fill", WATER_CHECK, unknowns, Knowledge(), clock.now())
+    assert await decide_escalation(step, models.role("reviewer"), EscalationWords(guidance="")) is None
     assert models.calls("reviewer") == []
 
 
@@ -503,11 +503,11 @@ async def test_reading_merges_what_each_frame_shows_until_it_is_enough() -> None
         job = asyncio.ensure_future(
             read_until_enough(
                 p.frames,
+                ReadSettings(interval_s=0.01),
                 perceive=app.role("observe"),
                 question="Read the label.",
                 reply_schema=Settings,
                 is_enough=lambda read: read.temperature_c is not None,
-                interval_s=0.01,
                 on_state=on_state,
             )
         )
@@ -549,12 +549,12 @@ async def test_reading_extracts_each_reply_so_a_gated_reply_keeps_what_was_read(
         job = asyncio.ensure_future(
             read_until_enough(
                 p.frames,
+                ReadSettings(interval_s=0.01),
                 perceive=app.role("observe"),
                 question="Read the label.",
                 reply_schema=Look,
                 extract=settings,
                 is_enough=lambda read: read.temperature_c is not None,
-                interval_s=0.01,
             )
         )
         await _until(s, job.done, frames=True)
@@ -593,7 +593,7 @@ async def test_a_run_goes_through_its_steps_and_the_conversation_sees_its_summar
         await runner.start(p)
         await _until(s, lambda: not runner.running(p))
         summary = runner.context.get(p)
-        run = runner.run(p)
+        run = runner.latest_run(p)
     assert s.spoken() == ["Starting Tea guidance.", "Heat the water.", "Tea guidance is complete."]
     assert run.status == "completed"
     assert [(st.id, st.status) for st in run.steps] == [("heat", "done"), ("steep", "done")]
@@ -614,10 +614,10 @@ async def test_skip_cancels_only_the_current_step_and_the_procedure_continues() 
         await s.join()
         p = s.participant()
         await runner.start(p)
-        await _until(s, lambda: runner.run(p).current is not None)
+        await _until(s, lambda: runner.latest_run(p).current is not None)
         assert await runner.skip(p) == "Skipping this step."
         await _until(s, lambda: not runner.running(p))
-        run = runner.run(p)
+        run = runner.latest_run(p)
     assert results == [None, "ok"]
     assert [(st.id, st.status) for st in run.steps] == [("wait", "skipped"), ("next", "done")]
 
@@ -642,14 +642,14 @@ async def test_stop_cancels_the_run_and_its_step_and_restart_starts_a_new_run() 
         await s.join()
         p = s.participant()
         await runner.start(p)
-        await _until(s, lambda: runner.run(p).current is not None)
+        await _until(s, lambda: runner.latest_run(p).current is not None)
         assert await runner.start(p) == "Tea guidance is already running."
         await runner.stop(p)
-        assert (runner.run(p).status, cancelled) == ("stopped", ["step"])
+        assert (runner.latest_run(p).status, cancelled) == ("stopped", ["step"])
         assert await runner.stop(p) == "Tea guidance is not running."
         await runner.restart(p)
-        await _until(s, lambda: runner.run(p).current is not None)
-        assert runner.run(p).number == 2
+        await _until(s, lambda: runner.latest_run(p).current is not None)
+        assert runner.latest_run(p).number == 2
         await runner.stop(p)
 
 
@@ -668,8 +668,8 @@ async def test_a_failing_step_fails_the_run_and_says_so() -> None:
         await s.join()
         p = s.participant()
         await runner.start(p)
-        await _until(s, lambda: runner.run(p).status == "failed")
-        run = runner.run(p)
+        await _until(s, lambda: runner.latest_run(p).status == "failed")
+        run = runner.latest_run(p)
     assert s.spoken()[-1].startswith("Tea guidance could not continue")
     assert run.steps[0].status == "failed"
 
@@ -689,7 +689,7 @@ async def test_with_a_plan_the_summary_says_what_comes_next() -> None:
         p = s.participant()
         before = runner.summary(p)
         await runner.start(p)
-        await _until(s, lambda: runner.run(p).current is not None)
+        await _until(s, lambda: runner.latest_run(p).current is not None)
         during = runner.summary(p)
         await runner.stop(p)
     assert "Its steps, in order, once started:" in before and "- steep: Steep the tea." in before
@@ -713,14 +713,14 @@ async def test_a_step_asks_and_the_guide_sorts_each_reply_while_the_question_is_
         await s.join()
         p = s.participant()
         await runner.start(p)
-        await _until(s, lambda: runner.run(p).asking is not None)
+        await _until(s, lambda: runner.latest_run(p).asking is not None)
         assert await runner.control.holds_focus(p)  # the reply reaches the guide first
         assert "Waiting for the person's answer to: Celsius or Fahrenheit?" in runner.summary(p)
         side = await runner.control(Turn("How hot should it be?", 0, "t1"), p)
-        assert side.kind == "pass" and runner.run(p).asking  # still pending
+        assert side.kind == "pass" and runner.latest_run(p).asking  # still pending
         await runner.control(Turn("Fahrenheit, I think", 0, "t2"), p)
         await _until(s, lambda: not runner.running(p))
-        run = runner.run(p)
+        run = runner.latest_run(p)
     assert answers == ["Fahrenheit, I think"]
     assert run.status == "completed" and run.asking is None
     assert "pending_question" in models.calls("decide")[0].context
@@ -739,10 +739,10 @@ async def test_skipping_while_a_question_is_pending_cancels_the_step_and_the_que
         await s.join()
         p = s.participant()
         await runner.start(p)
-        await _until(s, lambda: runner.run(p).asking is not None)
+        await _until(s, lambda: runner.latest_run(p).asking is not None)
         await runner.control(Turn("skip this", 0, "t"), p)
         await _until(s, lambda: not runner.running(p))
-        run = runner.run(p)
+        run = runner.latest_run(p)
     assert [(st.id, st.status) for st in run.steps] == [("heat", "skipped")]
     assert run.asking is None
 

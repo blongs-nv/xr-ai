@@ -42,7 +42,7 @@ def test_start_skip_and_stop_in_code(load_sample) -> None:  # noqa: ANN001
             await s.join()
             p = s.participant()
             await m.procedure.start(p)  # no turn, no control decision
-            run = m.procedure.run(p)
+            run = m.procedure.latest_run(p)
             for _ in range(40):
                 await s.show_frame(solid_frame("red"))
                 if run.current is not None and run.current.id == "door_closed":

@@ -6,7 +6,7 @@
 A case file is about one step::
 
     step: heat_water
-    inputs: {temperature_c: 80}       # what the step runs with (its inputs_schema), for every case
+    inputs: {target: {value: 80, unit: celsius}}   # what the step runs with (its inputs_schema), every case
     cases:
       - name: unit_unknown_then_answered
         scene: [26, 346]              # parts of the recording (see .scene)
@@ -14,7 +14,7 @@ A case file is about one step::
         expect: {asks: [unit], completes: {after: 330}}   # completes: the step's; asks: its escalator's
       - name: looked_away
         scene: [[26, 36], [5, 12], [5, 12], [5, 12]]
-        inputs: {temperature_c: 85}   # this case's own inputs (over the file's)
+        inputs: {target: {value: 85, unit: celsius}}   # this case's own inputs (over the file's)
         person: {after_tell: [[26, 60]]}
         expect: {says: [kettle, display], completes: false}
 
@@ -24,8 +24,9 @@ Each case runs on the devkit's virtual-time loop: idle waits are skipped and mod
 five-minute scene costs what its model calls cost, and their latency counts as it would live. A case ends when the
 step finishes or the scene does.
 
-Each step type's scoring is a module next to it (``watch_scoring``, ...) with ``Expect`` (what a case may expect) and
-``score(trace, expect)``; the type names it in its ``scoring`` attribute, an app's own step types too, and
+Each step type's scoring is a module next to it (``watch_scoring``, ...) with ``Expect`` (what a case may expect; by
+convention an alias, ``Expect = WatchExpect``, so every module has the same name for it) and ``score(trace,
+expect)``; the type names it in its ``scoring`` attribute, a tuple of module paths (an app's own step types too), and
 :func:`scoring_for` imports it. A step with an escalator beside it names both (the escalator's expects ``asks``,
 ``says``, ``quiet``), and a case's keys go to the one that owns them. ``scorings={StepType: module}`` overrides that.
 """
@@ -34,7 +35,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import contextlib
 import importlib
 import json
 import time
@@ -65,22 +65,21 @@ class Scoring(Protocol):
 Scorings = Mapping[type, Scoring | ModuleType]
 
 
-@dataclass(frozen=True, slots=True)
 class Combined:
     """Several scorings of one step (a step and the escalator beside it): a case's ``expect`` keys go to the scoring
     that owns them, and a key none owns is an error."""
 
-    parts: tuple[Scoring, ...]
-
-    @property
-    def Expect(self) -> type[BaseModel]:  # noqa: N802 - the name every scoring has
+    def __init__(self, parts: tuple[Scoring, ...]) -> None:
+        self.parts = parts
         fields: dict[str, Any] = {}
-        for part in self.parts:
+        for part in parts:
             for name, info in part.Expect.model_fields.items():
                 if name in fields:
                     raise TypeError(f"two scorings expect {name!r}")
                 fields[name] = (info.annotation, info)
-        return create_model("CombinedExpect", __config__=ConfigDict(extra="forbid"), **fields)
+        self.Expect: type[BaseModel] = create_model(  # the name every scoring has
+            "CombinedExpect", __config__=ConfigDict(extra="forbid"), **fields
+        )
 
     def score(self, trace: StepTrace, expect: BaseModel) -> list[str]:
         given = expect.model_dump(exclude_unset=True)
@@ -92,16 +91,17 @@ class Combined:
 
 
 def scoring_for(step: Step[Any], scorings: Scorings | None = None) -> Scoring:
-    """How a case of ``step`` is scored: ``scorings[type(step)]`` when given, else the module or modules the step
-    names in its ``scoring`` attribute (imported here, so running code never loads them; several are combined)."""
+    """How a case of ``step`` is scored: ``scorings[type(step)]`` when given, else the modules the step names in its
+    ``scoring`` attribute, a tuple of module paths (imported here, so running code never loads them; several are
+    combined)."""
     kind = type(step)
     if scorings and kind in scorings:
         return scorings[kind]  # type: ignore[return-value]
-    names = getattr(step, "scoring", None)
-    if isinstance(names, str):
-        names = (names,)
-    if not names or not all(isinstance(n, str) for n in names):
-        raise TypeError(f"{kind.__name__} names no scoring module; give it a `scoring` attribute")
+    names = getattr(step, "scoring", ())
+    if not isinstance(names, tuple) or not names or not all(isinstance(n, str) for n in names):
+        raise TypeError(
+            f"{kind.__name__} names no scoring module; give it a `scoring` attribute, a tuple of module paths"
+        )
     parts = tuple(importlib.import_module(n) for n in names)
     return parts[0] if len(parts) == 1 else Combined(parts)  # type: ignore[return-value]
 
@@ -164,13 +164,13 @@ class CaseResult:
             "problems": self.problems,
             "why": self.case.why,
             "completed": t.completed,
-            "completed_at_s": _r(t.completed_at_s),
+            "completed_at_s": _round2(t.completed_at_s),
             "error": t.error,
             "lines": [
-                {"t_s": _r(x.t_s), "by": x.by, "kind": x.kind, "text": x.text, "answer": x.answer} for x in t.lines
+                {"t_s": _round2(x.t_s), "by": x.by, "kind": x.kind, "text": x.text, "answer": x.answer} for x in t.lines
             ],
-            "states": [{"t_s": _r(at), "state": _summary(state)} for at, state in t.states],
-            "wall_s": _r(self.wall_s),
+            "states": [{"t_s": _round2(at), "state": _summary(state)} for at, state in t.states],
+            "wall_s": _round2(self.wall_s),
         }
 
 
@@ -217,8 +217,7 @@ async def run_case(
                 trace.lines.append(Line(scene.now(), "done", done_line))
     else:
         task.cancel()
-        with contextlib.suppress(BaseException):
-            await task
+        await asyncio.wait({task})  # let the step end; the scene is over, so its outcome no longer counts
     problems = [] if trace.error else scoring.score(trace, expect)
     return CaseResult(step.id, case, trace, problems, time.monotonic() - began)
 
@@ -310,9 +309,10 @@ def main(
 
 
 def _summary(state: Any) -> str:
+    """A reported state as text, as ``Run.report_progress`` records it (its ``summary()``, if it has one)."""
     summary = getattr(state, "summary", None)
     return summary() if callable(summary) else str(state)
 
 
-def _r(value: float | None) -> float | None:
+def _round2(value: float | None) -> float | None:
     return None if value is None else round(value, 2)

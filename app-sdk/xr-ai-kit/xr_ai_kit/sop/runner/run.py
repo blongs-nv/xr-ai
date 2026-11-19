@@ -16,7 +16,7 @@ from typing import Any, Literal, TypeVar
 
 from xr_ai_app import Participant, Sink
 
-from ..steps.conversation import Conversation, FixedConversation
+from ..steps.conversation import ConversationHistory, FixedConversationHistory
 from ..steps.step_api import Frames, Step, speaker
 
 T = TypeVar("T")
@@ -59,11 +59,15 @@ class Run:
     """The question the run is waiting for the person to answer (see :meth:`ask`), if any."""
 
     output: Sink | None = field(default=None, repr=False)
-    _publish: Callable[..., Awaitable[None]] | None = field(default=None, repr=False)
-    conversation: Conversation = field(default_factory=FixedConversation, repr=False)
+    """Where the run speaks (``None``: the app's speech output)."""
+    conversation: ConversationHistory = field(default_factory=FixedConversationHistory, repr=False)
     """The conversation with the person (the runner's ``conversation``; none without one)."""
-    _summary: Callable[[], str] | None = field(default=None, repr=False)
+    publish: Callable[..., Awaitable[None]] | None = field(default=None, repr=False)
+    """Set by the runner: records each change (trace, the run's summary, the record file)."""
+    summarize: Callable[[], str] | None = field(default=None, repr=False)
+    """Set by the runner: the run as text (:meth:`run_summary`)."""
     _answer: asyncio.Future[str] | None = field(default=None, repr=False)
+    _one_question_at_a_time: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
 
     @property
     def current(self) -> StepRecord | None:
@@ -116,7 +120,7 @@ class Run:
         except asyncio.CancelledError:
             this = asyncio.current_task()
             if this is not None and this.cancelling():
-                raise  # the run itself is being stopped
+                raise  # the run itself is being stopped (SopRunner.stop cancels the run's task before the step's)
             record.status = "skipped"  # only the step was cancelled: a skip
             await self._changed("step", step=step_id, status="skipped")
             return None
@@ -131,7 +135,8 @@ class Run:
         return result
 
     async def report_progress(self, step_id: str, state: Any) -> None:
-        """Record a step's latest state as its detail (the state's ``summary()``, if it has one)."""
+        """Record a step's latest state as its detail (the state's ``summary()``, if it has one). The step names
+        itself: a ``run.step(step_id, work=...)`` coroutine is not a step object the run could ask."""
         record = next((s for s in reversed(self.steps) if s.id == step_id), None)
         if record is None:
             return
@@ -145,37 +150,42 @@ class Run:
         await self._changed("note", **{k: plain(v) for k, v in values.items()})
 
     async def say(self, text: str) -> None:
-        """Speak on the assistant's own initiative. Lines queue in order: a step's ``done_line`` and the next step's
+        """Speak on the assistant's own initiative, recorded with who said it (:func:`~..steps.step_api.speaker`:
+        the step, or the escalator beside it). Lines queue in order: a step's ``done_line`` and the next step's
         ``start_line`` are both spoken, however close together."""
+        await self._changed("say", text=text, by=speaker())
         await self.p.say(text, to=self.output)
 
     async def ask(self, question: str, *, timeout_s: float = 60.0) -> str | None:
         """Ask the person ``question`` and wait for the answer; ``None`` when none came within ``timeout_s``.
 
-        While the question is pending the runner holds the router's focus, so the next turns reach it first: an
-        answer (including "I don't know") returns here, a control (stop, skip) still works (skipping cancels the
-        step and with it the question), and anything else passes on to the conversation while the question stays
-        pending. The question and the answer are in the run's summary and record.
+        One question at a time: a second ``ask`` (a step's and its escalator's) waits until the first is answered or
+        times out, and ``timeout_s`` counts from when its question is spoken. While a question is pending the runner
+        holds the router's focus, so the next turns reach it first: an answer (including "I don't know") returns
+        here, a control (stop, skip) still works (skipping cancels the step and with it the question), and anything
+        else passes on to the conversation while the question stays pending. The question, who asked it and the
+        answer are in the run's summary and record.
         """
-        future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
-        self.asking, self._answer = question, future
-        await self._changed("ask", question=question, by=speaker())
-        await self.say(question)
-        answer: str | None = None
-        try:
-            answer = await asyncio.wait_for(asyncio.shield(future), timeout_s)
-        except TimeoutError:
-            answer = None
-        finally:
-            self.asking, self._answer = None, None
-            if not future.done():
-                future.cancel()
-        await self._changed("answer", question=question, answer=answer)
-        return answer
+        async with self._one_question_at_a_time:
+            future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+            self.asking, self._answer = question, future
+            await self._changed("ask", question=question, by=speaker())
+            await self.p.say(question, to=self.output)
+            answer: str | None = None
+            try:
+                answer = await asyncio.wait_for(asyncio.shield(future), timeout_s)
+            except TimeoutError:
+                answer = None
+            finally:
+                self.asking, self._answer = None, None
+                if not future.done():
+                    future.cancel()
+            await self._changed("answer", question=question, answer=answer)
+            return answer
 
     async def run_summary(self) -> str:
         """The run as text, as the conversation sees it: its steps, their states, what was noted."""
-        return self._summary() if self._summary is not None else ""
+        return self.summarize() if self.summarize is not None else ""
 
     def answer(self, text: str) -> bool:
         """Give the pending question its answer; whether one was pending."""
@@ -185,11 +195,12 @@ class Run:
         return True
 
     async def _changed(self, op: str, **data: Any) -> None:
-        if self._publish is not None:
-            await self._publish(self, op, **data)
+        if self.publish is not None:
+            await self.publish(self, op, **data)
 
 
 def plain(value: Any) -> Any:
+    """A noted value in a JSON-safe form, for the run's summary and record."""
     dump = getattr(value, "model_dump", None)
     if callable(dump):
         return dump(mode="json", exclude_none=True)

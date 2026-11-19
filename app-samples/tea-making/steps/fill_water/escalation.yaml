@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # How the person can help when fill_water's camera check cannot decide (xr_ai_kit.sop.EscalationWords),
-# for the escalator beside it.
+# for the escalator beside it. fill_water has no facts_schema, so an answer
+# reaches its check as a note the deciding model reads, not as typed facts.
 guidance: >-
   Many kettles are opaque, so the camera may not show whether there is
   water inside; the person knows. The kettle has to be in the camera's

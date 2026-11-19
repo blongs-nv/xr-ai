@@ -33,7 +33,7 @@ from xr_ai_app import Component, ContextValue, Participant, Role, Sink, Turn, cl
 from xr_ai_app.context import ContextChannel, changes
 
 from ...routing import DestinationResult, RouterDestination
-from ..steps.conversation import Conversation, FixedConversation
+from ..steps.conversation import FixedConversationHistory
 from .controls import CONTROL_QUESTION, CONTROLS, MESSAGES
 from .run import Run, plain
 
@@ -42,12 +42,16 @@ class SopRunner(Component):
     """Runs ``procedure`` for each participant who starts it; see the module docstring.
 
     ``plan`` lists the steps in order, as ``(step id, what the user does)``, so the conversation can tell what
-    comes next; without it the summary has only the steps entered so far. ``decide`` classifies control requests
+    comes next (from the steps: ``[(step.id, step.words.does) for step in steps]``); without it the summary has only
+    the steps entered so far. ``decide`` classifies control requests
     (Clef or an LLM). ``output`` is where the runner speaks (``None``: the
     app's speech output). ``description`` is what a Router reads to send control requests here. ``controls`` and
     ``messages`` override the default wording (:data:`CONTROLS`, :data:`MESSAGES`) key by key.
-    ``conversation`` is the conversation with the person (``voice.dialogue``), which each step and the escalator
-    beside it see as ``environment.conversation``.
+    ``conversation`` is the conversation with the person, a :class:`~xr_ai_app.ContextLog` such as
+    ``voice.dialogue``, which each step and the escalator beside it see as ``environment.conversation`` (at most
+    ``conversation_budget_bytes`` of it). Without one they see an empty conversation that never changes, so an
+    escalator set to learn from the conversation learns nothing. ``summary_budget_bytes`` bounds the run's summary
+    (:attr:`context`).
     """
 
     def __init__(
@@ -63,8 +67,9 @@ class SopRunner(Component):
         control_question: str = CONTROL_QUESTION,
         messages: Mapping[str, str] | None = None,
         plan: Sequence[tuple[str, str]] = (),
-        context_budget_bytes: int = 8_000,
+        summary_budget_bytes: int = 8_000,
         conversation: ContextChannel | None = None,
+        conversation_budget_bytes: int = 8_000,
     ) -> None:
         super().__init__()
         unknown = set(controls or {}) - set(CONTROLS)
@@ -80,8 +85,8 @@ class SopRunner(Component):
         self._messages = {**MESSAGES, **(messages or {})}
         self._plan = list(plan)
         self._conversation = conversation
-        self._budget = context_budget_bytes
-        self.context = ContextValue(f"sop:{name}", scope="participant", budget_bytes=context_budget_bytes)
+        self._conversation_budget = conversation_budget_bytes
+        self.context = ContextValue(f"sop:{name}", scope="participant", budget_bytes=summary_budget_bytes)
         """The run's summary, for a Conversation's ``context=``."""
         self.control = RouterDestination(
             name,
@@ -97,38 +102,28 @@ class SopRunner(Component):
 
     # ------------------------------------------------------------------ state
 
-    def run(self, p: Participant) -> Run | None:
+    def latest_run(self, p: Participant) -> Run | None:
         """The participant's latest run (running or finished), if any."""
         return p.state.get(self._key)
 
-    async def assume(self, p: Participant, run: Run) -> None:
+    async def restore_run(self, p: Participant, run: Run) -> None:
         """Make a copy of ``run`` the participant's latest run, without running anything.
 
         For tests and evaluations that need the runner in a given state (some steps done, one running): the
         summary, :attr:`context` and :meth:`classify` then see that run. Nothing is spawned and nothing is said.
         """
-        p.state[self._key] = Run(
-            p,
-            run.number,
-            status=run.status,
-            steps=list(run.steps),
-            values=dict(run.values),
-            name=self.name,
-            asking=run.asking,
-            output=self.output,
-            _publish=self._changed,
-            conversation=self._conversation_of(p),
-            _summary=lambda: self.summary(p),
+        self._make_run(
+            p, run.number, status=run.status, steps=list(run.steps), values=dict(run.values), asking=run.asking
         )
         await self.context.set(p, self.summary(p))
 
     def running(self, p: Participant) -> bool:
-        run = self.run(p)
+        run = self.latest_run(p)
         return run is not None and run.status == "running"
 
     def summary(self, p: Participant) -> str:
         """The run as text for the conversation: status, steps entered, the current step's state, noted values."""
-        run = self.run(p)
+        run = self.latest_run(p)
         if run is None:
             lines = [f"{self.title} has not been started."]
             if self._plan:
@@ -159,24 +154,28 @@ class SopRunner(Component):
         return "\n".join(lines)
 
     def _new_run(self, p: Participant) -> Run:
-        previous = self.run(p)
-        number = (previous.number + 1) if previous else 1
+        previous = self.latest_run(p)
+        return self._make_run(p, (previous.number + 1) if previous else 1)
+
+    def _make_run(self, p: Participant, number: int, **state: Any) -> Run:
+        """The one place a :class:`Run` is built: wired to this runner, and made the participant's latest run."""
+        conversation = (
+            FixedConversationHistory()
+            if self._conversation is None
+            else _ChannelConversationHistory(self._conversation, p, self._conversation_budget)
+        )
         run = Run(
             p,
             number,
             name=self.name,
             output=self.output,
-            _publish=self._changed,
-            conversation=self._conversation_of(p),
-            _summary=lambda: self.summary(p),
+            conversation=conversation,
+            publish=self._changed,
+            summarize=lambda: self.summary(p),
+            **state,
         )
         p.state[self._key] = run
         return run
-
-    def _conversation_of(self, p: Participant) -> Conversation:
-        if self._conversation is None:
-            return FixedConversation()
-        return _ChannelConversation(self._conversation, p, self._budget)
 
     @property
     def _key(self) -> str:
@@ -196,19 +195,16 @@ class SopRunner(Component):
 
     async def stop(self, p: Participant) -> str:
         """Stop the running run (its current step too) and wait until it has ended; return what was said."""
-        run = self.run(p)
+        run = self.latest_run(p)
         if run is None or run.status != "running":
             return await self._say(p, "not_running")
-        await p.cancel(f"sop:{self.name}")
-        await p.cancel(f"sop:{self.name}:step")
-        run.status = "stopped"
-        await self._changed(run, "stop")
+        await self._end_run(run)
         return await self._say(p, "stop")
 
     async def skip(self, p: Participant) -> str:
         """Skip the current step: cancel it, and the procedure continues with the next one. A step that is not
         skippable (it does not wait on the person; later steps need its result) is not cancelled."""
-        run = self.run(p)
+        run = self.latest_run(p)
         if run is None or run.status != "running":
             return await self._say(p, "not_running")
         if run.current is None:
@@ -221,18 +217,22 @@ class SopRunner(Component):
 
     async def restart(self, p: Participant) -> str:
         """Stop the running run, if any, and start a new one."""
-        if self.running(p):
-            run = self.run(p)
-            await p.cancel(f"sop:{self.name}")
-            await p.cancel(f"sop:{self.name}:step")
-            assert run is not None  # noqa: S101 - running() checked it
-            run.status = "stopped"
-            await self._changed(run, "stop")
+        running = self.latest_run(p)
+        if running is not None and running.status == "running":
+            await self._end_run(running)
         run = self._new_run(p)
         await self._changed(run, "start")
         text = await self._say(p, "restart")
         p.spawn(self._main(run), key=f"sop:{self.name}", supersede=True, detached=True)
         return text
+
+    async def _end_run(self, run: Run) -> None:
+        """Stop ``run`` and its current step: the run's task first, so the step's cancellation is not a skip
+        (:meth:`Run.step`)."""
+        await run.p.cancel(f"sop:{self.name}")
+        await run.p.cancel(f"sop:{self.name}:step")
+        run.status = "stopped"
+        await self._changed(run, "stop")
 
     async def classify(self, text: str, p: Participant) -> str:
         """What ``text`` is to the run: a control (``start``, ``stop``, ``skip``, ``restart``), ``answer`` (a reply to
@@ -241,7 +241,7 @@ class SopRunner(Component):
         The one decision :attr:`control` makes before it acts, for tests and evaluations. It sees only the
         utterance, whether the guide is running and the pending question, not the run's summary.
         """
-        run = self.run(p)
+        run = self.latest_run(p)
         choices = dict(self._controls)
         # Only what the choice depends on: whether the guide is running, and the question it is waiting on. The run's
         # plan, steps and observations are for the conversation; next to a short utterance they are noise.
@@ -260,14 +260,14 @@ class SopRunner(Component):
         return str(await self._decide.decide(self._question, choices=choices, context=json.dumps(state)))
 
     def _waiting(self, p: Participant) -> bool:
-        run = self.run(p)
+        run = self.latest_run(p)
         return run is not None and run.asking is not None
 
     async def _on_control(self, turn: Turn, p: Participant) -> DestinationResult:
         op = await self.classify(turn.text, p)
         trace.emit("sop", self.name, op="control", choice=op)
         if op == "answer":
-            run = self.run(p)
+            run = self.latest_run(p)
             if run is not None and run.answer(turn.text):
                 return DestinationResult("answer", "")
             op = "none"
@@ -308,14 +308,14 @@ class SopRunner(Component):
         await artifacts.write_jsonl(f"sop-{self.name}", record)
 
 
-class _ChannelConversation:
-    """The app's dialogue channel, for one participant, as a :class:`~..steps.conversation.Conversation`."""
+class _ChannelConversationHistory:
+    """The app's dialogue channel, for one participant, as a :class:`~..steps.conversation.ConversationHistory`."""
 
     def __init__(self, channel: ContextChannel, p: Participant, budget_bytes: int) -> None:
-        self._channel, self._p, self._budget = channel, p, budget_bytes
+        self._channel, self._p, self._budget_bytes = channel, p, budget_bytes
 
     async def text(self) -> str:
-        return (await self._channel.view(self._p, budget_bytes=self._budget)).strip()
+        return (await self._channel.view(self._p, budget_bytes=self._budget_bytes)).strip()
 
     def changes(self) -> AsyncIterator[None]:
         return changes(self._p, [self._channel])

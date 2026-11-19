@@ -23,7 +23,6 @@ from xr_ai_kit.sop import (
     EscalationChannel,
     EscalationSettings,
     EscalationWords,
-    EscalatorEnvironment,
     ReadStep,
     ReadWords,
     ReasoningEscalator,
@@ -53,14 +52,15 @@ from xr_ai_kit.sop.escalation import PROMPT, escalation_scoring
 from xr_ai_kit.sop.evaluation import Line, StepTrace
 from xr_ai_kit.sop.step_types.read import read_scoring
 from xr_ai_kit.sop.step_types.wait import wait_scoring
-from xr_ai_kit.sop.step_types.watch import Facts, Judgment, watch_scoring, watch_step_snapshot
+from xr_ai_kit.sop.step_types.watch import Judgment, Knowledge, watch_scoring
 from xr_ai_kit.sop.step_types.watch.watch_scoring import Window
+from xr_ai_kit.sop.step_types.watch.watch_step import watch_step_snapshot
 
 WATER = Criteria("Is there water?", "Water is visible.", "The kettle is empty.", "The kettle's inside cannot be seen.")
 WATER_SECTION = {
     "question": "Water?",
     "criteria": {
-        "instructions": WATER.instructions,
+        "question": WATER.question,
         "positive": WATER.positive,
         "negative": WATER.negative,
         "unknown": WATER.unknown,
@@ -111,10 +111,10 @@ async def _run_alone(models: FakeModels, step, inputs=None, until=None, then=Non
         p = s.participant()
         await runner.start(p)
         if until is not None:
-            await _until(s, lambda: until(runner.run(p)))
+            await _until(s, lambda: until(runner.latest_run(p)))
             await then(runner, p)
         await _until(s, lambda: not runner.running(p))
-        return runner.run(p), results
+        return runner.latest_run(p), results
 
 
 # ---------------------------------------------------------------------------------- the watch step
@@ -251,7 +251,7 @@ def test_evaluation_finds_each_step_types_scoring_and_an_apps_own() -> None:
 
     with pytest.raises(TypeError, match="Mine names no scoring module"):
         evaluation.scoring_for(Mine())  # type: ignore[arg-type]
-    Mine.scoring = read_scoring.__name__  # an app's own type names its module, like the kit's
+    Mine.scoring = (read_scoring.__name__,)  # an app's own type names its module, like the kit's
     assert evaluation.scoring_for(Mine()) is read_scoring  # type: ignore[arg-type]
     assert evaluation.scoring_for(watch, {WatchStep: wait_scoring}) is wait_scoring  # an override
 
@@ -308,7 +308,7 @@ async def test_another_escalator_can_send_the_frame_behind_the_evidence_to_a_mod
         def __init__(self, model) -> None:
             self.model = model
 
-        async def run(self, channel: EscalationChannel, environment: EscalatorEnvironment) -> None:
+        async def run(self, channel: EscalationChannel, environment: StepEnvironment) -> None:
             while True:
                 await asyncio.sleep(0.01)
                 step = channel.snapshot()
@@ -334,21 +334,13 @@ async def test_another_escalator_can_send_the_frame_behind_the_evidence_to_a_mod
     assert call.frame is not None  # the frame the step judged, not a description of it
 
 
-def test_a_step_with_an_escalator_checks_its_parts_and_its_environment_up_front() -> None:
+def test_a_step_with_an_escalator_checks_its_parts_up_front() -> None:
     models = FakeModels()
     watch = WatchStep("fill", _water(), _camera(models))
     with pytest.raises(TypeError, match="is not an escalator"):
         StepWithEscalator(watch, object())  # type: ignore[arg-type]
     paired = StepWithEscalator(watch, _escalator(models, "The person knows."))
-
-    class Mute:
-        frames = None
-
-        async def report_progress(self, step_id, state) -> None:
-            return None
-
-    with pytest.raises(TypeError, match="Mute is not one"):
-        run_virtual(paired.run(Mute()))  # type: ignore[arg-type]
+    assert paired.words is watch.words and paired.scoring == (*watch.scoring, *ReasoningEscalator.scoring)
 
 
 async def test_each_steps_escalation_may_carry_its_own_prompt(tmp_path: Path) -> None:
@@ -363,17 +355,16 @@ async def test_each_steps_escalation_may_carry_its_own_prompt(tmp_path: Path) ->
         ReasoningEscalator(load_words(tmp_path / f"{name}.escalation.yaml", EscalationWords), reason)
         for name in ("fill", "seal")
     )
-    assert (fill.guidance, fill.prompt) == ("The person knows.", PROMPT)
-    assert seal.instructions == "Ask the person to press the lid and say whether it clicks."
+    assert (fill.words.guidance, fill.words.prompt) == ("The person knows.", PROMPT)
+    assert seal.words.instructions == "Ask the person to press the lid and say whether it clicks."
     models = FakeModels({"reason": [{"action": "ask", "words": "Does it click?"}]})
     unknowns = [Judgment("unknown", "a lid", i, i) for i in range(4)]
     said = await decide_escalation(
-        watch_step_snapshot("seal", Check("Sealed?", WATER), unknowns, Facts(), 0.0),
+        watch_step_snapshot("seal", Check("Sealed?", WATER), unknowns, Knowledge(), 0.0),
         models.role("reason"),
-        guidance=seal.guidance,
-        instructions=seal.instructions,
+        seal.words,
     )
-    assert said is not None and models.calls("reason")[0].prompt.endswith(seal.instructions)
+    assert said is not None and models.calls("reason")[0].prompt.endswith(seal.words.instructions)
     (tmp_path / "typo.escalation.yaml").write_text("guidance: g\ninstruction: typo\n", encoding="utf-8")
     with pytest.raises(ValueError, match=r"(?s)typo.escalation.yaml.*instruction"):
         load_words(tmp_path / "typo.escalation.yaml", EscalationWords)  # a misspelled key fails when it is loaded
@@ -389,7 +380,7 @@ does: fill the kettle
 start_line: Fill the kettle to {level}.
 done_line: Filled to {level}.
 question: Is there water?
-criteria: {instructions: "Water at {level}?", positive: "yes", negative: "no", unknown: unclear}
+criteria: {question: "Water at {level}?", positive: "yes", negative: "no", unknown: unclear}
 """,
         encoding="utf-8",
     )
@@ -416,7 +407,7 @@ steep:
     words = load_words(tmp_path / "fill.yaml", WatchWords)
     fill = WatchStep("fill", words, _camera(models), inputs_schema=Level)
     line = Level(level="the line")
-    assert (fill.start_line(line), fill.check_for(line).criteria.instructions) == (
+    assert (fill.start_line(line), fill_placeholders(fill.words.criteria.question, line)) == (
         "Fill the kettle to the line.",
         "Water at the line?",
     )
@@ -427,7 +418,7 @@ steep:
         "Steeped for 2 minutes.",
     )
     assert [(step.id, step.words.does) for step in (fill, steep)] == [("fill", "fill the kettle"), ("steep", "wait")]
-    with pytest.raises(ValueError, match=r"its criteria uses \{level\}"):
+    with pytest.raises(ValueError, match=r"its criteria.question uses \{level\}"):
         WatchStep("fill", words, _camera(models))  # a placeholder its inputs do not have fails when the step is built
     with pytest.raises(TypeError, match="runs with Level; it got NoneType"):
         run_virtual(fill.run(None))  # type: ignore[arg-type]  # inputs are checked before anything runs
@@ -442,10 +433,14 @@ def test_each_step_uses_its_own_models_and_a_misspelled_key_fails() -> None:
         name: str | None = None
 
     step = ReadStep(
-        "identify", ReadWords(start_line="Show the label.", question="Q."), FakeModels().role("ocr"), reply_schema=Label
+        "identify",
+        ReadWords(start_line="Show the label.", question="Q."),
+        FakeModels().role("ocr"),
+        reply_schema=Label,
+        is_enough=lambda reading: True,
     )
-    assert (step.perceive.name, step.question) == ("ocr", "Q.")
-    criteria = {"instructions": "?", "positive": "y", "negative": "n", "unknown": "u"}
+    assert (step.perceive.name, step.words.question) == ("ocr", "Q.")
+    criteria = {"question": "?", "positive": "y", "negative": "n", "unknown": "u"}
     with pytest.raises(ValueError, match="postive"):
         WatchWords.model_validate({"question": "Water?", "criteria": {**criteria, "postive": "y"}})
     with pytest.raises(ValueError, match="escalaton"):
@@ -546,7 +541,7 @@ class AskWords(StepWords):
 class AskStep:
     """An app's own step type, written with the public API only: ask the person for a value; no camera, no model."""
 
-    scoring = wait_scoring.__name__  # scored on whether it completes, like a wait step
+    scoring = (wait_scoring.__name__,)  # scored on whether it completes, like a wait step
 
     inputs_schema = None
 
@@ -582,7 +577,7 @@ question: What is the batch number on the label?
     assert isinstance(step, Step)
 
     async def answer(runner, p) -> None:
-        runner.run(p).answer("A-17")
+        runner.latest_run(p).answer("A-17")
 
     models = FakeModels()
     run, results = asyncio.run(
@@ -638,7 +633,7 @@ def _settings_step(models: FakeModels, **settings) -> TransformStep:
         "settings",
         SETTINGS,
         models.role("reason"),
-        input_schema=Brewing,
+        inputs_schema=Brewing,
         output_schema=Brewing,
         keep_input_values=True,
         required_fields=("temperature_c", "minutes"),
@@ -691,11 +686,11 @@ def test_a_transform_asks_again_for_a_missing_required_field_then_fails(tmp_path
 def test_a_transform_names_only_fields_it_has() -> None:
     with pytest.raises(ValueError, match="required_fields"):
         TransformStep(
-            "s", SETTINGS, FakeModels().role("r"), input_schema=Brewing, output_schema=Brewing, required_fields=("x",)
+            "s", SETTINGS, FakeModels().role("r"), inputs_schema=Brewing, output_schema=Brewing, required_fields=("x",)
         )
     wrong = TransformWords(done_line="{result.minutes}", instructions=SETTINGS.instructions)
     with pytest.raises(ValueError, match=r"\{result\}"):
-        TransformStep("s", wrong, FakeModels().role("r"), input_schema=Brewing, output_schema=Brewing)
+        TransformStep("s", wrong, FakeModels().role("r"), inputs_schema=Brewing, output_schema=Brewing)
 
 
 async def test_a_transform_cannot_be_skipped_even_while_it_asks() -> None:
@@ -705,7 +700,7 @@ async def test_a_transform_cannot_be_skipped_even_while_it_asks() -> None:
 
     async def try_to_skip_then_answer(runner, p) -> None:
         said.append(await runner.skip(p))
-        runner.run(p).answer("Green")
+        runner.latest_run(p).answer("Green")
 
     run, results = await _run_alone(
         models,

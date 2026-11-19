@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from ..steps.conversation import FixedConversation
+from ..steps.conversation import FixedConversationHistory
 from ..steps.step_api import speaker
 from .scene import SceneFrames
 from .step_trace import Line, StepTrace
@@ -22,11 +22,12 @@ class Person(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     answers: list[str] = []
-    """Answers to the step's questions, in order; a question beyond them gets none."""
+    """Answers to any question asked (the step's or its escalator's), in order; a question beyond them gets none."""
     answer_after_s: float = 3.0
     """How long the person takes to answer."""
     after_tell: list[Any] | None = None
-    """What the camera shows once the person was told something (they did it): scene parts, as ``scene``."""
+    """What the camera shows once the person was first told something (by the step or its escalator: they did it):
+    scene parts, as ``scene``."""
 
 
 class ScriptedEnvironment:
@@ -37,7 +38,7 @@ class ScriptedEnvironment:
     ) -> None:
         self.scene = scene
         self.person = person
-        self.conversation = FixedConversation(conversation)
+        self.conversation = FixedConversationHistory(conversation)
         """The case's conversation, fixed for the whole case."""
         self._run_summary = run_summary
         self._answers = list(person.answers)
@@ -62,6 +63,7 @@ class ScriptedEnvironment:
         return answer
 
     async def report_progress(self, step_id: str, state: Any) -> None:
+        """Record the state (a case has one step, so ``step_id`` is not needed)."""
         self.trace.states.append((self.scene.now(), state))
 
     async def run_summary(self) -> str:

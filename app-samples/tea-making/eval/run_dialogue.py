@@ -126,7 +126,7 @@ async def run_utterance(
     p = Participant(f"eval-{uuid.uuid4().hex[:6]}")
     run = run_in_state(packet, p)
     if run is not None:
-        await models.tea.assume(p, run)
+        await models.tea.restore_run(p, run)
     else:
         await models.tea.context.set(p, models.tea.summary(p))
     text = packet.fill(case["say"])

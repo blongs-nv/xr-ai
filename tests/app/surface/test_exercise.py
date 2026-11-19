@@ -77,7 +77,7 @@ async def test_a_step_runs_on_a_window_until_done(load_sample, clip: Path) -> No
     assert run.result.status == "completed" and run.result.positives == 2
     assert run.ended_at_s is not None and 2.0 <= run.ended_at_s <= 7.0
     assert [call["name"] for call in run.calls] == ["perceive", "decide"] * 3
-    assert models.calls("perceive")[0].prompt == m.bed_clear.step.check.question  # the watch step, beside its escalator
+    assert models.calls("perceive")[0].prompt == m.bed_clear.step.words.question  # the watch step, beside its escalator
 
 
 async def test_a_step_that_never_finishes_is_unfinished(load_sample, clip: Path) -> None:

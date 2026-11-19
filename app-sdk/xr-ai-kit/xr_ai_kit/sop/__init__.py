@@ -6,9 +6,11 @@
 The package::
 
     steps/            what every step shares, whatever its type
-      step_api.py         Step, StepEnvironment, Frames: what a step is and what it may touch
+      step_api.py         Step, StepEnvironment, Frames: what a step is and what it may touch; speaker (who is
+                          speaking)
       step_words.py       StepWords (what every step says; each step type's words extend it) and load_words
                           (YAML into a words schema)
+      conversation.py     ConversationHistory: the conversation with the person, as a step sees it
     step_types/       the kit's step types, one package each; an app's own follow the same shape
       watch/              WatchStep: the fast camera check (judge, verify); supports escalation
       read/               ReadStep: read the camera into a schema until it is enough (read_until_enough)
@@ -28,11 +30,11 @@ between them. Everything it needs is importable from here.
 A procedure::
 
     fill_water = StepWithEscalator(
-        WatchStep("fill_water", load_words(HERE / "fill_water.yaml", WatchWords),
+        WatchStep("fill_water", load_words(STEPS / "fill_water" / "words.yaml", WatchWords),
                   WatchModels(perceive=vision_model, decide=classifier)),
-        ReasoningEscalator(load_words(HERE / "fill_water.escalation.yaml", EscalationWords), reasoning_model),
+        ReasoningEscalator(load_words(STEPS / "fill_water" / "escalation.yaml", EscalationWords), reasoning_model),
     )
-    steep = WaitStep("steep", load_words(HERE / "steep.yaml", StepWords), inputs_schema=SteepInputs)
+    steep = WaitStep("steep", load_words(STEPS / "steep" / "words.yaml", StepWords), inputs_schema=SteepInputs)
 
     async def make_tea(run: Run) -> None:
         await run.step(fill_water)                                # says its start_line, then its done_line
@@ -41,20 +43,21 @@ A procedure::
 Each step is defined once, from its id, its words, the models it uses and its ``inputs_schema``, and each run of it
 gets its inputs: what earlier steps produced, passed on by the procedure. A step type of the app's own (any object
 with ``id``, ``inputs_schema``, ``start_line(inputs)``, ``done_line(inputs, result)`` and ``run(environment,
-inputs)``) runs and is evaluated like the kit's.
+inputs)``, and optionally ``skippable`` and ``scoring``: see ``steps/step_api.py``) runs and is evaluated like the
+kit's.
 """
 
 from __future__ import annotations
 
 from .escalation import (
-    STUCK_RULE,
+    INSTRUCTIONS,
+    PROMPT,
     AddedContext,
     EscalationChannel,
     EscalationMessage,
     EscalationSettings,
     EscalationWords,
     Escalator,
-    EscalatorEnvironment,
     Evidence,
     ReasoningEscalator,
     StepSnapshot,
@@ -72,10 +75,10 @@ from .step_types.watch import (
     LABELS,
     Check,
     Criteria,
-    Facts,
     Judgment,
+    Knowledge,
     Label,
-    StepContext,
+    StepKnowledge,
     StructuredObservation,
     Verification,
     WatchModels,
@@ -86,8 +89,9 @@ from .step_types.watch import (
     verify,
 )
 from .steps import (
-    Conversation,
-    FixedConversation,
+    SPEAKER,
+    ConversationHistory,
+    FixedConversationHistory,
     Frames,
     Step,
     StepEnvironment,
@@ -96,23 +100,26 @@ from .steps import (
     check_placeholders,
     fill_placeholders,
     load_words,
+    speaker,
 )
 
 __all__ = [
     "CONTROLS",
+    "INSTRUCTIONS",
+    "PROMPT",
+    "SPEAKER",
     "AddedContext",
     "Check",
-    "Conversation",
+    "ConversationHistory",
     "Criteria",
     "EscalationChannel",
     "EscalationMessage",
     "EscalationSettings",
     "EscalationWords",
     "Escalator",
-    "EscalatorEnvironment",
     "Evidence",
-    "Facts",
-    "FixedConversation",
+    "Knowledge",
+    "FixedConversationHistory",
     "Frames",
     "Judgment",
     "LABELS",
@@ -124,10 +131,9 @@ __all__ = [
     "ReadWords",
     "ReasoningEscalator",
     "Run",
-    "STUCK_RULE",
     "SopRunner",
     "Step",
-    "StepContext",
+    "StepKnowledge",
     "StepWords",
     "StepEnvironment",
     "StepRecord",
@@ -156,6 +162,7 @@ __all__ = [
     "judge",
     "load_words",
     "read_until_enough",
+    "speaker",
     "timer",
     "verify",
 ]

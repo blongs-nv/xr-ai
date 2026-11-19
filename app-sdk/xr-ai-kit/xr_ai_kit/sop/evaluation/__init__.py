@@ -32,14 +32,13 @@ from .cases import (
     Scoring,
     Scorings,
     Steps,
-    inputs_for,
     main,
     report,
     run_case,
     run_files,
     scoring_for,
 )
-from .scene import Recording, SceneFrames, Shot, segments
+from .scene import Recording, SceneFrames
 from .scripted_environment import Person, ScriptedEnvironment
 from .step_trace import Line, StepTrace, mentions
 
@@ -54,7 +53,6 @@ __all__ = [
     "Scoring",
     "Scorings",
     "ScriptedEnvironment",
-    "Shot",
     "Steps",
     "StepTrace",
     "main",
@@ -62,7 +60,5 @@ __all__ = [
     "report",
     "run_case",
     "run_files",
-    "inputs_for",
     "scoring_for",
-    "segments",
 ]
