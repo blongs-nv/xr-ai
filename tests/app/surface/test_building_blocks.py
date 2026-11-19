@@ -52,6 +52,40 @@ async def test_context_value_session_resets_on_reconnect() -> None:
     assert value.get(p) == ""
 
 
+async def test_a_context_channels_changes_run_now_then_after_each_change_and_none_is_lost() -> None:
+    from xr_ai_app.context import changes  # noqa: PLC0415
+
+    log = ContextLog("dialogue", scope="participant", budget_bytes=500)
+    value = ContextValue("run", scope="participant", budget_bytes=500)
+    p = Participant("p")
+    stream = changes(p, [log, value])
+    await asyncio.wait_for(anext(stream), 1)  # now
+    waiting = asyncio.ensure_future(anext(stream))
+    await asyncio.sleep(0)
+    assert not waiting.done()  # nothing changed yet
+    await log.publish(p, "user: it's in Fahrenheit")
+    await asyncio.wait_for(waiting, 1)
+    await value.set(p, "running")  # while the consumer is busy: one more turn, not lost
+    await log.publish(p, "user: and it's a big mug")
+    await asyncio.wait_for(anext(stream), 1)
+    waiting = asyncio.ensure_future(anext(stream))
+    await asyncio.sleep(0)
+    assert not waiting.done()  # both folded into that one turn
+    waiting.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await waiting
+    await stream.aclose()
+    own = log.changes(p)
+    await anext(own)
+    waiting = asyncio.ensure_future(anext(own))
+    await value.set(p, "another channel")
+    await asyncio.sleep(0)
+    assert not waiting.done()  # only its own changes
+    await log.clear(p)
+    await asyncio.wait_for(waiting, 1)
+    await own.aclose()
+
+
 async def test_context_log_summarizes_in_the_background() -> None:
     models = FakeModels({"sum": ["the user likes tea"]})
     log = ContextLog("notes", scope="participant", budget_bytes=60, summarize=models.role("sum"))

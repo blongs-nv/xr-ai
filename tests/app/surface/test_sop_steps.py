@@ -288,12 +288,15 @@ def _imports(package: str) -> set[str]:
     return {m for m in found if m.startswith("xr_ai_kit.sop")}
 
 
-def test_the_core_and_escalation_import_no_step_type() -> None:
-    """steps/ knows no step type and no escalation; escalation knows no step type; step types opt into it."""
+def test_the_core_and_escalation_import_no_step_type_and_the_runner_no_escalation() -> None:
+    """steps/ knows no step type and no escalation; escalation knows no step type; the runner knows no escalation;
+    step types opt into it."""
     core, escalation = _imports("xr_ai_kit.sop.steps"), _imports("xr_ai_kit.sop.escalation")
-    assert core and escalation  # the scan sees their imports
+    runner = _imports("xr_ai_kit.sop.runner")
+    assert core and escalation and runner  # the scan sees their imports
     assert not any(m.startswith(("xr_ai_kit.sop.step_types", "xr_ai_kit.sop.escalation")) for m in core), core
     assert not any(m.startswith("xr_ai_kit.sop.step_types") for m in escalation), escalation
+    assert not any(m.startswith("xr_ai_kit.sop.escalation") for m in runner), runner
     assert "xr_ai_kit.sop.escalation.escalation_channel" in _imports("xr_ai_kit.sop.step_types.watch")
 
 
@@ -505,13 +508,14 @@ def test_a_case_runs_the_real_step_on_a_scene_and_a_scripted_person(tmp_path: Pa
     )
     step = StepWithEscalator(
         WatchStep("heat", _water(), _camera(models), settings=WatchSettings(interval_s=2.0)),
-        _escalator(models, "The person knows the unit.", every_s=20.0, max_lines=2, context=["dialogue"]),
+        _escalator(models, "The person knows the unit.", every_s=20.0, max_lines=2, reads_conversation=True),
     )
     case = evaluation.Case(
         name="answered",
         scene=[0, 120],
         person={"answers": ["Fahrenheit"]},
-        context={"dialogue": "user: is it hot yet?", "run": "not read"},
+        conversation="user: is it hot yet?",
+        run_summary="not read",
         expect={"asks": ["unit"], "completes": {"after": 20, "before": 40}},
     )
     result = run_virtual(evaluation.run_case(step, case, _recording(tmp_path, 120)))
@@ -519,7 +523,7 @@ def test_a_case_runs_the_real_step_on_a_scene_and_a_scripted_person(tmp_path: Pa
     (line,) = result.trace.lines
     assert (line.by, line.kind, line.answer) == ("escalator", "ask", "Fahrenheit")
     prompt = models.calls("reason")[0].prompt
-    assert "is it hot yet?" in prompt and "not read" not in prompt  # only the context it is configured with
+    assert "is it hot yet?" in prompt and "not read" not in prompt  # the conversation, not the run's summary
 
 
 def test_a_case_records_the_steps_done_line_apart_from_what_an_escalator_says(tmp_path: Path) -> None:

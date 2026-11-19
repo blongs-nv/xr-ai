@@ -1,18 +1,18 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""A scripted :class:`~..steps.step_api.StepEnvironment` and :class:`~..escalation.escalation_channel.
-EscalatorEnvironment`: a scene for the camera, a scripted person, a record of it."""
+"""A scripted :class:`~..steps.step_api.StepEnvironment` (and so an escalator's environment): a scene for the camera,
+a scripted person, a record of it."""
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping, Sequence
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from ..escalation.escalation_channel import speaker
+from ..steps.conversation import FixedConversation
+from ..steps.step_api import speaker
 from .scene import SceneFrames
 from .step_trace import Line, StepTrace
 
@@ -33,11 +33,13 @@ class ScriptedEnvironment:
     """What a step and its escalator touch in an evaluation (see the module docstring)."""
 
     def __init__(
-        self, step_id: str, scene: SceneFrames, person: Person, context: Mapping[str, str] | None = None
+        self, step_id: str, scene: SceneFrames, person: Person, *, conversation: str = "", run_summary: str = ""
     ) -> None:
         self.scene = scene
         self.person = person
-        self._context = dict(context or {})
+        self.conversation = FixedConversation(conversation)
+        """The case's conversation, fixed for the whole case."""
+        self._run_summary = run_summary
         self._answers = list(person.answers)
         self._switched = False
         self.trace = StepTrace(step_id)
@@ -62,6 +64,6 @@ class ScriptedEnvironment:
     async def report_progress(self, step_id: str, state: Any) -> None:
         self.trace.states.append((self.scene.now(), state))
 
-    async def read_context(self, sources: Sequence[str]) -> str:
-        """The case's text for each source asked for, in order (a source the case does not give is empty)."""
-        return "\n\n".join(self._context[s] for s in sources if self._context.get(s))
+    async def run_summary(self) -> str:
+        """The case's run summary (``""`` when it gives none)."""
+        return self._run_summary

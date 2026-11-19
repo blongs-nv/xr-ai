@@ -38,10 +38,14 @@ settings:
       timeout_s: 30.0
     # Each camera step's escalator (xr_ai_kit.sop.EscalationSettings): when
     # the check is stuck it asks the person or tells them what to show.
-    # `context` is what it reads besides the step: `run` (the procedure's
-    # summary) and `dialogue` (the recent conversation); [] is the step
-    # alone. It looks every `every_s` seconds and says at most `max_lines`.
+    # It reads the procedure's summary and the conversation when it decides
+    # what to say, and reads the conversation into the facts the step
+    # accepts (the kettle's unit) as the step starts and each time it
+    # changes, so what the person says reaches the check without anyone
+    # asking. It looks every `every_s` seconds and says at most `max_lines`.
     escalation:
-      context: [run, dialogue]
+      reads_run_summary: true
+      reads_conversation: true
+      learns_from_conversation: true
       every_s: 20.0
       max_lines: 2

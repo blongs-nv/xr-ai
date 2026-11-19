@@ -3,22 +3,21 @@
 
 """One run of a procedure for one participant: what the procedure function receives and what a step touches.
 
-A :class:`Run` is what a step touches (a :class:`~..steps.step_api.StepEnvironment`) and what an escalator beside
-a step touches (an :class:`~..escalation.escalation_channel.EscalatorEnvironment`); :class:`~.sop_runner.SopRunner`
-creates one per start.
+A :class:`Run` is what a step touches (a :class:`~..steps.step_api.StepEnvironment`), and so what an escalator
+beside a step touches too; :class:`~.sop_runner.SopRunner` creates one per start.
 """
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeVar
 
 from xr_ai_app import Participant, Sink
 
-from ..escalation.escalation_channel import speaker
-from ..steps.step_api import Frames, Step
+from ..steps.conversation import Conversation, FixedConversation
+from ..steps.step_api import Frames, Step, speaker
 
 T = TypeVar("T")
 
@@ -61,7 +60,9 @@ class Run:
 
     output: Sink | None = field(default=None, repr=False)
     _publish: Callable[..., Awaitable[None]] | None = field(default=None, repr=False)
-    _read_context: Callable[[Participant, Sequence[str]], Awaitable[str]] | None = field(default=None, repr=False)
+    conversation: Conversation = field(default_factory=FixedConversation, repr=False)
+    """The conversation with the person (the runner's ``conversation``; none without one)."""
+    _summary: Callable[[], str] | None = field(default=None, repr=False)
     _answer: asyncio.Future[str] | None = field(default=None, repr=False)
 
     @property
@@ -172,10 +173,9 @@ class Run:
         await self._changed("answer", question=question, answer=answer)
         return answer
 
-    async def read_context(self, sources: Sequence[str]) -> str:
-        """What is going on, for a step's escalator: ``run`` (the run's summary) and the runner's
-        ``escalation_context`` channels by name, in the order given; a name the runner does not have is an error."""
-        return await self._read_context(self.p, sources) if self._read_context is not None else ""
+    async def run_summary(self) -> str:
+        """The run as text, as the conversation sees it: its steps, their states, what was noted."""
+        return self._summary() if self._summary is not None else ""
 
     def answer(self, text: str) -> bool:
         """Give the pending question its answer; whether one was pending."""

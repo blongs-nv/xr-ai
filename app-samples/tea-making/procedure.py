@@ -65,9 +65,15 @@ class TeaSettings(BaseModel):
     watch: WatchSettings = Field(default_factory=WatchSettings)
     """How every camera step watches."""
     escalation: EscalationSettings = Field(
-        default_factory=lambda: EscalationSettings(context=["run", "dialogue"])
+        default_factory=lambda: EscalationSettings(
+            reads_run_summary=True,
+            reads_conversation=True,
+            learns_from_conversation=True,
+        )
     )
-    """How every camera step's escalator works."""
+    """How every camera step's escalator works: it reads the run's summary
+    and the conversation, and gives its step what the person says (the
+    kettle's unit) as the step starts and as the conversation grows."""
 
 
 class TeaProcedure:

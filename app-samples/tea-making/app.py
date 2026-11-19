@@ -76,9 +76,8 @@ tea = app.add(
         decide=decide,
         output=voice,
         plan=tea_procedure.plan,
-        # Channels an escalator may read, by name ("dialogue"); each
-        # escalator picks its own (settings.tea.escalation.context).
-        escalation_context=[voice.dialogue],
+        # The conversation each step and its escalator see.
+        conversation=voice.dialogue,
         description=(
             "Only explicit controls of the tea-making guide: start, stop, "
             "skip the current step, restart. Not questions about tea, the "

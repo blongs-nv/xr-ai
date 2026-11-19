@@ -21,7 +21,7 @@ class Line:
     text: str
     answer: str | None = None
     """For ``ask``: the person's answer (``None``: none came)."""
-    by: Literal["step", "escalator"] = "step"
+    by: str = "step"
     """Who said it: the step itself, or the escalator beside it."""
 
 
@@ -43,11 +43,11 @@ class StepTrace:
 
     error: str | None = None
 
-    def asked(self, by: Literal["step", "escalator"] | None = None) -> list[Line]:
+    def asked(self, by: str | None = None) -> list[Line]:
         """The questions asked (by ``by`` only, when given)."""
         return [line for line in self.lines if line.kind == "ask" and by in (None, line.by)]
 
-    def said(self, by: Literal["step", "escalator"] | None = None) -> list[Line]:
+    def said(self, by: str | None = None) -> list[Line]:
         """The things told (by ``by`` only, when given)."""
         return [line for line in self.lines if line.kind == "say" and by in (None, line.by)]
 

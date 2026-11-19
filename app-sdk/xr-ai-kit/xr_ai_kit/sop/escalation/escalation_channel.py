@@ -24,14 +24,15 @@ It talks to the person on its own, through its :class:`EscalatorEnvironment`; it
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from contextvars import ContextVar
+import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 from xr_ai_app import Frame
 
+from ..steps.conversation import Conversation
 from ..steps.step_api import Frames, StepEnvironment
 
 
@@ -81,13 +82,19 @@ class EscalationChannel:
     def __init__(self) -> None:
         self._snapshot: Callable[[], StepSnapshot] | None = None
         self._add_context: Callable[[AddedContext], None] | None = None
+        self._connected = asyncio.Event()
 
     # The step's end.
     def connect_step(self, snapshot: Callable[[], StepSnapshot], add_context: Callable[[AddedContext], None]) -> None:
         """Called by the step as it starts: how to build its snapshot, and how to add context to it."""
         self._snapshot, self._add_context = snapshot, add_context
+        self._connected.set()
 
     # The escalator's end.
+    async def step_started(self) -> None:
+        """Wait until the step has connected its end (at once if it has)."""
+        await self._connected.wait()
+
     def snapshot(self) -> StepSnapshot | None:
         """The step as of now (``None`` until the step has started)."""
         return self._snapshot() if self._snapshot is not None else None
@@ -97,17 +104,6 @@ class EscalationChannel:
         if self._add_context is None:
             raise RuntimeError("the step has not started; it takes added context once it runs")
         self._add_context(context)
-
-
-ESCALATOR_SPEAKING: ContextVar[bool] = ContextVar("escalator_speaking", default=False)
-"""True inside an escalator's own task (:class:`~.step_with_escalator.StepWithEscalator` sets it there): what is said
-or asked from that task is the escalator's, not the step's."""
-
-
-def speaker() -> Literal["step", "escalator"]:
-    """Who is speaking from the current task: an escalator beside a step, or the step (or the procedure) itself. The
-    run's record and an evaluation's trace tag each line with it."""
-    return "escalator" if ESCALATOR_SPEAKING.get() else "step"
 
 
 @runtime_checkable
@@ -139,9 +135,13 @@ class EscalatorEnvironment(Protocol):
         """Ask the person and wait for the answer; ``None`` when none came."""
         ...
 
-    async def read_context(self, sources: Sequence[str]) -> str:
-        """What is going on around the step, from ``sources`` in order (``run``: the run's summary; context
-        channels by name, such as ``dialogue``); empty when they have nothing."""
+    @property
+    def conversation(self) -> Conversation:
+        """The conversation with the person (:mod:`..steps.conversation`): its text, and its changes."""
+        ...
+
+    async def run_summary(self) -> str:
+        """The procedure's run as text: its steps, their states, what was noted (``""`` outside a run)."""
         ...
 
 

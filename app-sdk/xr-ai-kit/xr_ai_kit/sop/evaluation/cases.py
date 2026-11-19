@@ -119,9 +119,11 @@ class Case(BaseModel):
     inputs: dict[str, Any] = {}
     """The step's inputs for this case, over the file's (validated against its ``inputs_schema``)."""
     person: Person = Person()
-    context: dict[str, str] = {}
-    """The text of each context source the step's escalator may read (``run``: the run's summary, ``dialogue``:
-    the recent conversation), as the live runner would render it; the escalator reads only those it asks for."""
+    conversation: str = ""
+    """The conversation so far, one line each (``user: ...``, ``assistant: ...``), as the step and its escalator see it
+    (``environment.conversation``); fixed for the case."""
+    run_summary: str = ""
+    """The run's summary as the step and its escalator see it (``environment.run_summary()``)."""
     expect: dict[str, Any] = {}
     """Validated against the step type's ``Expect``."""
     why: str = ""
@@ -195,7 +197,9 @@ async def run_case(
     step_inputs = inputs_for(step, case.inputs if inputs is None else inputs)
     expect = scoring.Expect.model_validate(case.expect)
     scene = SceneFrames(recording, case.scene)
-    environment = ScriptedEnvironment(step.id, scene, case.person, case.context)
+    environment = ScriptedEnvironment(
+        step.id, scene, case.person, conversation=case.conversation, run_summary=case.run_summary
+    )
     began = time.monotonic()
     scene.begin()
     task = asyncio.ensure_future(step.run(environment, step_inputs))

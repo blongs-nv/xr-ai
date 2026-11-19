@@ -16,6 +16,12 @@ is known (:func:`decide_escalation`) and infers what is missing and whether the 
 question, whose answer is added to the step's context) or by doing something, such as bringing the kettle back into
 view (an instruction, spoken only). It sees no frames: the step already looked.
 
+What the person says comes first. With ``learns_from_conversation``, it reads the conversation
+(``environment.conversation``) into the step's facts as the step starts and again each time it changes
+(:func:`read_facts_from_conversation`), stuck or not: a unit said when the target was announced, or volunteered while
+the kettle heats, reaches the step without anyone asking, and the step decides with it before the escalator says
+anything.
+
 Its prompt is per step: its words (:class:`EscalationWords`) give the guidance and may replace the closing
 ``instructions`` or the whole ``prompt`` (:data:`PROMPT`, a template).
 """
@@ -23,9 +29,11 @@ Its prompt is per step: its words (:class:`EscalationWords`) give the guidance a
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import json
 from collections.abc import Sequence
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from xr_ai_app import Role, StructuredOutputError, clock
@@ -130,6 +138,42 @@ async def decide_escalation(
     return EscalationMessage(decision.action, said)
 
 
+CONVERSATION_READING = (
+    "The conversation so far (user: the person; assistant: the assistant):\n{conversation}\n\n"
+    "Fill in only what the person has stated about their own situation, and leave everything else null. The "
+    "assistant's words state nothing; neither do the person's questions, guesses, what-ifs or talk of other things."
+)
+"""How the conversation is read into a step's facts (``{conversation}`` is filled in)."""
+
+
+async def read_facts_from_conversation(
+    facts_schema: type[BaseModel], reader: Role, conversation: str
+) -> BaseModel | None:
+    """The facts the person stated in ``conversation`` (its text so far), read into ``facts_schema``: read twice
+    at once, and only the facts both reads agree on; ``None`` when either reply is unreadable. Asks nobody: an
+    evaluation calls it on a recorded conversation.
+
+    A conversation is read again on every change, and a fact once given stays, so a rare stray fill (the assistant's
+    "80 degrees Celsius" taken as the person's unit) would add up over a step; two reads agreeing make it rarer
+    still, at no cost in time.
+    """
+    prompt = CONVERSATION_READING.format(conversation=conversation)
+    try:
+        first, second = await asyncio.gather(
+            reader.ask(None, prompt, response_format=facts_schema),
+            reader.ask(None, prompt, response_format=facts_schema),
+        )
+    except (StructuredOutputError, TimeoutError):
+        return None
+    other = second.model_dump(mode="json", exclude_none=True)
+    agreed = {
+        name: value
+        for name, value in first.model_dump(mode="json", exclude_none=True).items()
+        if other.get(name) == value
+    }
+    return facts_schema.model_validate(agreed)
+
+
 class EscalationWords(BaseModel):
     """An escalator's words for one step (a step folder's ``escalation.yaml``): its ``guidance``, and optionally this
     step's own closing ``instructions`` or whole ``prompt``."""
@@ -147,10 +191,14 @@ class EscalationSettings(BaseModel):
     """How one escalator works (an app's settings may embed this, per step or for all)."""
 
     model_config = ConfigDict(extra="forbid")
-    context: list[str] = []
-    """What it reads besides the step's snapshot, in order: ``run`` (the run's summary: plan, steps' states,
-    noted values) and the names of the runner's ``escalation_context`` channels (``dialogue``). Empty: the step
-    alone."""
+    reads_run_summary: bool = False
+    """Whether it reads the run's summary (the plan, the steps' states, noted values) besides the step's snapshot."""
+    reads_conversation: bool = False
+    """Whether it reads the conversation with the person when it decides what to say (the person may already have
+    said what it would ask)."""
+    learns_from_conversation: bool = False
+    """Whether it reads the conversation into the step's facts as the step starts and on each change: what the person
+    says reaches the step without anyone asking. Only for a step that accepts facts (a ``facts_schema``)."""
     every_s: float = 20.0
     """How often it looks at the step's evidence."""
     max_lines: int = 2
@@ -187,29 +235,49 @@ class ReasoningEscalator:
         self.settings = settings or EscalationSettings()
 
     async def describe_situation(self, step: StepSnapshot, environment: EscalatorEnvironment) -> str:
-        """What it reads about what is going on: how long the step has run, then its ``context``."""
+        """What it reads about what is going on: how long the step has run, then the run's summary and the
+        conversation, as its settings say."""
         lines = [f"The step '{step.step_id}' has been running for {clock.now() - step.started_s:.0f} s."]
-        if self.settings.context and (around := await environment.read_context(self.settings.context)):
-            lines.append(around)
+        if self.settings.reads_run_summary and (summary := await environment.run_summary()):
+            lines.append(summary)
+        if self.settings.reads_conversation and (said := await environment.conversation.text()):
+            lines.append(f"The conversation so far:\n{said}")
         return "\n".join(lines)
 
     async def run(self, channel: EscalationChannel, environment: EscalatorEnvironment) -> None:
-        """Run until cancelled: every ``every_s`` seconds, if the step is stuck, judge what to say; pass answers on.
+        """Run until cancelled, two things side by side once the step has started:
 
-        At most ``max_lines`` lines, never the same one twice, at least ``min_gap_s`` apart. A question is asked
-        with ``environment.ask`` and its answer added to the step's context; an instruction is spoken with
-        ``environment.say``.
+        - with ``learns_from_conversation``, read the conversation into the step's facts at once, and again each
+          time it changes;
+        - every ``every_s`` seconds, if the step is stuck, judge what to say, and pass answers on. At most
+          ``max_lines`` lines, never the same one twice, at least ``min_gap_s`` apart. A question is asked with
+          ``environment.ask`` and its answer added to the step's context; an instruction is spoken with
+          ``environment.say``. While the conversation is being read, or just after it gave the step something new, it
+          says nothing: the step decides with that first.
         """
+        await channel.step_started()
+        learning = _Learning()
+        async with asyncio.TaskGroup() as both:
+            both.create_task(self._follow_conversation(channel, environment, learning))
+            both.create_task(self._help_when_stuck(channel, environment, learning))
+
+    async def _help_when_stuck(
+        self, channel: EscalationChannel, environment: EscalatorEnvironment, learning: _Learning
+    ) -> None:
         settings = self.settings
         asked: list[str] = []
         last_said: float | None = None
+        given = learning.given
         while len(asked) < settings.max_lines:
             await asyncio.sleep(settings.every_s)
-            if last_said is not None and clock.now() - last_said < settings.min_gap_s:
-                continue
             step = channel.snapshot()
             if step is None or not is_stuck(step.evidence, settings.stuck):
-                continue  # not started, or deciding: nothing is missing
+                continue  # deciding: nothing is missing
+            if learning.reading or learning.given != given:
+                given = learning.given
+                continue  # the step is about to know more, or just did: it decides with that first
+            if last_said is not None and clock.now() - last_said < settings.min_gap_s:
+                continue
             message = await decide_escalation(
                 step,
                 self.reason,
@@ -234,7 +302,56 @@ class ReasoningEscalator:
                 channel.add_context(AddedContext(f'Asked the person: "{question}" No answer came.'))
                 continue
             facts = await _read_answer(step.facts_schema, self.answer_reader, question, answer)
+            learning.know(facts)
             channel.add_context(AddedContext(f'Asked the person: "{question}" They answered: "{answer}"', facts))
+            given = learning.given
+
+    async def _follow_conversation(
+        self, channel: EscalationChannel, environment: EscalatorEnvironment, learning: _Learning
+    ) -> None:
+        """Read the conversation into the step's facts now and after each change; add only what the step has not
+        been given. Nothing to follow without ``learns_from_conversation`` or a step that accepts facts."""
+        step = channel.snapshot()
+        if not self.settings.learns_from_conversation or step is None or step.facts_schema is None:
+            return
+        conversation = environment.conversation
+        last_read = ""
+        async with contextlib.aclosing(conversation.changes()) as changes:
+            async for _ in changes:
+                said = await conversation.text()
+                if not said or said == last_read:
+                    continue
+                last_read = said
+                learning.reading = True
+                try:
+                    facts = await read_facts_from_conversation(step.facts_schema, self.answer_reader, said)
+                finally:
+                    learning.reading = False
+                if stated := learning.new_in(facts):
+                    learning.know(facts)
+                    channel.add_context(AddedContext(f"From the conversation so far: {json.dumps(stated)}", facts))
+
+
+@dataclass(slots=True)
+class _Learning:
+    """What one run of an escalator has given its step, shared by its two loops."""
+
+    facts: dict[str, Any] = field(default_factory=dict)
+    """The typed facts given so far, by field (from answers and from the conversation)."""
+    given: int = 0
+    """How many times new facts were given."""
+    reading: bool = False
+    """Whether the conversation is being read now."""
+
+    def new_in(self, facts: BaseModel | None) -> dict[str, Any]:
+        """The facts ``facts`` states (all of them) if any of them is new; empty otherwise."""
+        stated = facts.model_dump(mode="json", exclude_none=True) if facts is not None else {}
+        return stated if any(self.facts.get(name) != value for name, value in stated.items()) else {}
+
+    def know(self, facts: BaseModel | None) -> None:
+        if stated := self.new_in(facts):
+            self.facts.update(stated)
+            self.given += 1
 
 
 async def _read_answer(

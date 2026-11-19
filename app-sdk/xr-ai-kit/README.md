@@ -62,7 +62,8 @@ async def make_tea(run: Run) -> None:
 
 steps = (fill_water, steep)
 tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier,
-                        plan=[(step.id, step.words.does) for step in steps]))
+                        plan=[(step.id, step.words.does) for step in steps],
+                        conversation=voice.dialogue))   # what each step and its escalator see
 # tea.control is a router destination (start, stop, skip, restart; anything else passes on);
 # tea.context is the run's summary, for a Conversation's context=.
 ```
@@ -71,7 +72,9 @@ tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier
   any object with `id`, `inputs_schema` (a pydantic model of what each run
   starts with, or `None`), `start_line(inputs)`, `done_line(inputs, result)`
   and `run(environment, inputs)`. Its `StepEnvironment` gives it the camera,
-  speaking to the person, asking them something, and reporting its progress.
+  speaking to the person, asking them something, reporting its progress, the
+  conversation with the person (`environment.conversation`: its `text()` and
+  its `changes()`), and the run's summary (`environment.run_summary()`).
   The kit's step types are built from the step's id, its words (each type
   defines a words schema, such as `WatchWords`; `load_words` reads one from
   YAML, and a misspelled key fails when it is loaded), the models it uses,
@@ -100,18 +103,21 @@ tea = app.add(SopRunner("tea", make_tea, title="Tea guidance", decide=classifier
   `ReasoningEscalator` reasons in text over the evidence and asks the person
   or tells them what to bring into view, with a prompt each step may replace
   (its words, `EscalationWords`: `guidance`, and optionally `instructions` or
-  the whole `prompt`); another could send the frame behind the evidence to a
-  model of its own. A step type supports escalation by implementing
+  the whole `prompt`), and gives the step what the person says in the
+  conversation; another could send the frame behind the evidence to a model
+  of its own. A step type supports escalation by implementing
   `run_with_escalation(environment, channel)`; the watch step does.
 - `SopRunner` owns the run: each step is its own task, so skip cancels only
   the step and stop cancels the run; a new turn never cancels either. Every
   change is traced, written to the participant's artifacts (`sop-<name>.jsonl`)
   when the app has an artifacts folder, and summarized in `runner.context`.
-  An escalator reads the channels named in `escalation_context` (the
-  dialogue) and the run's summary, as its settings choose.
+  The runner gives each step the app's conversation
+  (`SopRunner(conversation=voice.dialogue)`) and the run's summary.
 - `xr_ai_kit.sop.evaluation` runs one step at a time on a recorded scene and
   a scripted person, scored by the step type's own scoring module (and the
-  escalator's, for an escalated step); it runs the step that ships.
+  escalator's, for an escalated step); it runs the step that ships. A
+  case gives the conversation and the run's summary as fixed text
+  (`conversation:`, `run_summary:`).
 
 ## Routing helpers
 

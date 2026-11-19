@@ -18,4 +18,5 @@ answer_with_reasoning:
   by_prompt:
     - ["Fill in conventional brewing settings", {output: {water_temperature: {value: 80, unit: celsius}, steep_time: {minimum_minutes: 2, maximum_minutes: 2}}}]
     - ["what is the check missing", {missing: the unit, action: ask, words: "Does the display show Celsius or Fahrenheit?"}]
+    - ["The conversation so far", {unit: fahrenheit}]
   otherwise: You're on reading the label; next, fill the kettle with water.

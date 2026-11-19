@@ -16,7 +16,7 @@ its own lines.
   -------------------------------   ----------------------------------------
   SopRunner (component)             preflight(run): the steps and their order
   WatchStep, WaitStep (steps)       sop.yaml: the steps' words
-  StepWithEscalator,                what each escalator reads (ESCALATION)
+  StepWithEscalator,                 what each escalator reads (ESCALATION)
     ReasoningEscalator              the models each step uses
   controls: start | stop |
     skip | restart
@@ -64,8 +64,8 @@ CAMERA_CHECK_MODELS = WatchModels(perceive=perceive, decide=decide)
 WATCH = WatchSettings(required=2, window=3, interval_s=1.0)
 # Each camera step gets its own escalator: when the camera cannot tell, it
 # tells the user what to show, or asks them. Each reads what it needs:
-# here the checklist's state ("run") and the recent dialogue.
-ESCALATION = EscalationSettings(context=["run", "dialogue"])
+# here the checklist's state (the run's summary) and the conversation.
+ESCALATION = EscalationSettings(reads_run_summary=True, reads_conversation=True)
 
 bed_clear = StepWithEscalator(
     WatchStep(
@@ -117,7 +117,7 @@ procedure = app.add(
         output=voice,
         # the steps ahead, for the conversation
         plan=[(step.id, step.words.does) for step in STEPS],
-        escalation_context=[voice.dialogue],  # what escalators may read
+        conversation=voice.dialogue,  # what each step and its escalator see
     )
 )
 # Spoken answers; the checklist's state (in the context) is the only source

@@ -228,6 +228,7 @@
         "AddedContext",
         "CONTROLS",
         "Check",
+        "Conversation",
         "Criteria",
         "EscalationChannel",
         "EscalationMessage",
@@ -237,6 +238,7 @@
         "EscalatorEnvironment",
         "Evidence",
         "Facts",
+        "FixedConversation",
         "Frames",
         "Judgment",
         "LABELS",
@@ -278,6 +280,7 @@
         "is_stuck",
         "judge",
         "load_words",
+        "read_facts_from_conversation",
         "read_until_enough",
         "timer",
         "verify"
@@ -297,7 +300,6 @@
       "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/escalation/__init__.py",
       "all": [
         "AddedContext",
-        "ESCALATOR_SPEAKING",
         "EscalationChannel",
         "EscalationMessage",
         "EscalationSettings",
@@ -314,7 +316,7 @@
         "SupportsEscalation",
         "decide_escalation",
         "is_stuck",
-        "speaker"
+        "read_facts_from_conversation"
       ]
     },
     "xr_ai_kit.sop.evaluation": {
@@ -409,14 +411,18 @@
     "xr_ai_kit.sop.steps": {
       "path": "app-sdk/xr-ai-kit/xr_ai_kit/sop/steps/__init__.py",
       "all": [
+        "Conversation",
+        "FixedConversation",
         "Frames",
+        "SPEAKER",
         "Step",
         "StepEnvironment",
         "StepWords",
         "check_inputs",
         "check_placeholders",
         "fill_placeholders",
-        "load_words"
+        "load_words",
+        "speaker"
       ]
     },
     "xr_ai_launcher": {

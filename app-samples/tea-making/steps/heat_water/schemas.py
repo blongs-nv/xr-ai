@@ -36,7 +36,8 @@ class HeatWaterInputs(BaseModel):
 
 class DisplayFacts(BaseModel):
     """What the heating check may need to know that a display may not show:
-    learned from the person when the check gets stuck (its escalator asks)."""
+    from what the person says (its escalator reads the dialogue as the step
+    starts and as it grows), or asked when the check gets stuck."""
 
     model_config = ConfigDict(extra="ignore")
     unit: Literal["celsius", "fahrenheit"] | None = Field(

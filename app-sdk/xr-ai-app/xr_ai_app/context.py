@@ -20,14 +20,15 @@ its ``summarize`` role, in the background (``publish`` never waits). Without a `
 entries are dropped instead.
 
 A model sees exactly the channels a component lists (``xr_ai_kit.Conversation(context=[...])``); :func:`render`
-is how.
+is how. A component that reacts to new text (an escalator that learns from the dialogue) follows
+:func:`changes`: ``async for _ in dialogue.changes(p):``.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
@@ -107,6 +108,18 @@ class _Channel:
     def _budget_for(self, budget_bytes: int | None) -> int:
         return self._budget if budget_bytes is None else min(budget_bytes, self._budget)
 
+    def changes(self, p: Participant | None) -> AsyncIterator[None]:
+        """This channel's :func:`changes`: ``async for _ in channel.changes(p):`` runs now, then after each
+        ``set``, ``publish`` or ``clear``."""
+        return changes(p, [self])
+
+    def _watchers(self, p: Participant | None) -> set[asyncio.Event]:
+        return self._store(p).setdefault("watchers", set())
+
+    def _notify(self, p: Participant | None) -> None:
+        for watcher in self._watchers(p):
+            watcher.set()
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self._name!r}, scope={self._scope!r})"
 
@@ -119,10 +132,12 @@ class ContextValue(_Channel):
         text = clip(text.strip(), self._budget)
         self._store(p)["text"] = text
         trace.emit("context", self._name, op="set", bytes=len(text.encode()))
+        self._notify(p)
 
     async def clear(self, p: Participant | None) -> None:
         self._store(p).pop("text", None)
         trace.emit("context", self._name, op="clear")
+        self._notify(p)
 
     async def view(self, p: Participant | None, *, budget_bytes: int | None = None) -> str:
         """The text, at most ``budget_bytes`` (never more than the channel's budget); ``""`` when unset."""
@@ -164,6 +179,7 @@ class ContextLog(_Channel):
         log.entries.append(text)
         trace.emit("context", self._name, op="publish", bytes=len(text.encode()))
         self._compact(log)
+        self._notify(p)
 
     def entries(self, p: Participant | None) -> list[str]:
         """The entries kept word for word, oldest first (a copy)."""
@@ -178,6 +194,7 @@ class ContextLog(_Channel):
             log.folding.cancel()
         self._store(p)["log"] = _Log()
         trace.emit("context", self._name, op="clear")
+        self._notify(p)
 
     async def view(self, p: Participant | None, *, budget_bytes: int | None = None) -> str:
         """The summary (if any), then the newest entries that fit in ``budget_bytes``."""
@@ -255,3 +272,23 @@ async def render(p: Participant | None, channels: Sequence[ContextChannel], *, b
         if text.strip():
             parts.append(f"## {channel.name}\n{text.strip()}")
     return "\n\n".join(parts)
+
+
+async def changes(p: Participant | None, channels: Sequence[ContextChannel]) -> AsyncIterator[None]:
+    """Yield now, then after each change to any of ``channels`` for ``p``: ``async for _ in changes(p, [...]):``.
+
+    Changes that come while the loop body runs are folded into one more turn, never lost. A channel that is not a
+    :class:`ContextValue` or :class:`ContextLog` (a component's own view) yields no changes.
+    """
+    changed = asyncio.Event()
+    watched = [channel for channel in channels if isinstance(channel, _Channel)]
+    for channel in watched:
+        channel._watchers(p).add(changed)
+    try:
+        while True:
+            yield
+            await changed.wait()
+            changed.clear()
+    finally:
+        for channel in watched:
+            channel._watchers(p).discard(changed)

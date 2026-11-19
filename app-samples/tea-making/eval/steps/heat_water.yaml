@@ -3,8 +3,9 @@
 
 # Heating the water to 80 C: 176 on this kettle's display, which prints no
 # unit (Fahrenheit), so the step can judge a reading only once the person
-# has said the unit (its escalator asks). Scenes are times in
-# recordings/green-tea-04.yaml.
+# has said the unit: in the conversation before or during the step (its
+# escalator reads the conversation), or when its escalator asks. Scenes are
+# times in recordings/green-tea-04.yaml.
 step: heat_water
 inputs: {target: {value: 80, unit: celsius}}
 cases:
@@ -32,6 +33,30 @@ cases:
     scene: [290, 346]
     person: {answers: [Fahrenheit]}
     expect: {asks: [unit, celsius, fahrenheit], completes: {after: 330}}
+
+  # The person said the unit when the target was announced: the step has it
+  # from the start, so nobody asks.
+  - name: unit_said_earlier
+    scene: [290, 346]
+    conversation: |-
+      user: let's make tea
+      assistant: I read Bigelow Green Tea.
+      assistant: I'll brew it at 80 degrees Celsius for 3 minutes.
+      assistant: There's water in the kettle.
+      assistant: Heat the water to 80 degrees Celsius, and keep the kettle's display in view.
+      user: heads up, my kettle shows Fahrenheit
+    expect: {quiet: true, completes: {after: 330}}
+
+  # The person asked about Fahrenheit but never said what the kettle shows:
+  # that is no unit, so the escalator still asks.
+  - name: unit_only_talked_about
+    scene: [26, 130]
+    conversation: |-
+      assistant: I'll brew it at 80 degrees Celsius for 3 minutes.
+      assistant: Heat the water to 80 degrees Celsius, and keep the kettle's display in view.
+      user: what's that in Fahrenheit?
+      assistant: 80 degrees Celsius is 176 degrees Fahrenheit.
+    expect: {asks: [unit, celsius, fahrenheit], completes: false}
 
   # Heating in view, then the person looks away for a minute (the packet
   # close up, then opening the tea bag). The escalator first asks the unit

@@ -31,12 +31,25 @@ from __future__ import annotations
 import re
 import string
 from collections.abc import AsyncIterator, Iterator, Mapping
+from contextvars import ContextVar
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
 from pydantic import BaseModel
 from xr_ai_app import Frame
 
+from .conversation import Conversation
+
 T_co = TypeVar("T_co", covariant=True)
+
+SPEAKER: ContextVar[str] = ContextVar("speaker", default="step")
+"""Who is speaking from the current task: ``step`` (the step, or the procedure), or whatever runs beside a step in its
+own task and sets it there (the escalator sets ``escalator``)."""
+
+
+def speaker() -> str:
+    """Who is speaking from the current task (:data:`SPEAKER`). The run's record and an evaluation's trace tag each
+    line with it."""
+    return SPEAKER.get()
 
 
 class Frames(Protocol):
@@ -65,6 +78,15 @@ class StepEnvironment(Protocol):
 
     async def report_progress(self, step_id: str, state: Any) -> None:
         """Record the step's latest state (its ``summary()``, if it has one), for the conversation and the record."""
+        ...
+
+    @property
+    def conversation(self) -> Conversation:
+        """The conversation with the person (:mod:`.conversation`)."""
+        ...
+
+    async def run_summary(self) -> str:
+        """The procedure's run as text: its steps, their states, what was noted (``""`` outside a run)."""
         ...
 
 

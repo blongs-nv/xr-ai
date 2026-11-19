@@ -17,9 +17,8 @@ from typing import Any
 
 from xr_ai_app import trace
 
-from ..steps.step_api import StepEnvironment
+from ..steps.step_api import SPEAKER, StepEnvironment
 from .escalation_channel import (
-    ESCALATOR_SPEAKING,
     EscalationChannel,
     Escalator,
     EscalatorEnvironment,
@@ -76,7 +75,7 @@ class StepWithEscalator:
                 await escalation
 
     async def _escalate(self, channel: EscalationChannel, environment: EscalatorEnvironment) -> None:
-        ESCALATOR_SPEAKING.set(True)  # this task's own context: what it says is the escalator's
+        SPEAKER.set("escalator")  # this task's own context: what it says is the escalator's
         try:
             await self.escalator.run(channel, environment)
         except Exception as exc:  # noqa: BLE001 - the escalation never fails the step

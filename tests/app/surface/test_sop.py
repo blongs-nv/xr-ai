@@ -32,6 +32,7 @@ from xr_ai_kit.sop import (
     WatchModels,
     decide_escalation,
     judge,
+    read_facts_from_conversation,
     read_until_enough,
     timer,
     verify,
@@ -219,12 +220,35 @@ def _reports(*labels: str) -> list[Judgment]:
 UNIT_GUIDANCE = "Some displays print no unit; the person knows which unit theirs uses."
 
 
-class _Environment:
-    """An escalator's EscalatorEnvironment: the person, and what is going on."""
+class _Conversation:
+    """A conversation that changes when told to (``say``), as the app's dialogue does."""
 
-    def __init__(self, *, ask=None, say=None, context: dict[str, str] | None = None) -> None:
-        self._ask, self._say, self._context = ask, say, context or {}
-        self.sources: list[list[str]] = []
+    def __init__(self, text: str = "") -> None:
+        self._text = text
+        self._changed = asyncio.Event()
+
+    def say(self, line: str) -> None:
+        self._text = f"{self._text}\n{line}".strip()
+        self._changed.set()
+        self._changed = asyncio.Event()
+
+    async def text(self) -> str:
+        return self._text
+
+    async def changes(self):
+        while True:
+            changed = self._changed
+            yield
+            await changed.wait()
+
+
+class _Environment:
+    """An escalator's EscalatorEnvironment: the person, the conversation and the run's summary."""
+
+    def __init__(self, *, ask=None, say=None, conversation: str = "", run_summary: str = "") -> None:
+        self._ask, self._say, self._run_summary = ask, say, run_summary
+        self.conversation = _Conversation(conversation)
+        self.frames = None
 
     async def ask(self, question: str) -> str | None:
         return await self._ask(question)
@@ -232,9 +256,8 @@ class _Environment:
     async def say(self, text: str) -> None:
         await self._say(text)
 
-    async def read_context(self, sources) -> str:
-        self.sources.append(list(sources))
-        return "\n\n".join(self._context[s] for s in sources if s in self._context)
+    async def run_summary(self) -> str:
+        return self._run_summary
 
 
 def _channel(context: StepContext, labels: tuple[str, ...]) -> EscalationChannel:
@@ -322,22 +345,128 @@ async def test_an_escalator_stays_quiet_while_the_check_still_decides() -> None:
     assert models.calls("reviewer") == []  # a stray unknown is noise: no model call at all
 
 
-async def test_each_escalator_reads_only_the_context_it_is_configured_with() -> None:
+async def test_each_escalator_reads_the_run_summary_and_the_conversation_only_when_its_settings_say() -> None:
     labels = ("unknown", "unknown", "unknown", "unknown")
-    io_context = {"run": "Tea guidance (run 1): running.", "dialogue": "## dialogue\nuser: it's in Fahrenheit"}
     prompts = {}
-    for sources in ([], ["dialogue"], ["run", "dialogue"]):
+    for reads in ((False, False), (False, True), (True, True)):
         models = FakeModels({"reviewer": [{"action": "tell", "words": "Show me the kettle."}]})
-        escalator = _escalator(models.role("reviewer"), max_lines=1, context=sources)
-        environment = _Environment(say=lambda text: asyncio.sleep(0), context=io_context)
+        settings = {"reads_run_summary": reads[0], "reads_conversation": reads[1]}
+        escalator = _escalator(models.role("reviewer"), max_lines=1, **settings)
+        environment = _Environment(
+            say=lambda text: asyncio.sleep(0),
+            conversation="user: it's in Fahrenheit",
+            run_summary="Tea guidance (run 1): running.",
+        )
         await asyncio.wait_for(escalator.run(_channel(StepContext(), labels), environment), 2)
-        prompts[tuple(sources)] = models.calls("reviewer")[0].prompt
-        assert environment.sources == ([list(sources)] if sources else [])
-    assert "Fahrenheit" not in prompts[()] and "run 1" not in prompts[()]
-    assert "Fahrenheit" in prompts[("dialogue",)] and "run 1" not in prompts[("dialogue",)]
-    both = prompts[("run", "dialogue")]
+        prompts[reads] = models.calls("reviewer")[0].prompt
+    assert "Fahrenheit" not in prompts[(False, False)] and "run 1" not in prompts[(False, False)]
+    assert "Fahrenheit" in prompts[(False, True)] and "run 1" not in prompts[(False, True)]
+    both = prompts[(True, True)]
     assert "The step 'heat' has been running for" in both
-    assert both.index("run 1") < both.index("Fahrenheit")  # in the order configured
+    assert both.index("run 1") < both.index("Fahrenheit")  # the run's summary, then the conversation
+
+
+async def _until_true(condition, timeout_s: float = 2.0) -> None:
+    for _ in range(int(timeout_s / 0.01)):
+        if condition():
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError("timed out")
+
+
+async def test_an_escalator_gives_the_step_what_the_person_already_said_as_it_starts() -> None:
+    models = FakeModels({"reviewer": [], "reader": [{"unit": "fahrenheit"}] * 2})  # read twice, agreeing
+    context = StepContext()
+    dialogue = "assistant: Heat the water to 80 degrees Celsius.\nuser: my kettle shows Fahrenheit"
+    escalator = _escalator(models.role("reviewer"), answer_reader=models.role("reader"), learns_from_conversation=True)
+    side = asyncio.ensure_future(
+        escalator.run(_channel(context, ("negative", "negative")), _Environment(conversation=dialogue))
+    )
+    await _until_true(lambda: context.facts.known is not None)
+    side.cancel()
+    assert context.facts.known == Display(unit="fahrenheit")
+    assert "From the conversation so far" in context.facts.text()
+    assert "my kettle shows Fahrenheit" in models.calls("reader")[0].prompt
+    assert models.calls("reviewer") == []  # nobody was asked anything
+
+
+async def test_an_escalator_reads_the_conversation_again_each_time_it_changes_and_only_then() -> None:
+    models = FakeModels({"reviewer": [], "reader": [{"unit": None}] * 2 + [{"unit": "fahrenheit"}] * 2})
+    context = StepContext()
+    environment = _Environment(conversation="user: okay")
+    escalator = _escalator(models.role("reviewer"), answer_reader=models.role("reader"), learns_from_conversation=True)
+    side = asyncio.ensure_future(escalator.run(_channel(context, ("negative", "negative")), environment))
+    await _until_true(lambda: len(models.calls("reader")) == 2)
+    await asyncio.sleep(0.05)
+    assert len(models.calls("reader")) == 2 and context.facts.known is None  # unchanged: not read again
+    environment.conversation.say("user: by the way, it's in Fahrenheit")
+    await _until_true(lambda: context.facts.known is not None)
+    side.cancel()
+    assert context.facts.known == Display(unit="fahrenheit")
+    assert len(models.calls("reader")) == 4
+
+
+async def test_a_fact_read_from_the_conversation_counts_only_when_both_reads_agree() -> None:
+    models = FakeModels({"reader": [{"unit": "celsius"}, {"unit": None}]})
+    said = "assistant: Heat it to 80 degrees Celsius.\nuser: okay"
+    disagreed = await read_facts_from_conversation(Display, models.role("reader"), said)
+    assert disagreed == Display()  # one stray read gives the step nothing
+    models = FakeModels({"reader": [{"unit": "fahrenheit"}, {"unit": "fahrenheit"}]})
+    agreed = await read_facts_from_conversation(Display, models.role("reader"), "user: my kettle shows Fahrenheit")
+    assert agreed == Display(unit="fahrenheit")
+    assert "user: my kettle shows Fahrenheit" in models.calls("reader")[0].prompt
+
+
+async def test_a_stuck_step_learning_from_the_conversation_decides_with_it_before_the_escalator_speaks() -> None:
+    reader_reply: asyncio.Future = asyncio.get_running_loop().create_future()
+    models = FakeModels(
+        {"reviewer": [{"action": "ask", "words": "Which unit?"}], "reader": [{"unit": "fahrenheit"}] * 2}
+    )
+    reader = models.role("reader")
+    real_ask = reader.ask
+
+    async def slow_ask(*args, **kwargs):
+        await reader_reply  # the history is still being read
+        return await real_ask(*args, **kwargs)
+
+    reader.ask = slow_ask  # type: ignore[method-assign]
+    context = StepContext()
+    environment = _Environment(conversation="user: it's Fahrenheit", ask=lambda q: None)
+    escalator = _escalator(models.role("reviewer"), answer_reader=reader, learns_from_conversation=True)
+    labels = ("unknown", "unknown", "unknown", "unknown")
+    side = asyncio.ensure_future(escalator.run(_channel(context, labels), environment))
+    await asyncio.sleep(0.1)  # stuck for ten checks while the history is read
+    assert models.calls("reviewer") == []
+    reader_reply.set_result(None)
+    await _until_true(lambda: context.facts.known is not None)
+    await asyncio.sleep(0.005)
+    side.cancel()
+    assert context.facts.known == Display(unit="fahrenheit")
+
+
+async def test_a_run_gives_its_steps_the_conversation_and_its_summary() -> None:
+    from xr_ai_app import ContextLog  # noqa: PLC0415
+
+    dialogue = ContextLog("dialogue", scope="participant", budget_bytes=500)
+    runner = SopRunner(
+        "tea", lambda run: asyncio.sleep(0), title="Tea", decide=FakeModels({}).role("d"), conversation=dialogue
+    )
+    p = Participant("p")
+    await runner.assume(p, Run(p, 1))
+    run = runner.run(p)
+    assert run is not None
+    changes = run.conversation.changes()
+    await asyncio.wait_for(anext(changes), 1)  # at once
+    following = asyncio.ensure_future(anext(changes))
+    await asyncio.sleep(0)
+    assert not following.done()
+    await dialogue.publish(p, "user: it's in Fahrenheit")
+    await asyncio.wait_for(following, 1)  # after the new line
+    await changes.aclose()
+    assert await run.conversation.text() == "user: it's in Fahrenheit"
+    assert (await run.run_summary()).startswith("Tea (run 1): running.")
+    alone = Run(p, 2)  # outside a runner: no conversation, no summary
+    assert await alone.conversation.text() == "" and await alone.run_summary() == ""
 
 
 async def test_without_guidance_there_is_no_escalation() -> None:

@@ -32,7 +32,7 @@ Voice -> Router (Clef)
 | identify | `ReadStep`: read the package frame after frame (`TeaPackageLook`: is a package in view, its words, then each value with the words it comes from, and brewing directions only when printed), into a `Tea` merged across frames | a kind of tea is read |
 | choose_settings | `TransformStep`: fill in the brewing settings the package does not print, keeping what it does; asks the person what tea it is when nothing was read | both settings are set; it cannot be skipped |
 | fill_water | `WatchStep` | water is seen in the kettle in 2 of the last 4 decidable frames |
-| heat_water | `WatchStep` that describes the display in a schema (`DisplayCaption`: is a lit display in view, what it is on, its characters, the digits, whether a unit letter is printed) and judges it in code (`reached_target`) | the digits reach the target, in a unit printed or said by the person when its escalator asks |
+| heat_water | `WatchStep` that describes the display in a schema (`DisplayCaption`: is a lit display in view, what it is on, its characters, the digits, whether a unit letter is printed) and judges it in code (`reached_target`) | the digits reach the target, in a unit printed or said by the person (in the conversation, or when its escalator asks) |
 | start_steeping | `WatchStep` | a real tea bag touches real water (not packaging art) |
 | steep | `WaitStep` | the steeping time has passed (the middle of a range); it starts after the tea goes in, or when that check is skipped |
 
@@ -43,13 +43,17 @@ with the target (positive, negative or unknown); unknowns take
 no slot, so an obscured view neither confirms nor resets it. Beside each
 camera step runs its **escalator** (`StepWithEscalator`), an agent of its
 own that shares only an escalation channel with the step: it reads a
-snapshot of the step (its task, its latest evidence, what it knows) and,
-when the evidence is mostly unknown, asks the person for what is missing
-(the kettle's unit; the answer is added to the step's context, which the
-check reads) or tells them what to bring into view. It never completes a
-step. What every escalator reads besides its step (`context`: the
-procedure's summary `run`, the recent `dialogue`, or neither) and how often
-it may speak are app.yaml's `settings.tea.escalation`.
+snapshot of the step (its task, its latest evidence, what it knows). As the step starts, and each time the
+conversation changes, it reads what the person has said into the facts
+the step accepts (`learns_from_conversation`: the kettle's unit, said when
+the target was announced or while the water heats), so the check has it
+without anyone asking. When the evidence is mostly unknown, it asks the
+person for what is missing (the answer is added to the step's context,
+which the check reads) or tells them what to bring into view. It never
+completes a step. Whether every escalator reads the run's summary and the
+conversation, whether it learns from the conversation, and how often it
+may speak are app.yaml's `settings.tea.escalation`; the conversation is
+`SopRunner(conversation=voice.dialogue)` in app.py.
 
 ```text
 procedure.py      make_tea (the order of the steps, what passes between them); TeaProcedure builds them

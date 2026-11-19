@@ -62,6 +62,7 @@ from .escalation import (
     SupportsEscalation,
     decide_escalation,
     is_stuck,
+    read_facts_from_conversation,
 )
 from .runner import CONTROLS, MESSAGES, Run, SopRunner, StepRecord
 from .step_types.read import ReadSettings, ReadState, ReadStep, ReadWords, read_until_enough
@@ -85,6 +86,8 @@ from .step_types.watch import (
     verify,
 )
 from .steps import (
+    Conversation,
+    FixedConversation,
     Frames,
     Step,
     StepEnvironment,
@@ -99,6 +102,7 @@ __all__ = [
     "CONTROLS",
     "AddedContext",
     "Check",
+    "Conversation",
     "Criteria",
     "EscalationChannel",
     "EscalationMessage",
@@ -108,6 +112,7 @@ __all__ = [
     "EscalatorEnvironment",
     "Evidence",
     "Facts",
+    "FixedConversation",
     "Frames",
     "Judgment",
     "LABELS",
@@ -147,6 +152,7 @@ __all__ = [
     "decide_escalation",
     "fill_placeholders",
     "is_stuck",
+    "read_facts_from_conversation",
     "judge",
     "load_words",
     "read_until_enough",
