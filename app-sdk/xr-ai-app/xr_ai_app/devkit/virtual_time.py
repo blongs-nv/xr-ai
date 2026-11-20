@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import math
 import selectors
 import time
 from collections.abc import Coroutine, Iterator, Mapping
@@ -136,7 +137,10 @@ class VirtualTimeLoop(asyncio.SelectorEventLoop):
         """``None``: a model call moves the clock as it took here; a profile: as it declares."""
         self.stall_s = stall_s
         self._skipped_s = 0.0  # without a profile: how far the clock is ahead of time.monotonic()
-        self._now = time.monotonic()  # with a profile: the clock, moved only by skipping
+        # With a profile: the clock, moved only by skipping. It starts at 0, where a float's steps are fine enough
+        # that a time left (end - now) always moves it.
+        self._now = 0.0
+        self._started_monotonic = time.monotonic()
         self.held_calls: list[HeldCall] = []
         """Real external work in flight (``xr_ai_app.clock.held``)."""
         self.threads = 0
@@ -154,7 +158,9 @@ class VirtualTimeLoop(asyncio.SelectorEventLoop):
     @property
     def virtual_offset_s(self) -> float:
         """How far the clock is ahead of ``time.monotonic()`` (what ``xr_ai_app.clock.wall_us`` adds)."""
-        return self._skipped_s if self.latency is None else self._now - time.monotonic()
+        if self.latency is None:
+            return self._skipped_s
+        return self._now - (time.monotonic() - self._started_monotonic)  # wall time starts at the real one
 
     def time(self) -> float:
         return time.monotonic() + self._skipped_s if self.latency is None else self._now
@@ -172,7 +178,7 @@ class VirtualTimeLoop(asyncio.SelectorEventLoop):
         waiting = [c.done_at_s for c in self.held_calls if c.done_at_s is not None]
         if self.threads or (waiting and min(waiting) <= next_timer):
             return timeout  # a call due before the next timer, or a thread: its result is needed first
-        self._now = next_timer
+        self._now = max(next_timer, math.nextafter(self._now, math.inf))  # always forward, if only by a float step
         self.skipped += 1
         return None
 
@@ -201,6 +207,20 @@ class VirtualTimeLoop(asyncio.SelectorEventLoop):
                 self.real_latencies_s.setdefault(role, []).append(time.monotonic() - call.started_real_s)
             if call.done_at_s is not None and call.done_at_s < self._now:
                 call.done_at_s = None  # a stalled call ran past its declared end: it ends now
+
+    def call_at(self, when: float, callback: Any, *args: Any, context: Any = None) -> asyncio.TimerHandle:
+        """Under a profile, a timer moves the clock to its time as it fires. asyncio fires a timer due within its
+        clock's resolution as if due now; with a clock that moves only by skipping, it would fire before the clock
+        reached it, and a wait for the time left (end - now: tiny, but positive) would repeat forever."""
+        if self.latency is None:
+            return super().call_at(when, callback, *args, context=context)
+
+        def at_its_time(*callback_args: Any) -> None:
+            if when >= self._now:  # due now or later: the clock moves to it, if only by a float step
+                self._now = max(when, math.nextafter(self._now, math.inf))
+            callback(*callback_args)
+
+        return super().call_at(when, at_its_time, *args, context=context)
 
     def run_in_executor(self, executor: Any, func: Any, *args: Any) -> asyncio.Future[Any]:
         future = super().run_in_executor(executor, func, *args)

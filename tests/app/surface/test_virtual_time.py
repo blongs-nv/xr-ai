@@ -116,6 +116,11 @@ def test_a_latency_profile_charges_each_role_call_its_declared_time_however_long
     faster, faster_wall, slower, measured = run_virtual(scenario(), latency=LatencyProfile({"perceive": 0.2}))
     assert faster == pytest.approx(0.2, abs=1e-6) and faster_wall < 0.2
     assert slower == pytest.approx(0.2, abs=1e-6)
+
+    async def wall_drift_s() -> float:
+        return (_virtual.wall_us() - time.time_ns() // 1000) / 1e6
+
+    assert abs(run_virtual(wall_drift_s(), latency=LatencyProfile.zero())) < 1.0  # wall time starts at the real one
     assert len(measured["perceive"]) == 2 and measured["perceive"][1] >= 0.29  # what it really took, recorded
 
 
@@ -138,6 +143,37 @@ def test_under_a_latency_profile_timers_keep_firing_while_a_call_runs() -> None:
     ticks, took = run_virtual(scenario(), latency=LatencyProfile({"answer_with_reasoning": 5.0}))
     assert took == pytest.approx(5.0, abs=1e-6)
     assert ticks[:4] == [1.0, 2.0, 3.0, 4.0]  # the camera kept looking while the model reasoned
+
+
+@pytest.mark.parametrize("end_s", [56.09, 345.1, 12.7])
+def test_under_a_latency_profile_waiting_out_the_time_left_ends(end_s: float) -> None:
+    """What an evaluation does at a scene's end: wait for the time left. The clock must reach the end (it once
+    stopped a hair short, and the wait repeated forever)."""
+
+    async def scenario() -> float:
+        loop = asyncio.get_running_loop()
+        begun = loop.time()
+        forever = asyncio.ensure_future(asyncio.Event().wait())
+
+        async def camera() -> None:
+            while True:
+                await asyncio.sleep(1.87)
+
+        looking = asyncio.ensure_future(camera())
+        while (remaining := end_s - (loop.time() - begun)) > 0:
+            await asyncio.wait({forever}, timeout=remaining)
+        forever.cancel()
+        looking.cancel()
+        return loop.time() - begun
+
+    ended: list[float] = []
+    runner = threading.Thread(
+        target=lambda: ended.append(run_virtual(scenario(), latency=LatencyProfile.zero())), daemon=True
+    )
+    runner.start()
+    runner.join(5)
+    assert not runner.is_alive(), "the wait for the time left never ended"
+    assert ended[0] == pytest.approx(end_s, abs=1e-6)
 
 
 def test_a_latency_profile_loads_from_yaml_scales_and_names_every_role(tmp_path: Path) -> None:

@@ -158,7 +158,11 @@ model answers). How much is chosen with `--latency`:
 | `eval/latency/rtx-6000-ada.yaml` | the profile's time for its role | the same timeline on any machine |
 
 `--latency-scale 2` runs a profile as a machine twice as slow, to find how
-much margin a case has. Every run writes `latency.json` and
+much margin a case has. heat_water's `at_target`, for one, has about a
+second: on the RTX 6000 Ada profile a frame is judged every 3 s (the 2 s look
+plus 1 s of captioning) and the second positive comes at 345 s, a second
+before the scene ends; at 1.5x it is every 3.5 s, and the second positive
+would come after the end. Every run writes `latency.json` and
 `measured-latency.yaml` (the median per role on this machine): run once with
 `--latency real` on a target machine and keep that file as its profile.
 
