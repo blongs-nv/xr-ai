@@ -152,32 +152,6 @@ async def test_prepare_rejects_changed_words_and_missing_images_before_tts(tmp_p
     assert calls == []
 
 
-async def test_prepare_factory_cannot_replace_pinned_images(tmp_path, monkeypatch):
-    from xr_ai_app.devkit import _fixtures
-
-    app, _voice = _app(tmp_path, monkeypatch)
-    scenario = dataclasses.replace(
-        _scenario(tmp_path),
-        steps=tuple(
-            dataclasses.replace(step, value={**step.value, "text": "hello"}) if step.action == "audio" else step
-            for step in _scenario(tmp_path).steps
-        ),
-    )
-    output = tmp_path / "media"
-    output.mkdir()
-    (output / "speech.wav").write_bytes(_wav())
-    Image.new("RGB", (20, 20), "blue").save(output / "camera.png")
-    await _prepare_fixtures(app, scenario, output)
-    digest = hashlib.sha256((output / "camera.png").read_bytes()).hexdigest()
-
-    def factory(_scenario, staging):
-        Image.new("RGB", (20, 20), "red").save(staging / "camera.png")
-
-    monkeypatch.setattr(_fixtures, "_factory", factory)
-    with pytest.raises(ValueError, match="different contents"):
-        await _prepare_fixtures(app, scenario, output)
-    assert hashlib.sha256((output / "camera.png").read_bytes()).hexdigest() == digest
-
 
 @pytest.mark.parametrize("path", _APPS, ids=lambda path: str(path.relative_to(_ROOT)))
 async def test_sample_owned_replays_are_preparable_without_services(path, tmp_path, monkeypatch):
@@ -199,14 +173,8 @@ async def test_sample_owned_replays_are_preparable_without_services(path, tmp_pa
 
     target.stop = stop
     monkeypatch.setattr(_fixtures, "_AppTarget", lambda _app: target)
-    provided = {}
-    generated = set((scenario.fixtures or {}).get("options", {}).get("images", {}))
-    for step in scenario.steps:
-        if step.action == "image" and step.value not in generated:
-            provided[step.value] = tmp_path / Path(step.value).name
-            Image.new("RGB", (64, 48), "blue").save(provided[step.value])
     output = tmp_path / "prepared"
-    await _prepare_fixtures(target, scenario, output, images=provided)
+    await _prepare_fixtures(target, scenario, output)
     plan = _prepare_audio(scenario, output, 10)
     assert plan["duration_s"] == 300
     assert len(plan["fixture_sha256"]) >= 4
@@ -547,3 +515,70 @@ def test_accuracy_cli_works_without_optional_credential_loader(monkeypatch, caps
     assert cli.main(["run", "app.py", "scenario.yaml", "--real-models"]) == 0
     assert calls == [True]
     assert "environment credentials" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("path", _APPS, ids=lambda path: str(path.relative_to(_ROOT)))
+def test_speech_reuses_source_words_assertions_and_media(path):
+    import yaml
+
+    spec = yaml.safe_load(path.read_text())
+    source = Scenario.load(path.parent / spec["scenario"])
+    replay = Scenario.load(path)
+    assert replay.base_dir == source.base_dir
+    replay_images = [step.value for step in replay.steps if step.action == "image"]
+    assert all(step.value in replay_images for step in source.steps if step.action == "image")
+    assert [step.value["text"] for step in replay.steps if step.action == "audio" and step.value["handler"]] == [
+        step.value for step in source.steps if step.action == "say"
+    ]
+    inherited = [step.value for step in source.steps if step.action in {"expect", "wait_for"}]
+    checks = [{key: value for key, value in step.value.items() if key != "unprompted"}
+              for step in replay.steps if step.action in {"expect", "wait_for"}]
+    assert checks == inherited
+    assert all((source.base_dir / (step.value["path"] if isinstance(step.value, dict) else step.value)).is_file()
+               for step in replay.steps if step.action == "image")
+
+
+async def test_source_scenario_edit_is_used_without_updating_speech_copy(tmp_path, monkeypatch):
+    import yaml
+
+    source = tmp_path / "base.yaml"
+    speech = tmp_path / "speech.yaml"
+    source.write_text("steps: [{join: p1}, {say: before}, {expect: {said: before}}, {leave: p1}]\n")
+    speech.write_text(yaml.safe_dump({"scenario": "base.yaml", "schedule": [0, 1, 2, 5], "duration_s": 5}))
+    first = Scenario.load(speech)
+    source.write_text(source.read_text().replace("before", "after"))
+    second = Scenario.load(speech)
+    assert first.steps[1].value["text"] == "before"
+    assert second.steps[1].value["text"] == "after"
+    assert second.steps[2].value == {"said": "after"}
+    assert first.steps[1].value["path"] != second.steps[1].value["path"]
+    source.write_text(source.read_text().replace("{leave: p1}", "{say: extra}, {leave: p1}"))
+    with pytest.raises(ValueError, match="one time for every"):
+        Scenario.load(speech)
+
+
+def test_tea_completion_deadline_contains_the_source_cases_steep_time(tmp_path):
+    import yaml
+
+    path = _ROOT / "app-samples/tea-making/eval/speech/realtime.yaml"
+    scenario = Scenario.load(path)
+    for step in scenario.steps:
+        if step.action == "audio":
+            _wav(tmp_path / step.value["path"])
+    plan = _prepare_audio(scenario, tmp_path, 10)
+    fakes = yaml.safe_load((scenario.base_dir / "guide.fakes.yaml").read_text())
+
+    def steep_minutes(value):
+        if isinstance(value, dict):
+            if "minimum_minutes" in value:
+                yield value["minimum_minutes"]
+            for item in value.values():
+                yield from steep_minutes(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from steep_minutes(item)
+
+    duration = next(steep_minutes(fakes)) * 60
+    mug = next(step.at for step in scenario.steps if step.action == "image" and step.value["path"].endswith("mug.png"))
+    final = next(check for check in plan["checks"] if check[2].get("said") == "Tea guidance is complete")
+    assert final[3] <= mug + duration <= min(final[1] + final[5], plan["duration_s"] + plan["drain_s"])

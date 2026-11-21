@@ -1,83 +1,22 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-name: Printer pre-flight app speech performance
+scenario: ../../scenarios/checklist_on_demand.yaml
 duration_s: 300
-steps:
-- join: p1
-- at: 0
-  image: printer-bed-occupied.png
-- at: 0
-  audio:
-    path: 151eeaa4f88d654d2132c030dc94b2f360187fb6f95466de7b8d56cdb37d0c7f.wav
-    text: Start talking to me
-    handler: false
-- at: 12
-  audio:
-    path: 151eeaa4f88d654d2132c030dc94b2f360187fb6f95466de7b8d56cdb37d0c7f.wav
-    text: Start talking to me
-    handler: false
-- at: 25
-  audio:
-    path: f90953504d120d70257e4f6a5f1d49cc12fae07895c7d355fefa120d533680df.wav
-    text: Start the checklist.
-    reply: false
-- at: 25.1
-  expect:
-    said: print bed
-    within_s: 35
-- at: 50
-  audio:
-    path: de405f35bca1e27fbe2b7d30cb848445147d187c38fb10c500d10208e481ab55.wav
-    text: What step am I on?
-- at: 65
-  image: printer-bed-clear-door-open.png
-- at: 65.1
-  expect:
-    said: The bed is clear.
-    within_s: 35
-- at: 90
-  audio:
-    path: 2c82f7125822dd04a2013ec6f594a614fc7b8a7cd391c7d276fea152c7a9fb83.wav
-    text: Which steps are done?
-- at: 115
-  image: printer-bed-clear-door-closed.png
-- at: 115.1
-  expect:
-    said: The door is closed.
-    within_s: 35
-- at: 145
-  audio:
-    path: de405f35bca1e27fbe2b7d30cb848445147d187c38fb10c500d10208e481ab55.wav
-    text: What step am I on?
-- at: 175
-  audio:
-    path: cbf491f1de1d3b6f5c1f9ac2657ef0c979623d8ba3550df5cc4a38bccfee0199.wav
-    text: How long is left?
-- at: 230
-  audio:
-    path: 2c82f7125822dd04a2013ec6f594a614fc7b8a7cd391c7d276fea152c7a9fb83.wav
-    text: Which steps are done?
-- at: 260
-  audio:
-    path: 3d99f82f8d3c8a61c304bbcd1d917adf4bc0a402caad946c66cecc8c14184ed8.wav
-    text: Stop the checklist.
-    reply: false
-- at: 285
-  audio:
-    path: 9a1fc8237ee4cf19eae41383a29fdde1a8c1b965b655149bca495498eab86da6.wav
-    text: Stop talking to me.
-    handler: false
-fixtures:
-  factory: fixtures.py:prepare
-  options:
-    images:
-      printer-bed-occupied.png:
-        occupied: true
-        door_open: true
-      printer-bed-clear-door-open.png:
-        occupied: false
-        door_open: true
-      printer-bed-clear-door-closed.png:
-        occupied: false
-        door_open: false
+schedule:
+- 0
+- 0
+- 35
+- 35.1
+- 35.1
+- 35.1
+- 300
+controls:
+- at: 8
+  text: Start talking to me
+- at: 20
+  text: Start talking to me
+- at: 280
+  text: Stop talking to me
+no_reply:
+- 2

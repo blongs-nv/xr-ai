@@ -57,6 +57,37 @@ async def _serve(plan, directory, push, pub, name, connection):
             max_frame_bytes=6_000_000,
         )
         tasks = []
+        current = None
+        streaming = True
+
+        async def capture(message):
+            if message.topic != "camera.capture.request" or message.participant_id != plan["participant"]:
+                return
+            request = json.loads(message.data)
+            if request.get("version") != 1 or not isinstance(request.get("request_id"), str):
+                raise ValueError("invalid camera capture request")
+            if current is None or streaming:
+                await connector.push_image_capture(
+                    participant_id=message.participant_id, request_id=request["request_id"],
+                    pts_us=time.time_ns() // 1000,
+                    mime_type="application/vnd.xr-ai.capture-rejection+json",
+                    data=json.dumps({"version": 1, "status": "rejected"}).encode(),
+                )
+                if current is not None and streaming:
+                    pixels, width, height, _encoded = current
+                    await connector.push_frame(
+                        pixels, width, height, PixelFormat.RGB24, time.time_ns() // 1000,
+                        message.participant_id, "camera",
+                    )
+                emit("image_capture_rejected", participant=message.participant_id)
+                return
+            await connector.push_image_capture(
+                participant_id=message.participant_id, request_id=request["request_id"],
+                pts_us=time.time_ns() // 1000, mime_type="image/png", data=current[3],
+            )
+            emit("image_capture", participant=message.participant_id)
+
+        connector.on_return_data(capture)
         try:
             tasks.append(asyncio.create_task(hub.run()))
 
@@ -80,6 +111,7 @@ async def _serve(plan, directory, push, pub, name, connection):
                 raise ValueError("audio source expected start")
             started, epoch = command["monotonic"], command["epoch_us"]
             pid = plan["participant"]
+            await asyncio.sleep(max(0, started - time.monotonic()))
             await connector.notify_participant_joined(pid, pts_us=epoch)
             owner = asyncio.create_task(_receive(connection))
             tasks.append(owner)
@@ -87,7 +119,7 @@ async def _serve(plan, directory, push, pub, name, connection):
             closing_leave = next((event for event in plan["events"] if event["action"] == "leave"), None)
             events = iter(event for event in plan["events"] if event["action"] != "leave")
             event = next(events, None)
-            speech, offset, current = None, 0, None
+            speech, offset = None, 0
             maximum_late = 0.0
             for tick in range(math.ceil((plan["duration_s"] + plan["drain_s"]) * 50) + 1):
                 await asyncio.sleep(max(0, started + tick * 0.02 - time.monotonic()))
@@ -102,12 +134,13 @@ async def _serve(plan, directory, push, pub, name, connection):
                 while event is not None and event["at"] <= at + 1e-9:
                     action = event["action"]
                     if action == "image":
-                        current = event["pixels"], event["width"], event["height"]
+                        current = event["pixels"], event["width"], event["height"], event.get("encoded")
+                        streaming = event.get("stream", True)
                         new_image = True
                     elif action == "audio":
                         speech, offset = np.frombuffer(event["samples"], dtype="<f4"), 0
                         speech_index = event["index"]
-                    data = {key: value for key, value in event.items() if key not in {"samples", "pixels"}}
+                    data = {key: value for key, value in event.items() if key not in {"samples", "pixels", "encoded"}}
                     emit(
                         "input",
                         **data,
@@ -115,8 +148,8 @@ async def _serve(plan, directory, push, pub, name, connection):
                         audio_end_us=epoch + tick * 20000 + round(event.get("duration_s", 0) * 1e6),
                     )
                     event = next(events, None)
-                if current is not None and (new_image or tick % 50 == 0):
-                    pixels, width, height = current
+                if current is not None and streaming and (new_image or tick % 50 == 0):
+                    pixels, width, height, _encoded = current
                     await connector.push_frame(
                         pixels, width, height, PixelFormat.RGB24, epoch + tick * 20000, pid, "camera"
                     )

@@ -21,7 +21,7 @@ uv --config-file uv.toml run --project tests xr-ai-dev run app-samples/conversat
     --media-dir /path/to/fixed-fixtures --out /path/to/new-run
 ```
 
-`prepare` synthesizes missing WAVs using the app's effective TTS role and writes `fixtures.json` with file hashes and utterance labels. Existing recordings are reused. Preparation refuses changed pinned files or labels; use a fresh directory when changing inputs. Each generated fixture/run directory ignores its contents in Git. Keep audiovisual fixtures and artifacts local.
+`prepare` copies the source scenario’s camera media and synthesizes missing WAVs using the app's effective TTS role and writes `fixtures.json` with file hashes and utterance labels. Existing recordings are reused. Preparation refuses changed pinned files or labels; use a fresh directory when changing inputs. Each generated fixture/run directory ignores its contents in Git. Keep audiovisual fixtures and artifacts local.
 
 Pass `--profile NAME_OR_PATH` to both commands to select another model configuration. Profile paths and role aliases follow the app's configuration rules. Local and hosted endpoints use the same adapters and credential store. Any supported role can change, including speech input/output; the app's effective Voice component and gate still determine which STT path is used. There is no hardcoded model list. New provider protocols belong in `xr_ai_models` adapters.
 
@@ -29,19 +29,19 @@ Reuse exactly the same media and timeline across hardware/model trials. `--metad
 
 ## App sample cases
 
-| App | Real-speech scenario | Behavior |
-|---|---|---|
-| Conversation | `app-samples/conversation/eval/speech/realtime.yaml` | Conversation memory, camera, notes, visual alert and arithmetic |
-| Lab instruments | `app-samples/lab-instruments/eval/speech/realtime.yaml` | Marker-based readings, changed readings and monitoring |
-| Tea making | `app-samples/tea-making/eval/speech/realtime.yaml` | Package identification, camera-driven water/heating checks, conversation and timer start |
-| Procedure capture | `app-samples/sdk-tour/12-procedure-capture/eval/speech/realtime.yaml` | Two spoken start/stop cycles, narration and changing camera scenes |
-| Guided procedure | `app-samples/sdk-tour/10-guided-procedure/eval/speech/realtime.yaml` | Printer bed/door checks, warm-up and questions about progress |
+Each `app-samples/**/eval/speech/realtime.yaml` references an existing sample scenario:
 
-Each sample owns its five-minute scenario and assertions. Pass its app file and scenario to the commands above. Simple VLM is covered by its accuracy scenarios; XR has no App SDK equivalent yet.
+| App | Existing scenario |
+|---|---|
+| Conversation | `scenarios/alert.yaml` |
+| Lab instruments | `scenarios/monitor_change.yaml` |
+| Tea making | `scenarios/guide.yaml` |
+| Procedure capture | `scenarios/demo.yaml` |
+| Guided procedure | `scenarios/checklist_on_demand.yaml` |
 
-Conversation and Capture generate simple synthetic camera scenes. Lab uses its own accuracy-scenario instrument renderer and shared printable marker assets. Tea requires caller-supplied images of a legible tea package, water visibly inside a kettle, a readable hot-water display, and tea touching water in a physical cup. The printer checklist generates deterministic occupied-bed, clear-bed/open-door and clear-bed/closed-door scenes, with fixed geometry and no answer labels. Its README lists the optional `--image NAME=PATH` overrides for real printer photographs. Each scenario's adjacent README lists its image bindings. Results with generated scenes apply to those scenes; use recorded photographs for physical-camera qualification. Overrides take precedence over scene factories and their actual bytes are hashed.
+Speech schedules reuse those scenarios' prompts, media and assertions. Preparation copies the source media and synthesizes only the speech. Use the same recorded-media overrides as for the source accuracy case. The source cases' documented synthetic placeholders do not establish accuracy on real scenes. No separate speech-scene generator is needed.
 
-Tea's procedure advances automatically on camera evidence. Its five-minute speech test checks timer start and stops the guide; steep completion depends on the package's duration and is covered by the accuracy scenarios.
+The schedules distribute the source steps over five minutes and add enrollment/listening controls. Source images retain their streamed or on-demand camera behavior. Capture replays its existing frame directory at its declared frame rate. Additional accuracy cases remain available through the normal runner.
 
 ## Accuracy without real-time cost
 
@@ -77,9 +77,23 @@ Audio must be uncompressed PCM16 mono/stereo WAV; preflight converts it to 16 kH
 
 `handler: false` identifies enrollment/voice controls that should not become app turns. `reply: false` identifies handler inputs such as narration or procedure controls that intentionally have no request-matched conversation reply. These declarations affect coverage expectations, not app behavior.
 
-Real-audio mode supports one participant, join at zero, audio, streamed image, sleep, expect/wait_for, and an optional leave at the end, deferred until the response drain finishes. Images are held and republished at 1 fps with a maximum dimension of 1280 pixels. `at` is a fixed source offset; `+s` is relative to the preceding planned step, independent of responses. Assertions observe completed voice text handoff after the preceding input without pausing the source timeline. Text matching is case-insensitive and respects word boundaries; `56` cannot match `256`, and `12 V` cannot match `12 very`. Observed response text has passed the voice floor checks and been handed to its TTS path; it does not establish completed audible playback. Use `unprompted: true` on an assertion to require an update rather than a conversational reply. Video, frame folders, on-demand images and multiple participants remain supported by the local-device path and are rejected in real-audio mode.
+Real-audio mode supports one participant, join at zero, audio, streamed or on-demand image, sleep, expect/wait_for, and an optional leave at the end, deferred until the response drain finishes. Images are held and republished at 1 fps with a maximum dimension of 1280 pixels. `at` is a fixed source offset; `+s` is relative to the preceding planned step, independent of responses. Assertions observe completed voice text handoff after the preceding input without pausing the source timeline. Text matching is case-insensitive and respects word boundaries; `56` cannot match `256`, and `12 V` cannot match `12 very`. Observed response text has passed the voice floor checks and been handed to its TTS path; it does not establish completed audible playback. Use `unprompted: true` on an assertion to require an update rather than a conversational reply. Video and multiple participants remain supported by the local-device path and are rejected in real-audio mode.
 
-Optional `fixtures: {factory: "fixtures.py:prepare", options: {...}}` calls trusted sample-owned Python code with an output directory. Generated images are staged and cannot overwrite pinned fixture bytes. A scenario file or folder is selected explicitly; there is no SDK registry of samples.
+A thin speech schedule selects a source scenario and assigns one absolute time to every source step:
+
+```yaml
+scenario: ../../scenarios/alert.yaml
+duration_s: 300
+schedule: [0, 35, 35.1, 65, 70, 100, 100.1, 170, 170.1, 300]
+controls:
+  - {at: 8, text: Start talking to me}
+  - {at: 20, text: Start talking to me}
+  - {at: 280, text: Stop talking to me}
+```
+
+Every source step is retained. `say` becomes a pinned audio clip with the same words; checks keep their source assertions and timeout lengths. Their deadlines are relative to the configured check time, capped by the replay and drain window; consecutive source waits need distinct scheduled horizons when a later check follows a timer. A schedule-length mismatch fails, so adding or removing a source step requires a timing update. Optional `unprompted` lists source check indices that require an unsolicited update rather than a conversational acknowledgement. Optional `no_reply` lists zero-based source `say` indices that intentionally do not produce a conversation reply. Controls are excluded from expected handler delivery. Frame folders use their existing images and frame rate; video remains unsupported by real-audio mode. Source media names remain relative to the source scenario, including when using `--media-dir` or `--image`.
+
+A scenario file or folder is selected explicitly; there is no SDK registry of samples.
 
 ## Results
 
@@ -97,4 +111,4 @@ Reports from interrupted runs are retained before cancellation propagates. Only 
 
 ## Shared SDK interfaces
 
-The runner uses `xr_ai_hub.isolation.isolated_endpoints` for private hub routing, `xr_ai_voice.diagnostics.observe` for voice health and completed text handoff, and `xr_ai_tools.tool_calling.observe_tool_errors` for raised tool failures. These scopes are opt-in, inherited by child tasks, and restored on exit. Normal app runs do not install observers or isolated routing. The standard hub address pair is exported as `xr_ai_hub.isolation.DEFAULT_ENDPOINTS` so routing and its callers share one default.
+The runner uses `xr_ai_hub.isolation.isolated_endpoints` for private hub routing, `xr_ai_voice.diagnostics.observe` for voice health and completed text handoff, and `xr_ai_tools.tool_calling.observe_tool_errors` for raised tool failures. These scopes are opt-in, inherited by child tasks, and restored on exit. Normal app runs do not install observers or isolated routing. The standard hub address pair is exported as `xr_ai_hub.isolation.DEFAULT_ENDPOINTS` so routing and its callers share one default. On-demand replay answers capture requests through `ConnectorEndpoint.push_image_capture(...)`, the public wrapper for the connector’s existing encoded-image path.

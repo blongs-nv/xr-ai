@@ -31,7 +31,6 @@ within ``within_s``; ``said_any: [a, b]`` accepts any of several, for real model
 differently); ``expect`` reads as an assertion. Media paths resolve against the scenario file, or first
 against ``--media-dir`` (your own recordings under the same names). ``audio`` is a WAV path mapping for
 microphone replay only; ``duration_s`` optionally fixes that timeline.
-``fixtures: {factory: "fixtures.py:prepare", options: {...}}`` supplies trusted fixture preparation code;
 ``xr-ai-dev prepare`` generates and pins media before ``run --real-audio --real-models --clock real``.
 A ``video`` or ``frames`` step plays to its
 end before the next step, or with ``background: true`` keeps playing while the next steps run (talking over a
@@ -73,19 +72,22 @@ class Scenario:
     base_dir: Path = field(default=Path("."))
 
     duration_s: float | None = None
-    fixtures: dict[str, Any] | None = None
 
     @classmethod
     def load(cls, path: str | Path) -> Scenario:
         file = Path(path).expanduser().resolve()
         raw = yaml.safe_load(file.read_text(encoding="utf-8")) or {}
+        if isinstance(raw, dict) and "scenario" in raw:
+            from ._speech_scenario import _load_speech  # noqa: PLC0415
+
+            return _load_speech(raw, file)
         return cls.from_dict(raw, base_dir=file.parent, origin=str(file))
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any], *, base_dir: Path = Path("."), origin: str = "scenario") -> Scenario:
         if not isinstance(raw, dict):
             raise ValueError(f"{origin}: a scenario is a mapping")
-        if unknown := set(raw) - {"name", "participant", "steps", "duration_s", "fixtures"}:
+        if unknown := set(raw) - {"name", "participant", "steps", "duration_s"}:
             raise ValueError(f"{origin}: unknown keys {sorted(unknown)}")
         steps = []
         for index, item in enumerate(raw.get("steps") or []):
@@ -99,7 +101,6 @@ class Scenario:
             steps.append(Step(actions[0], item[actions[0]], at, relative, item.get("participant")))
         return cls(
             duration_s=raw.get("duration_s"),
-            fixtures=raw.get("fixtures"),
             name=str(raw.get("name") or origin),
             steps=tuple(steps),
             participant=str(raw.get("participant") or "p1"),

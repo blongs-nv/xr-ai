@@ -15,6 +15,6 @@ steps:
   - at: 0.5
     say: start the checklist
   - expect: {said: print bed, within_s: 30}
-  - wait_for: {said: bed is clear, within_s: 60}
-  - wait_for: {said: door is closed, within_s: 60}
+  - wait_for: {said: The bed is clear., within_s: 60}
+  - wait_for: {said: The door is closed., within_s: 60}
   - leave: p1

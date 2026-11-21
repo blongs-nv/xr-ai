@@ -3,25 +3,10 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Real speech replay
+# Speech replay
 
-This sample-owned five-minute case uses the [devkit real-audio contract](../../../../app-sdk/xr-ai-app/docs/REAL_AUDIO.md). Prepare fixed fixtures once, then reuse them across model and hardware profiles. Models and auxiliary services must already be running.
+`realtime.yaml` schedules the existing [`guide.yaml`](../../scenarios/guide.yaml) case through real STT/TTS over five minutes. Prompts, media and assertions come from that case. This file adds timing, voice controls and reply expectations; it contains no separate task definitions or scene generator.
 
-```bash
-uv --config-file uv.toml run --project tests xr-ai-dev prepare app-samples/tea-making/app.py app-samples/tea-making/eval/speech/realtime.yaml --out /path/to/media
-uv --config-file uv.toml run --project tests xr-ai-dev run app-samples/tea-making/app.py app-samples/tea-making/eval/speech/realtime.yaml \
-    --real-audio --real-models --clock real --media-dir /path/to/media --out /path/to/new-run
-```
+Use the [real-audio guide](../../../../app-sdk/xr-ai-app/docs/REAL_AUDIO.md) to prepare pinned speech and run the replay. Preparation copies the case's existing media. Recorded replacements can be supplied using the same media names; a generated placeholder remains a placeholder and is not evidence of real-scene accuracy.
 
-Use `--profile` for local or hosted model endpoints. See the contract for required image inputs, report interpretation and accuracy-only evaluation. Fixture and run media stay local.
-
-Preparation requires these images of the same tea-making setup:
-
-```bash
---image tea_package.png=/path/to/branded-package.jpg \
---image kettle-water.png=/path/to/water-visible-in-kettle.jpg \
---image kettle-hot.png=/path/to/hot-water-display.jpg \
---image tea-in-water.png=/path/to/tea-touching-water-in-cup.jpg
-```
-
-The package must have a legible brand, blend and brewing instructions. The display must show the actual water temperature at or above that package's target with a visible C/F unit, and the cup must show actual tea-water contact. Keep all four images fixed across configurations. The procedure advances from camera evidence; there are no Next commands. Assertions check identification, water visibility, target temperature and timer start. The run stops at five minutes, so steep completion is not asserted.
+Source images retain their streamed or on-demand camera mode during speech replay.

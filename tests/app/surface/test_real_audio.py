@@ -16,7 +16,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 from app.surface._audio_fixtures import _app, _scenario, _wav
-from PIL import Image
 from xr_ai_app import App
 from xr_ai_app.devkit import Scenario, run_scenario
 from xr_ai_app.devkit._audio import _prepare_audio
@@ -393,11 +392,9 @@ def test_five_minute_sample_uses_the_same_scenario_contract(tmp_path):
     for step in scenario.steps:
         if step.action == "audio":
             _wav(tmp_path / step.value["path"])
-        elif step.action == "image":
-            Image.new("RGB", (64, 48), Path(step.value).stem).save(tmp_path / step.value)
     plan = _prepare_audio(scenario, tmp_path, 10)
     assert plan["duration_s"] == 300
-    assert len([event for event in plan["events"] if event["action"] == "audio" and event["handler"]]) == 10
+    assert len([event for event in plan["events"] if event["action"] == "audio" and event["handler"]]) == 2
 
 
 @pytest.mark.integration
@@ -678,3 +675,62 @@ async def test_unprompted_assertion_cannot_match_conversation_acknowledgement(tm
     report = await run_scenario(app, scenario, models="real", clock="real", real_audio=True,
                                 drain_s=2, ready_timeout_s=5)
     assert next(step for step in report.steps if step.action == "expect").ok is update
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("streaming", [False, True])
+async def test_speech_replay_preserves_camera_mode(tmp_path, monkeypatch, streaming):
+    import dataclasses
+
+    app, voice = _app(tmp_path, monkeypatch)
+    source = _scenario(tmp_path)
+    scenario = dataclasses.replace(source, steps=tuple(
+        dataclasses.replace(step, value={"path": step.value, "stream": streaming}) if step.action == "image" else step
+        for step in source.steps
+    ))
+    pictures = []
+
+    @app.on_turn
+    async def answer(turn, p):
+        if streaming:
+            assert await p.frames._picture(1) is None
+        frame = await p.frames.current()
+        assert frame is not None
+        pictures.append(frame)
+        await p.reply("answer", to=voice)
+
+    report = await run_scenario(app, scenario, models="real", clock="real", real_audio=True,
+                                drain_s=2, ready_timeout_s=5, out=tmp_path / "on-demand")
+    assert len(pictures) == 2
+    assert report.performance["reply_coverage"] == {"completed": 2, "expected": 2}
+    rows = [json.loads(line) for line in (tmp_path / "on-demand/audio-events.jsonl").read_text().splitlines()]
+    assert any(row["kind"] == ("image_capture_rejected" if streaming else "image_capture") for row in rows)
+    assert all(row["stream"] is streaming for row in rows if row["kind"] == "input" and row["action"] == "image")
+
+
+@pytest.mark.integration
+async def test_zero_time_welcome_is_observed_after_scheduled_join(tmp_path, monkeypatch):
+    from xr_ai_app import Component
+
+    app, voice = _app(tmp_path, monkeypatch)
+    _wav(tmp_path / "speech.wav")
+
+    class Welcome(Component):
+        async def on_participant_enrolled(self, p):
+            await p.say("welcome immediately", to=voice)
+
+    app.add(Welcome())
+    scenario = Scenario.from_dict({"duration_s": 0.6, "steps": [
+        {"join": "p1"}, {"expect": {"said": "welcome immediately", "within_s": 0.5}},
+        {"at": 0.3, "audio": {"path": "speech.wav"}},
+    ]}, base_dir=tmp_path)
+
+    @app.on_turn
+    async def answer(turn, p):
+        await p.reply("answer", to=voice)
+
+    result = await run_scenario(app, scenario, models="real", clock="real", real_audio=True,
+                                drain_s=1, ready_timeout_s=5)
+    assert next(step for step in result.steps if step.action == "expect").ok
+    welcome = next(output for output in result.outputs if output["text"] == "welcome immediately")
+    assert welcome["t"] >= 0

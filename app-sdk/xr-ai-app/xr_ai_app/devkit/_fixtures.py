@@ -6,10 +6,7 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
-import sys
-import tempfile
 from pathlib import Path
 
 from xr_ai_models import make_tts
@@ -29,29 +26,6 @@ def _inside(directory, name):
         raise ValueError(f"fixture path escapes output directory: {name}")
     return path
 
-
-def _factory(scenario, directory):
-    spec = scenario.fixtures
-    if spec is None:
-        return
-    if not isinstance(spec, dict) or set(spec) - {"factory", "options"} or not isinstance(spec.get("factory"), str):
-        raise ValueError("fixtures requires factory: file.py:function and optional options mapping")
-    file, separator, function = spec["factory"].rpartition(":")
-    options = spec.get("options", {})
-    if not separator or not function or not isinstance(options, dict):
-        raise ValueError("fixtures requires file.py:function and options mapping")
-    path = (scenario.base_dir / file).resolve()
-    name = "xr_ai_fixture_" + hashlib.sha256(str(path).encode()).hexdigest()[:16]
-    module_spec = importlib.util.spec_from_file_location(name, path)
-    if module_spec is None or module_spec.loader is None:
-        raise ValueError(f"cannot load fixture factory: {path}")
-    module = importlib.util.module_from_spec(module_spec)
-    sys.modules[name] = module
-    try:
-        module_spec.loader.exec_module(module)
-        getattr(module, function)(directory, **options)
-    finally:
-        sys.modules.pop(name, None)
 
 
 async def _prepare_fixtures(app, scenario, directory, *, images=None, tts_entry=None):
@@ -103,24 +77,17 @@ async def _prepare(target, scenario, directory, images, tts_entry):
     image_names = media - set(audio)
     if set(images) - image_names:
         raise ValueError(f"unknown image bindings: {sorted(set(images) - image_names)}")
-    with tempfile.TemporaryDirectory(prefix="xr-fixtures-") as scratch:
-        staging = Path(scratch)
-        for name in image_names:
-            source = Path(images[name]) if name in images else _inside(directory, name)
-            if source.is_file():
-                path = _inside(staging, name)
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(source.read_bytes())
-        _factory(scenario, staging)
-        for name in image_names:
-            source, path = _inside(staging, name), _inside(directory, name)
-            if not source.is_file():
-                raise ValueError(f"missing image fixture {name}; supply --image {name}=PATH")
-            if path.exists() and path.read_bytes() != source.read_bytes():
-                raise ValueError(f"fixture already exists with different contents: {name}")
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(source.read_bytes())
-            manifest["files"][name] = _sha(path)
+    for name in image_names:
+        path = _inside(directory, name)
+        source = Path(images[name]) if name in images else (path if path.is_file() else scenario.base_dir / name)
+        if not source.is_file():
+            raise ValueError(f"missing image fixture {name}; supply --image {name}=PATH")
+        data = source.read_bytes()
+        if path.exists() and path.read_bytes() != data:
+            raise ValueError(f"fixture already exists with different contents: {name}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        manifest["files"][name] = _sha(path)
     client = None
     try:
         for name, text in audio.items():

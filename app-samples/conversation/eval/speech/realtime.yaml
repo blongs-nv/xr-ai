@@ -1,103 +1,24 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-name: Five-minute conversation speech performance
-participant: p1
+scenario: ../../scenarios/alert.yaml
 duration_s: 300
-steps:
-- join: p1
-- image: blue.png
-- at: 0
-  audio:
-    path: 151eeaa4f88d654d2132c030dc94b2f360187fb6f95466de7b8d56cdb37d0c7f.wav
-    text: Start talking to me
-    handler: false
-- at: 12
-  audio:
-    path: 151eeaa4f88d654d2132c030dc94b2f360187fb6f95466de7b8d56cdb37d0c7f.wav
-    text: Start talking to me
-    handler: false
-- at: 25
-  audio:
-    path: f9333b97e5248e5564f18f6ad1d6030442bb7bf76fc0a36e01c7001af79f937e.wav
-    text: Remember that my project is called Cedar and my favorite color is green.
-- at: 50
-  audio:
-    path: 76540a3eb4d50f0d12e0c0f6f6c411365dfbb35d5c7975755c04a69ec583796e.wav
-    text: What is my project called?
-- at: 50.1
-  expect:
-    said_any:
-    - Cedar
-    within_s: 23
-- at: 75
-  image: blue.png
-- at: 75
-  audio:
-    path: 1786f129d678f847b7e6d5fd390205fcc178ccc603ebe5ece13e02ec2070880d.wav
-    text: What color is the rectangle in my camera?
-- at: 75.1
-  expect:
-    said_any:
-    - blue
-    within_s: 23
-- at: 100
-  audio:
-    path: f22c5b585f48082271a350a4cdbba5e4f03470e00e63042bc873d980608710a0.wav
-    text: Start taking notes.
-- at: 125
-  audio:
-    path: 6f4c7f56d28d97e7fe36dc6822badd94223fd1b70025d5ef9415e5b6cd81e23e.wav
-    text: Buy two lemons and one loaf of bread.
-- at: 150
-  audio:
-    path: 16363a8ab85703301ce05bbf306645caecb22d527e73a680c9c647d38fa510a1.wav
-    text: Finish taking notes.
-- at: 175
-  audio:
-    path: 1070627b09e3f4f4b08513d7504f81d0457c599c7603faee1faef0d24c3b4f8e.wav
-    text: What did I put in my notes?
-- at: 175.1
-  expect:
-    said_any:
-    - lemon
-    - bread
-    within_s: 23
-- at: 200
-  audio:
-    path: 6fcff6f4fee8587aa607f0018408edd589bb6a4c53940b964a6d20730d527ed0.wav
-    text: Let me know when the rectangle turns red.
-- at: 220
-  audio:
-    path: 71e64e9b5429119eedd71dd7b28c15c1159ea1139dc69d39bd847f3b97a6df3a.wav
-    text: What is seven times eight?
-- at: 220.1
-  expect:
-    said_any:
-    - '56'
-    - fifty-six
-    - fifty six
-    within_s: 14
-- at: 235
-  image: red.png
-- at: 235.1
-  expect: {said: red, unprompted: true, within_s: 19}
-- at: 255
-  audio:
-    path: 6647236a3d7f7d796401fbbe96d630f269d1beb3185d76b092f3125c25cd514d.wav
-    text: What is my favorite color?
-- at: 255.1
-  expect: {said: green, within_s: 23}
+schedule:
+- 0
+- 35
+- 35.1
+- 65
+- 70
+- 100
+- 100.1
+- 170
+- 170.1
+- 300
+controls:
+- at: 8
+  text: Start talking to me
+- at: 20
+  text: Start talking to me
 - at: 280
-  audio:
-    path: 9a1fc8237ee4cf19eae41383a29fdde1a8c1b965b655149bca495498eab86da6.wav
-    text: Stop talking to me.
-    handler: false
-fixtures:
-  factory: fixtures.py:prepare
-  options:
-    images:
-      blue.png:
-        rectangle: blue
-      red.png:
-        rectangle: red
+  text: Stop talking to me
+unprompted: [8]

@@ -1,88 +1,23 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-name: lab-instrument-monitoring app speech performance
+scenario: ../../scenarios/monitor_change.yaml
 duration_s: 300
-steps:
-- join: p1
-- at: 0
-  image: lab_before.png
-- at: 0
-  audio:
-    path: 151eeaa4f88d654d2132c030dc94b2f360187fb6f95466de7b8d56cdb37d0c7f.wav
-    text: Start talking to me
-    handler: false
-- at: 12
-  audio:
-    path: 151eeaa4f88d654d2132c030dc94b2f360187fb6f95466de7b8d56cdb37d0c7f.wav
-    text: Start talking to me
-    handler: false
-- at: 25
-  audio:
-    path: b3c1cdbc79ec54d783e43260ca58047f85aabdf06b5b37d4b9f2daf74f7d7b16.wav
-    text: Can you read what is on the instrument?
-- at: 25.1
-  expect:
-    said_any:
-    - '12.0'
-    - 12 volts
-    - 12 V
-    within_s: 23
-- at: 50
-  audio:
-    path: 2078f512882207d65e7fd400f495de2b271bdfc169efd4ab844edbf55499d1ca.wav
-    text: Describe my surroundings right now.
-- at: 75
-  audio:
-    path: 82656a2c90c8c8db92f064411bb5dd576a6aeac8807b8b5bac39187bfe34a822.wav
-    text: Continuously monitor the lab instrument readings.
-- at: 100
-  audio:
-    path: 45c6e4e78746f2b3e2a2df69d91eee33d40a259414fcb4a4276281acb3be001f.wav
-    text: Are you monitoring the instrument readings?
-- at: 125
-  audio:
-    path: 112da657a9d9d95300d22f187819eaa2d6a1cc4f44536359b9089432ecf234a4.wav
-    text: Please tell me the meter reading.
-- at: 150
-  image: lab_after.png
-- at: 150.1
-  expect: {said_any: ["25.0", "25 amps", "25 A"], unprompted: true, within_s: 24}
-- at: 175
-  audio:
-    path: b3c1cdbc79ec54d783e43260ca58047f85aabdf06b5b37d4b9f2daf74f7d7b16.wav
-    text: Can you read what is on the instrument?
-- at: 175.1
-  expect:
-    said_any:
-    - '25.0'
-    - 25 amps
-    - 25 A
-    within_s: 23
-- at: 200
-  audio:
-    path: 45c6e4e78746f2b3e2a2df69d91eee33d40a259414fcb4a4276281acb3be001f.wav
-    text: Are you monitoring the instrument readings?
-- at: 225
-  audio:
-    path: 63f3860fd05ae37f08b1220fb4252397d4ebce9eb1e1aa9086d60934487be3a1.wav
-    text: Stop monitoring the lab instruments.
-- at: 250
-  audio:
-    path: dcfc7d571de165e11e540c484457ab45c1641cd3c7e9463b31d9ab23dcbea2c6.wav
-    text: What is the capital of Iceland?
+schedule:
+- 0
+- 0
+- 35
+- 35.1
+- 150
+- 150.1
+- 230
+- 230.1
+- 300
+controls:
+- at: 8
+  text: Start talking to me
+- at: 20
+  text: Start talking to me
 - at: 280
-  audio:
-    path: e68582677d8d0efe0b9ba2cc27a88ff7985a46350839a5d0f91024fb0356d2a8.wav
-    text: Stop talking to me
-    handler: false
-fixtures:
-  factory: ../../scenarios/make_images.py:prepare
-  options:
-    images:
-      lab_before.png:
-        left_reading: 12.0 V
-        right_reading: 99.0 A
-      lab_after.png:
-        left_reading: 12.0 V
-        right_reading: 25.0 A
+  text: Stop talking to me
+unprompted: [5]

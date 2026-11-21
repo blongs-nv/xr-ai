@@ -145,9 +145,10 @@ def _prepare_audio(scenario, media_dir, drain_s, *, images=None):
             )
             audio_end = audio_at + event["duration_s"]
         elif step.action == "image":
+            stream = value.get("stream", True) if isinstance(value, dict) else True
             if isinstance(value, dict):
-                if set(value) - {"path", "stream"} or value.get("stream", True) is not True:
-                    raise ValueError("real audio image requires a streamed path; on-demand images are not supported")
+                if set(value) - {"path", "stream"} or type(stream) is not bool:
+                    raise ValueError("real audio image requires path and optional boolean stream")
                 value = value["path"]
             path = (images or {}).get(str(value), media / str(value))
             raw = Path(path).read_bytes()
@@ -156,7 +157,11 @@ def _prepare_audio(scenario, media_dir, drain_s, *, images=None):
                 image = source.convert("RGB")
                 image.thumbnail((1280, 1280))
                 pixels = image.tobytes()
-                event.update(pixels=pixels, width=image.width, height=image.height)
+                event.update(pixels=pixels, width=image.width, height=image.height, stream=stream)
+                if not stream:
+                    encoded = io.BytesIO()
+                    image.save(encoded, format="PNG")
+                    event["encoded"] = encoded.getvalue()
         elif step.action == "leave":
             if at < audio_end:
                 raise ValueError("leave must follow the end of all audio")

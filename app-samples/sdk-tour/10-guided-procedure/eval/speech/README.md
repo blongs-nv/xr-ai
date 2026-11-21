@@ -3,18 +3,10 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Real speech replay
+# Speech replay
 
-This sample-owned five-minute case uses the [devkit real-audio contract](../../../../../app-sdk/xr-ai-app/docs/REAL_AUDIO.md). Prepare fixed fixtures once, then reuse them across model and hardware profiles. Models and auxiliary services must already be running.
+`realtime.yaml` schedules the existing [`checklist_on_demand.yaml`](../../scenarios/checklist_on_demand.yaml) case through real STT/TTS over five minutes. Prompts, media and assertions come from that case. This file adds timing, voice controls and reply expectations; it contains no separate task definitions or scene generator.
 
-```bash
-uv --config-file uv.toml run --project tests xr-ai-dev prepare app-samples/sdk-tour/10-guided-procedure/app.py app-samples/sdk-tour/10-guided-procedure/eval/speech/realtime.yaml --out /path/to/media
-uv --config-file uv.toml run --project tests xr-ai-dev run app-samples/sdk-tour/10-guided-procedure/app.py app-samples/sdk-tour/10-guided-procedure/eval/speech/realtime.yaml \
-    --real-audio --real-models --clock real --media-dir /path/to/media --out /path/to/new-run
-```
+Use the [real-audio guide](../../../../../app-sdk/xr-ai-app/docs/REAL_AUDIO.md) to prepare pinned speech and run the replay. Preparation copies the case's existing media. Recorded replacements can be supplied using the same media names; a generated placeholder remains a placeholder and is not evidence of real-scene accuracy.
 
-Use `--profile` for local or hosted model endpoints. See the contract for generated image names, report interpretation and accuracy-only evaluation. Fixture and run media stay local.
-
-Preparation generates three deterministic geometric printer scenes: an orange object on the bed with the door open, an empty bed with the door open, and an empty bed with the door closed. The camera, printer geometry and lighting stay fixed. Door angle and bed occupancy supply the visual evidence; the pictures contain no answer labels. The case checks the spoken start, bed-clear confirmation and door-closed confirmation while questions and a warm-up timer run on the fixed timeline.
-
-For recorded-camera qualification, replace the generated pictures with `--image printer-bed-occupied.png=PATH`, `--image printer-bed-clear-door-open.png=PATH`, and `--image printer-bed-clear-door-closed.png=PATH`. Use the same printer in each state. Results with generated scenes measure those scenes and do not establish performance on real printer photographs.
+Source images retain their streamed or on-demand camera mode during speech replay.

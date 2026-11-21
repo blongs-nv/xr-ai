@@ -1,71 +1,29 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-name: tea app speech performance
+scenario: ../../scenarios/guide.yaml
 duration_s: 300
-steps:
-- join: p1
-- at: 0
-  image: tea_package.png
-- at: 0
-  audio:
-    path: 3064ea3971127bbcfeab9ed404065a0dd48a79e66823b4de5ed7014d4357fecd.wav
-    text: Start talking to me.
-    handler: false
-- at: 12
-  audio:
-    path: 3064ea3971127bbcfeab9ed404065a0dd48a79e66823b4de5ed7014d4357fecd.wav
-    text: Start talking to me.
-    handler: false
-- at: 25
-  audio:
-    path: 002097769f77eecf95dd0423bf1424c76067e13061d4e92577318da69d4e3d37.wav
-    text: Start tea guidance.
-    reply: false
-- at: 25.1
-  expect:
-    said: I read
-    within_s: 35
-- at: 60
-  audio:
-    path: 091e1fe2c7c2c2ed8abb71821196f7a7581f48b4f18c19bfaa4ed378714cf2b1.wav
-    text: What tea do you see and how long should I steep it?
-- at: 90
-  audio:
-    path: 7ebcfdce626e485bda670689e4b01e014297bacdfbe403c538fcb559bc2e5f5e.wav
-    text: What is the current step?
-- at: 105
-  image: kettle-water.png
-- at: 105.1
-  expect:
-    said: Water is visible
-    within_s: 55
-- at: 150
-  audio:
-    path: 4176fe114baac26b317c23eeb439fc2e478e3fd4aa54f85150ff751d763127f2.wav
-    text: What is the target water temperature?
-- at: 165
-  image: kettle-hot.png
-- at: 165.1
-  expect:
-    said: water is hot enough
-    within_s: 44
-- at: 210
-  audio:
-    path: 45d7ee3fa0c70ccc7866e7b5c30999b2dd3229232d09d033724e2ee3d593806a.wav
-    text: Is the water hot enough?
-- at: 230
-  image: tea-in-water.png
-- at: 230.1
-  expect:
-    said: minutes from now
-    within_s: 45
-- at: 240
-  audio:
-    path: fbf3e67f0cbaa6fa73cd03ef641a7c89f31f095ff74610659effe02eb6adf342.wav
-    text: What should I do now?
+schedule:
+- 0
+- 0
+- 35
+- 35.1
+- 35.1
+- 65
+- 65.1
+- 65.1
+- 90
+- 90.1
+- 110
+- 110.1
+- 270
+- 300
+controls:
+- at: 8
+  text: Start talking to me
+- at: 20
+  text: Start talking to me
 - at: 280
-  audio:
-    path: d8ce9e3c56f4983e6ec0bdcdc3c3bf15f15198ee43c43e2d36804ada55a363b0.wav
-    text: Stop tea guidance.
-    reply: false
+  text: Stop talking to me
+no_reply:
+- 2

@@ -315,6 +315,19 @@ class ConnectorEndpoint:
     async def push_data(self, msg: DataMessage) -> None:
         await self._push.send(encode(MsgType.DATA_MESSAGE, msg))
 
+    async def push_image_capture(
+        self, *, participant_id: str, request_id: str, pts_us: int, mime_type: str, data: bytes,
+    ) -> None:
+        """Return an encoded client image for a hub capture request.
+
+        ``request_id`` comes from ``camera.capture.request`` return data.
+        ``pts_us`` is the capture time in Unix microseconds.
+        """
+        await self._push_image_capture(ImageCaptureData(
+            participant_id=participant_id, request_id=request_id, pts_us=pts_us,
+            mime_type=mime_type, data=data,
+        ))
+
     async def _push_image_capture(self, image: ImageCaptureData) -> None:
         """Deliver one complete client-captured encoded image to processors."""
 

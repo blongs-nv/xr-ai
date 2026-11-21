@@ -3,14 +3,8 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-# Real speech replay
+# Speech replay
 
-This sample-owned five-minute case uses the [devkit real-audio contract](../../../../../app-sdk/xr-ai-app/docs/REAL_AUDIO.md). Prepare fixed fixtures once, then reuse them across model and hardware profiles. Models and auxiliary services must already be running.
+`realtime.yaml` schedules the existing [`demo.yaml`](../../scenarios/demo.yaml) case through real STT/TTS over five minutes. Prompts, media and assertions come from that case. This file adds timing, voice controls and reply expectations; it contains no separate task definitions or scene generator.
 
-```bash
-uv --config-file uv.toml run --project tests xr-ai-dev prepare app-samples/sdk-tour/12-procedure-capture/app.py app-samples/sdk-tour/12-procedure-capture/eval/speech/realtime.yaml --out /path/to/media
-uv --config-file uv.toml run --project tests xr-ai-dev run app-samples/sdk-tour/12-procedure-capture/app.py app-samples/sdk-tour/12-procedure-capture/eval/speech/realtime.yaml \
-    --real-audio --real-models --clock real --media-dir /path/to/media --out /path/to/new-run
-```
-
-Use `--profile` for local or hosted model endpoints. See the contract for generated image names, report interpretation and accuracy-only evaluation. Fixture and run media stay local.
+Use the [real-audio guide](../../../../../app-sdk/xr-ai-app/docs/REAL_AUDIO.md) to prepare pinned speech and run the replay. Preparation copies the case's existing media. Recorded replacements can be supplied using the same media names; a generated placeholder remains a placeholder and is not evidence of real-scene accuracy.
