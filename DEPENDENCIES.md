@@ -1411,6 +1411,12 @@ refer to [Software bill of materials](docs/source/guides/sbom.md).
   - `xr-ai-voice` → [`xr-ai-voice`](agent-sdk/xr-ai-voice/) (local, editable)
   - `xr-ai-voicegate` → [`xr-ai-voicegate`](utils/xr-ai-voicegate/) (local, editable)
 - Optional dependency groups:
+  - `audio`:
+    - `xr-ai-launcher` → [`xr-ai-launcher`](utils/xr-ai-launcher/) (local, editable)
+    - `device-io-hub` → [`device-io-hub`](services/device-io-hub/) (local, editable)
+    - `numpy>=1.24`
+    - `Pillow>=13.0.0`
+    - `scipy>=1.11`
   - `video`:
     - `opencv-contrib-python-headless>=4.8,<5`
 - Commands:

@@ -47,8 +47,9 @@ if TYPE_CHECKING:
 
     from .participant import Participant
 
-_HUB_PUB = "ipc:///tmp/xr_hub_pub"
-_HUB_PUSH = "ipc:///tmp/xr_hub_in"
+from xr_ai_hub.isolation import DEFAULT_ENDPOINTS
+
+_HUB_PUB, _HUB_PUSH = DEFAULT_ENDPOINTS
 _PTS_PLAUSIBLE_US = 86_400 * 1_000_000
 _PICTURE_TIMEOUT_S = 10.0  # the client's own bound; ``FrameStream.current`` cancels earlier at its ``timeout_s``
 

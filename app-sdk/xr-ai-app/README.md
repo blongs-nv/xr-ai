@@ -57,3 +57,10 @@ See `skills/test-with-local-device/SKILL.md` for the scenario format, the
 HTTP endpoint and the report. The samples are in `../../app-samples/`. Watching the camera over time (a
 step that judges frames until enough agree) is in the kit's procedure library,
 `xr_ai_kit.sop`.
+
+Real microphone-speed replay is available through `xr-ai-app[audio]` and
+`xr-ai-dev run --real-audio --real-models --clock real`. It retains the app's
+configured STT, enrollment, voice gate and TTS, with an isolated hub and a sender
+in another process. Accuracy-only scenarios keep their current behavior. See
+[`docs/REAL_AUDIO.md`](docs/REAL_AUDIO.md) and the five-minute Conversation case
+in `app-samples/conversation/eval/speech/`.

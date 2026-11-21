@@ -76,7 +76,7 @@ class _RecordingHub(FakeHub):
         self.changed.set()
 
 
-def load_app(path: str | Path, attribute: str = "app") -> App:
+def load_app(path: str | Path, attribute: str = "app", *, profile: str | None = None) -> App:
     """Import an app file (its directory goes on ``sys.path``, as when it runs) and return its ``app``."""
     file = Path(path).expanduser().resolve()
     if str(file.parent) not in sys.path:
@@ -85,10 +85,25 @@ def load_app(path: str | Path, attribute: str = "app") -> App:
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot import {file}")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    import os  # noqa: PLC0415
+
+    previous = os.environ.get("XR_AI_PROFILE")
+    try:
+        if profile is not None:
+            os.environ["XR_AI_PROFILE"] = profile
+        spec.loader.exec_module(module)
+    finally:
+        if profile is not None:
+            if previous is None:
+                os.environ.pop("XR_AI_PROFILE", None)
+            else:
+                os.environ["XR_AI_PROFILE"] = previous
     app = getattr(module, attribute, None)
     if not isinstance(app, App):
         raise TypeError(f"{file}: no `{attribute}` App at module level")
+    if profile is not None:
+        app._profile = profile
+    app._source_path = file
     return app
 
 

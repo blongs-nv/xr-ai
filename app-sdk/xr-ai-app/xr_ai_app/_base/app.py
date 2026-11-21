@@ -460,7 +460,12 @@ class App:
             install_relay_task_factory(loop)  # app code may use TaskGroup and gather (R1.9)
             self._factory_loop = loop
             self._start_task = loop.create_task(self._start())
-        await asyncio.shield(self._start_task)
+        try:
+            await asyncio.shield(self._start_task)
+        except asyncio.CancelledError:
+            if not asyncio.current_task().cancelling() and self._stop_task is not None:
+                raise RuntimeError("app stopped during start") from None
+            raise
 
     async def _start(self) -> None:
         if self._stop_task is not None:
@@ -491,7 +496,8 @@ class App:
                 self._spawn_app_task(self._when_ready(self._touch_ready_file()), "ready")
         except BaseException:
             logger.exception("app start failed; running the stop sequence")
-            await asyncio.shield(self._ensure_stop())
+            if self._stop_task is None:
+                await asyncio.shield(self._ensure_stop(cancel_start=False))
             raise
 
     async def _when_ready(self, then: Coroutine[Any, Any, Any]) -> Any:
@@ -525,9 +531,9 @@ class App:
             if self._tracer is not None:
                 _tracing.deactivate(self._tracer)
 
-    def _ensure_stop(self) -> asyncio.Task[None]:
+    def _ensure_stop(self, *, cancel_start: bool = True) -> asyncio.Task[None]:
         if self._stop_task is None:
-            self._stop_task = asyncio.get_running_loop().create_task(self._stop())
+            self._stop_task = asyncio.get_running_loop().create_task(self._stop(cancel_start=cancel_start))
             # Every stop ends here, including the one a failed start runs without ``stop()`` being called.
             self._stop_task.add_done_callback(lambda _task: self._release_task_factory())
         return self._stop_task
@@ -537,11 +543,14 @@ class App:
             uninstall_relay_task_factory(self._factory_loop)
             self._factory_loop = None
 
-    async def _stop(self) -> None:
+    async def _stop(self, *, cancel_start: bool = True) -> None:
         timeouts = self._config.timeouts
         trace = self._trace
         trace.append(STOP_SEQUENCE[0])
         self._admitting = False
+        if cancel_start and self._start_task is not None and not self._start_task.done():
+            self._start_task.cancel()
+            await asyncio.gather(self._start_task, return_exceptions=True)
         if self._ready_wait is not None:
             self._ready_wait.cancel()  # still waiting for a model server: nothing to drain
         request_stop = getattr(self._voice, "request_stop", None)
@@ -657,7 +666,15 @@ class App:
         timeouts = self._config.timeouts
         bound = timeouts.hook_s if timeouts.start_s is None else timeouts.start_s
         task = asyncio.get_running_loop().create_task(coro, name=label)
-        done, _ = await asyncio.wait({task}, timeout=bound)
+        try:
+            done, _ = await asyncio.wait({task}, timeout=bound)
+        except asyncio.CancelledError:
+            task.cancel()
+            done, _ = await asyncio.wait({task}, timeout=timeouts.hook_s)
+            if not done:
+                self._abandoned.add(task)
+                task.add_done_callback(self._abandoned.discard)
+            raise
         if not done:
             task.cancel()
             self._abandoned.add(task)
@@ -848,7 +865,7 @@ class App:
         CURRENT_TURN.set(turn)
         with _tracing.bound(participant=p.id, session=p.session.id, turn=turn.id, task=None, parent=None):
             started = time.monotonic()
-            self.trace.emit("turn", "", phase="start", id=turn.id, text=turn.text)
+            self.trace.emit("turn", "", phase="start", id=turn.id, text=turn.text, timestamp_us=turn.timestamp_us)
             outcome = "done"
             await self._set_agent_status(p, "processing")
             try:

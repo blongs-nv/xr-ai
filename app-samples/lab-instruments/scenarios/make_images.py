@@ -94,6 +94,16 @@ SCENES = {
 }
 
 
+def prepare(directory, *, images):
+    """Write replay scenes with the same instrument renderer as accuracy cases."""
+    for name, scene in images.items():
+        path = Path(directory) / name
+        if not path.exists():
+            bench((90, scene["left_reading"], QR_DEVICE1, 345), (690, scene["right_reading"], ARUCO_DEVICE2, 395)).save(
+                path
+            )
+
+
 if __name__ == "__main__":
     MEDIA.mkdir(exist_ok=True)
     for name, image in SCENES.items():

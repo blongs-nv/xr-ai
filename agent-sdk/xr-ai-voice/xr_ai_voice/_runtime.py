@@ -80,6 +80,7 @@ class _ResponseStream(AsyncIterator[str]):
     ) -> None:
         self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=capacity)
         self.closed = asyncio.Event()
+        self._producer_finished = False
         self._on_close = on_close
         self._idle_timeout_s = idle_timeout_s
 
@@ -555,6 +556,7 @@ class VoiceAgent(Agent):
         if output.final:
             async with self._output_lock:
                 if self._streams.get(key) is stream:
+                    stream._producer_finished = True
                     self._finish_response_trace(key, status="completed")
                     await stream.aclose()
 

@@ -214,3 +214,10 @@ image-space polygon with standard magenta. It stores a new lossless PNG, keeps
 the source unchanged, and inherits source ownership. Stale references and
 invalid polygons return a recoverable unavailable result rather than an
 internal tool exception.
+
+`xr_ai_tools.tool_calling.observe_tool_errors(callback)` observes raised tool-loop
+failures in its task context and child tasks, including failures subsequently recovered
+by the application. Events contain `kind: error` and `exception_type`, with no model
+response body. Constructing an exception alone emits nothing. Callbacks are synchronous
+and must not block; failures are logged and contained. Leaving the scope restores the
+previous observer.

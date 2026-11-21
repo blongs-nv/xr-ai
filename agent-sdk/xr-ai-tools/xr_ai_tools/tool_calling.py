@@ -5,14 +5,46 @@
 
 from __future__ import annotations
 
+import contextvars
 import json
-from collections.abc import Awaitable, Callable, Iterable, Sequence
+import logging
+from collections.abc import Awaitable, Callable, Iterable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
 from xr_ai_models import ChatMessage, ChatResponse, ToolCall, ToolDef
 
 from .tools import Tool, ToolSet
+
+_ERROR_OBSERVER: contextvars.ContextVar[Callable[[dict[str, Any]], None] | None] = contextvars.ContextVar(
+    "xr_ai_tool_error_observer", default=None
+)
+
+
+@contextmanager
+def observe_tool_errors(callback: Callable[[dict[str, Any]], None]) -> Iterator[None]:
+    """Observe raised tool-loop failures, including errors recovered by callers.
+
+    The observer applies to tasks created in this context and receives no model
+    response bodies. Each event has ``kind="error"`` and ``exception_type``.
+    The callback must not block. Callback exceptions are logged and contained.
+    """
+    token = _ERROR_OBSERVER.set(callback)
+    try:
+        yield
+    finally:
+        _ERROR_OBSERVER.reset(token)
+
+
+def _observed_error(error):
+    callback = _ERROR_OBSERVER.get()
+    if callback is not None:
+        try:
+            callback({"kind": "error", "exception_type": type(error).__name__})
+        except Exception:  # noqa: BLE001 - observation must not replace the operation
+            logging.getLogger(__name__).warning("tool-loop error observer failed")
+    return error
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,43 +218,43 @@ async def run_tool_loop(
         )
 
         if response.finish_reason in {"length", "max_tokens"}:
-            raise ToolLoopTruncatedResponseError(
+            raise _observed_error(ToolLoopTruncatedResponseError(
                 "model response was truncated",
                 messages=transcript,
                 tool_calls=records,
                 iterations=iteration,
                 rejected_response=response,
-            )
+            ))
 
         if response.finish_reason == "tool_calls" and not calls:
-            raise ToolLoopMalformedResponseError(
+            raise _observed_error(ToolLoopMalformedResponseError(
                 "model reported tool calls without returning any calls",
                 messages=transcript,
                 tool_calls=records,
                 iterations=iteration,
                 rejected_response=response,
-            )
+            ))
 
         call_ids = tuple(call.id for call in calls)
         if any(
             not isinstance(call_id, str) or not call_id.strip()
             for call_id in call_ids
         ):
-            raise ToolLoopMalformedResponseError(
+            raise _observed_error(ToolLoopMalformedResponseError(
                 "tool-call IDs must be non-empty strings",
                 messages=transcript,
                 tool_calls=records,
                 iterations=iteration,
                 rejected_response=response,
-            )
+            ))
         if len(set(call_ids)) != len(call_ids) or seen_call_ids.intersection(call_ids):
-            raise ToolLoopMalformedResponseError(
+            raise _observed_error(ToolLoopMalformedResponseError(
                 "tool-call IDs must be unique within a turn",
                 messages=transcript,
                 tool_calls=records,
                 iterations=iteration,
                 rejected_response=response,
-            )
+            ))
 
         direct_calls = tuple(
             call
@@ -230,33 +262,33 @@ async def run_tool_loop(
             if (tool := tools.get(call.name)) is not None and tool.return_direct
         )
         if direct_calls and len(calls) != 1:
-            raise ToolLoopDirectReturnError(
+            raise _observed_error(ToolLoopDirectReturnError(
                 "a direct-return tool must be the only call in its model batch",
                 messages=transcript,
                 tool_calls=records,
                 iterations=iteration,
                 rejected_response=response,
-            )
+            ))
 
         if len(records) + len(calls) > max_tool_calls:
-            raise ToolLoopToolCallLimitError(
+            raise _observed_error(ToolLoopToolCallLimitError(
                 f"model batch would exceed the {max_tool_calls} tool-call limit",
                 messages=transcript,
                 tool_calls=records,
                 iterations=iteration,
                 rejected_response=response,
-            )
+            ))
 
         if not calls:
             content = response.content.strip()
             if not content:
-                raise ToolLoopEmptyResponseError(
+                raise _observed_error(ToolLoopEmptyResponseError(
                     "model returned neither tool calls nor a final answer",
                     messages=transcript,
                     tool_calls=records,
                     iterations=iteration,
                     rejected_response=response,
-                )
+                ))
             transcript.append(assistant_message)
             return ToolLoopResult(
                 content=content,
@@ -287,12 +319,12 @@ async def run_tool_loop(
                     return_direct=True,
                 )
 
-    raise ToolLoopIterationLimitError(
+    raise _observed_error(ToolLoopIterationLimitError(
         f"model did not produce a final answer within {max_iterations} iterations",
         messages=transcript,
         tool_calls=records,
         iterations=max_iterations,
-    )
+    ))
 
 
 __all__ = [
@@ -308,6 +340,7 @@ __all__ = [
     "ToolLoopToolCallLimitError",
     "ToolLoopTruncatedResponseError",
     "handle_tool_call",
+    "observe_tool_errors",
     "run_tool_loop",
     "tool_definitions",
 ]

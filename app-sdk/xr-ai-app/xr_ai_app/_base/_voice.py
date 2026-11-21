@@ -44,6 +44,15 @@ def _speech(app: App) -> dict[str, Any]:
     return {"stt": None, "tts": None, "gate": None, "text_input": True}
 
 
+def _gate_path(app: App):
+    speech = _speech(app)
+    return (
+        app._config.config_dir / speech["gate"]
+        if speech["gate"] is not None
+        else app._config.voice.voice_gate_yaml or app._config.config_dir / "voice_gate.yaml"
+    )
+
+
 def build_voice_agent(app: App, profile: Profile) -> VoiceAgent | None:
     """Build the voice agent for ``app``: speech models, voice gate, hub transport and topics.
 
@@ -68,11 +77,7 @@ def build_voice_agent(app: App, profile: Profile) -> VoiceAgent | None:
     speech_out = getattr(speech["tts"], "name", None) or ("speech_out" if _has(profile, "speech_out") else "tts")
     url = profile.speaker_asr_base_url(speech_in)
     gate_kwargs: dict[str, Any] = {} if url is None else {"speaker_base_url": url, "speaker_enabled": True}
-    gate_file = (
-        config.config_dir / speech["gate"]
-        if speech["gate"] is not None
-        else config.voice.voice_gate_yaml or config.config_dir / "voice_gate.yaml"
-    )
+    gate_file = _gate_path(app)
     voice_gate = load_voice_gate_config(gate_file, **gate_kwargs)
     entry = profile.resolve(speech_out)
     tts = make_tts(profile.models, entry)

@@ -157,3 +157,5 @@ instruments, one picture on demand, each change said once, the JSONL
 records, the monitoring history in the conversation's context);
 `test_helpers.py` covers the detector on the committed pictures, the marked
 frame, the reply checks and how readings are compared.
+
+For speech replay and performance reports, see [`eval/speech/`](eval/speech/).

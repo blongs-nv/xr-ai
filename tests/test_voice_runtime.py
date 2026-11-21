@@ -1505,3 +1505,20 @@ def test_voice_agent_installs_signal_handlers_by_default() -> None:
             voice_gate=object(),
         )  # type: ignore[arg-type]
     assert cls.call_args.kwargs["install_signal_handlers"] is True
+
+
+def test_speech_diagnostic_observer_is_scoped_and_failure_isolated():
+    from xr_ai_voice.diagnostics import _emit, observe
+
+    events = []
+    with observe(events.append):
+        _emit("drop", "p1")
+        _emit("reset", "p1")
+        with observe(lambda _event: (_ for _ in ()).throw(RuntimeError("observer failed"))):
+            _emit("drop", "p1")
+        _emit("queue", "p1", seconds=0.3)
+    _emit("reset", "p1")
+    assert events == [
+        {"kind": "drop", "participant": "p1"}, {"kind": "reset", "participant": "p1"},
+        {"kind": "queue", "participant": "p1", "seconds": 0.3},
+    ]

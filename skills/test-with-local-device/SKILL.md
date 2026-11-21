@@ -117,3 +117,7 @@ assert report.passed, report.transcript()
 
 Background work that waits on time (monitors, timers, delegated jobs) needs `wait_for`/`expect` with a
 `within_s`, not an immediate check.
+
+## Microphone-speed replay
+
+For speech throughput and overload checks, use `xr-ai-dev prepare APP SCENARIO --out MEDIA` followed by `xr-ai-dev run APP SCENARIO --real-audio --real-models --clock real --media-dir MEDIA --out RUN`. Scenarios use `audio: {path: clip.wav, text: spoken words}`, optional `duration_s`, and optional `fixtures: {factory: "fixtures.py:prepare", options: {...}}`. See [Real audio evaluation](../../app-sdk/xr-ai-app/docs/REAL_AUDIO.md) for coverage, timing eligibility, hosted profiles, and artifacts. Keep accuracy-only `say`/image/video evaluations for model accuracy independent of throughput.

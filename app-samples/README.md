@@ -81,3 +81,7 @@ repository root for the full graph.
 - **Everything is traced** with ids that tie each event to its cause.
 - **Frameworks plug in at the edges.** LangChain/LangGraph through the
   optional `xr_ai_kit.langchain` adapters; the core never imports them.
+
+## Compare speech performance across models and hardware
+
+The devkit also replays fixed WAVs and camera images through the apps' real speech pipeline. See [real audio evaluation](../app-sdk/xr-ai-app/docs/REAL_AUDIO.md) for fixture preparation, profile selection, report interpretation and the five sample-owned cases. Existing accuracy scenarios remain usable with local or hosted models independently of real-time speech.

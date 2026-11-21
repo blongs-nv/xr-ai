@@ -739,3 +739,18 @@ async def test_stop_asks_voice_to_stop_itself_before_cancelling_anything() -> No
     await app.stop()
     assert voice.stop_requests == 1 and voice.cancelled is False
     assert app._app_tasks == set()
+
+
+async def test_stop_requested_inside_startup_cancels_the_start_without_a_cycle():
+    app = make_app()
+
+    @app.on_start
+    async def stop_from_hook():
+        await app.stop()
+
+    with pytest.raises(RuntimeError, match="app stopped during start"):
+        await asyncio.wait_for(app.start(), 2)
+    await asyncio.wait_for(app.stop(), 2)
+    assert app._start_task.done()
+    assert app._stop_task.done()
+    assert not app._admitting

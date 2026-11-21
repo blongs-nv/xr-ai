@@ -13,6 +13,8 @@
   package's target resolver finds the app's pieces with :func:`components`.
 - :class:`VirtualTimeLoop` / :func:`run_virtual`: an event loop that skips idle waits (look intervals, timers, frame
   spacing) and still waits for real model calls, so a long window runs in moments.
+- ``run_scenario(..., real_audio=True)``: fixed WAV/image input through real STT/TTS and a private hub,
+  with an independent sender process and a performance section in the same report.
 - CLI: ``python -m xr_ai_app.devkit run|serve|exercise ...`` (``--clock virtual`` for the skipping loop).
 
 Roles are scripted (``FakeModels``) unless real models are asked for explicitly.

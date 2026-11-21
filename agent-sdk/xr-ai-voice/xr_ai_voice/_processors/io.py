@@ -29,6 +29,7 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from xr_ai_hub import DataMessage
 from zmq import ZMQError
 
+from ..diagnostics import _emit
 from .._frames import (
     AssistantResponseEndFrame,
     GatedQueryFrame,
@@ -442,8 +443,10 @@ class _VoiceIOProcessor(FrameProcessor):
         chunks: list[str] = []
         cancelled = False
         dropped = False
+        completed = False
         try:
             dropped = not await self._consume_response(output, accumulated=chunks)
+            completed = not dropped and getattr(item.response, "_producer_finished", True)
         except asyncio.CancelledError:
             cancelled = True
             raise
@@ -462,6 +465,11 @@ class _VoiceIOProcessor(FrameProcessor):
                             pts_us=item.pts_us,
                         )
                     )
+                    if completed and chunks:
+                        _emit("response", pid, request_id=item.request_id, response_id=None,
+                              final=True, message_kind="reply" if item.request_id is not None else "update",
+                              source=item.source or "voice", participant_id=pid, text="".join(chunks),
+                              urgent=item.urgent)
                 except Exception:
                     logger.exception("emit voice response end failed pid={!r}", pid)
             if current and output.playing:

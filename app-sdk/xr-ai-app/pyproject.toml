@@ -27,6 +27,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+audio = ["xr-ai-launcher", "device-io-hub", "numpy>=1.24", "Pillow>=13.0.0", "scipy>=1.11"]
 # Playing video files into the local device (scenarios, `xr-ai-dev exercise --video`); the repo's OpenCV pin.
 video = ["opencv-contrib-python-headless>=4.8,<5"]
 
@@ -34,6 +35,8 @@ video = ["opencv-contrib-python-headless>=4.8,<5"]
 xr-ai-dev = "xr_ai_app.devkit.__main__:main"
 
 [tool.uv.sources]
+device-io-hub = { path = "../../services/device-io-hub", editable = true }
+xr-ai-launcher = { path = "../../utils/xr-ai-launcher", editable = true }
 xr-ai-agent-runtime = { path = "../../agent-sdk/xr-ai-runtime", editable = true }
 xr-ai-hub-client    = { path = "../../agent-sdk/xr-ai-hub", editable = true }
 xr-ai-interaction   = { path = "../../agent-sdk/xr-ai-interaction", editable = true }

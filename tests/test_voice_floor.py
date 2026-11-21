@@ -9,6 +9,7 @@ import asyncio
 import random
 from collections.abc import AsyncIterator, Sequence
 
+import pytest
 from loguru import logger
 from pipecat.frames.frames import (
     BotStartedSpeakingFrame,
@@ -845,3 +846,67 @@ async def test_random_interleavings_keep_the_floor_invariants() -> None:
         assert drained, f"seed {seed}: floor stuck"
         assert lost == set(), f"seed {seed}"
         await fuzz.processor._shutdown()  # noqa: SLF001
+
+
+async def test_response_diagnostics_exclude_superseded_replies_evicted_and_withdrawn_updates(monkeypatch):
+    from xr_ai_voice._processors import io
+    from xr_ai_voice.diagnostics import observe
+
+    monkeypatch.setattr(io, "_PENDING_UPDATE_CAPACITY", 1)
+    floor = _Floor()
+    events = []
+    with observe(events.append):
+        await floor.processor.enqueue_reply("alice", "first", request_id="old")
+        await floor.settle()
+        await floor.played()
+        await floor.processor.enqueue_reply("alice", "current", request_id="new")
+        await floor.settle()
+        await floor.played()
+        await floor.processor.enqueue_reply("alice", "discarded reply", request_id="old")
+        await floor.settle()
+        await floor.user(True)
+        await floor.processor.enqueue_update("alice", "evicted update", source="a")
+        await floor.processor.enqueue_update("alice", "withdrawn update", source="b")
+        await floor.processor.withdraw_updates("alice", source="b")
+        await floor.processor.enqueue_update("alice", "delivered update", source="c")
+        await floor.user(False)
+        await floor.settle()
+    assert [event["text"] for event in events if event["kind"] == "response"] == [
+        "first", "current", "delivered update",
+    ]
+
+
+@pytest.mark.parametrize("cut", ["barge", "urgent"])
+async def test_cut_stream_never_emits_completed_response_diagnostic(cut):
+    from xr_ai_voice.diagnostics import observe
+
+    floor = _Floor()
+    held = _Held("partial")
+    events = []
+    with observe(events.append):
+        await floor.processor.enqueue_reply("alice", held, request_id="r1")
+        await floor.settle()
+        assert floor.texts == ["partial"]
+        if cut == "barge":
+            frame = InterruptionFrame()
+            frame.transport_source = "alice"
+            await floor.processor.process_frame(frame, FrameDirection.UPSTREAM)
+        else:
+            await floor.processor.enqueue_update("alice", "urgent", source="alarm", urgent=True)
+        await floor.settle()
+    assert held.closed
+    assert not any(event["kind"] == "response" and event["request_id"] == "r1" for event in events)
+
+
+async def test_unterminated_runtime_stream_does_not_emit_final_response():
+    from xr_ai_voice.diagnostics import observe
+
+    floor = _Floor()
+    stream = _ResponseStream(4, lambda _stream: None, 0.02)
+    await stream.send("truncated")
+    events = []
+    with observe(events.append):
+        await floor.processor.enqueue_reply("alice", stream, request_id="r1")
+        await asyncio.wait_for(floor.processor._floor["alice"].task, 1)
+    assert stream.closed.is_set()
+    assert not any(event["kind"] == "response" for event in events)

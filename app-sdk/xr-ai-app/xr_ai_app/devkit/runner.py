@@ -43,6 +43,7 @@ class Report:
     steps: list[StepResult] = field(default_factory=list)
     inputs: list[dict[str, Any]] = field(default_factory=list)
     outputs: list[dict[str, Any]] = field(default_factory=list)
+    performance: dict[str, Any] | None = None
 
     @property
     def failures(self) -> list[StepResult]:
@@ -56,6 +57,7 @@ class Report:
                 "steps": [vars(s) for s in self.steps],
                 "inputs": self.inputs,
                 "outputs": self.outputs,
+                **({"performance": self.performance} if self.performance is not None else {}),
             },
             indent=2,
             default=str,
@@ -92,6 +94,11 @@ async def run_scenario(
     out: str | Path | None = None,
     relay: bool = False,
     media_dir: str | Path | None = None,
+    real_audio: bool = False,
+    drain_s: float = 10.0,
+    ready_timeout_s: float = 600.0,
+    metadata: dict[str, Any] | None = None,
+    images: dict[str, Path] | None = None,
 ) -> Report:
     """Play ``scenario`` against ``app``.
 
@@ -100,26 +107,61 @@ async def run_scenario(
     ``None``). ``relay``: also write the run through NeMo Relay as ``<out>/atof/`` (raw events) and
     ``<out>/atif/`` (a trajectory), the formats NeMo Compass and Helix read. ``media_dir``: look for each media
     path there first (your own recordings, under the same names), then next to the scenario.
+
+    ``real_audio=True`` sends WAV steps through the app's real voice pipeline and an isolated hub,
+    with a separate wall-clock sender. Requires ``models="real"``, ``clock="real"`` and ``speed=1``.
+    ``drain_s`` adds response time after the fixed timeline; ``ready_timeout_s`` bounds startup.
+    Its report includes ``performance``; ``metadata`` describes caller-owned hardware/services.
     """
     if clock not in ("fast", "real"):
         raise ValueError('clock is "fast" or "real"')
     if relay and out is None:
         raise ValueError("relay output needs an out directory")
+    if real_audio:
+        if models != "real" or clock != "real" or speed != 1:
+            raise ValueError("real_audio requires models='real', clock='real' and speed=1")
+        from ._audio import _prepare_audio, _run_audio  # noqa: PLC0415 - hub service is an optional dependency
+        from .virtual_time import VirtualTimeLoop  # noqa: PLC0415
+
+        if isinstance(asyncio.get_running_loop(), VirtualTimeLoop):
+            raise ValueError("real_audio requires an actual wall-clock event loop")
+        if out is not None and Path(out).exists():
+            raise ValueError("real_audio output directory must not already exist")
+        if metadata is not None and not isinstance(metadata, dict):
+            raise ValueError("metadata must be a JSON object")
+        json.dumps(metadata)
+        plan = _prepare_audio(scenario, media_dir, drain_s, images=images)
+    elif images:
+        raise ValueError("image bindings require real_audio=True; use media_dir for local-device scenarios")
+    elif any(step.action == "audio" for step in scenario.steps):
+        raise ValueError("audio steps require real_audio=True; use say for accuracy-only typed evaluation")
+    if not real_audio and scenario.duration_s is not None:
+        raise ValueError("duration_s requires real_audio=True")
+    if real_audio:
+        return await _run_audio(app, scenario, plan=plan, out=out, ready_timeout_s=ready_timeout_s,
+                                metadata=metadata, relay=relay)
     async with contextlib.AsyncExitStack() as stack:
         if relay:
-            from .._base._relay import RelaySink, relay_exporters  # noqa: PLC0415 - Relay only when asked
-
-            session = "".join(c if c.isalnum() else "-" for c in scenario.name)[:64] or "run"
-            await stack.enter_async_context(
-                relay_exporters(
-                    atof_dir=Path(out) / "atof", atif_dir=Path(out) / "atif", session=session, agent=scenario.name
-                )
-            )
-            sink = RelaySink()
-            app.trace.add(sink)
-            stack.callback(sink.close)  # runs after the removal below: no turn scope outlives the run
-            stack.callback(app.trace.remove, sink)
+            await stack.enter_async_context(_relay_context(app, scenario, out))
         return await _run(app, scenario, models=models, speed=speed, clock=clock, out=out, media_dir=media_dir)
+
+
+@contextlib.asynccontextmanager
+async def _relay_context(app, scenario, out):
+    async with contextlib.AsyncExitStack() as stack:
+        from .._base._relay import RelaySink, relay_exporters  # noqa: PLC0415 - Relay only when asked
+
+        session = "".join(c if c.isalnum() else "-" for c in scenario.name)[:64] or "run"
+        await stack.enter_async_context(
+            relay_exporters(
+                atof_dir=Path(out) / "atof", atif_dir=Path(out) / "atif", session=session, agent=scenario.name
+            )
+        )
+        sink = RelaySink()
+        app.trace.add(sink)
+        stack.callback(sink.close)  # runs after the removal below: no turn scope outlives the run
+        stack.callback(app.trace.remove, sink)
+        yield
 
 
 async def _run(

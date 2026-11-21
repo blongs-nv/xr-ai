@@ -237,6 +237,9 @@ class ProcessorEndpoint:
     ) -> None:
         if isinstance(file_hwm, bool) or not isinstance(file_hwm, int) or file_hwm <= 0:
             raise ValueError("file_hwm must be a positive integer")
+        from .isolation import _resolve
+
+        sub_addr, push_addr = _resolve(sub_addr, push_addr, file_sub_addr)
         if filter & Subscribe.FILE and file_sub_addr is None:
             raise ValueError("file_sub_addr is required when subscribing to files")
         ctx = zmq.asyncio.Context.instance()

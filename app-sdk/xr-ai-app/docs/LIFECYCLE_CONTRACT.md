@@ -86,7 +86,8 @@ runs, in this order:
 
 When the app stops (`app.stop()`, or `app.run()` after a signal), `STOP_SEQUENCE` runs:
 
-1. `stop_admitting`: no new participants, turns or app-level tasks are accepted.
+1. `stop_admitting`: no new participants, turns or app-level tasks are accepted. A pending start task
+   is cancelled and drained before app-level tasks.
 2. `unenroll_every_participant`: the full un-enroll sequence (R2) runs for every participant, concurrently,
    each with its own `drain_s`. Then work started with `Component.spawn` (R1.10) is cancelled and drained.
 3. `run_stop_hooks_reversed`: each component's `on_stop()` runs, last registered first, each bounded by `hook_s`.
@@ -98,6 +99,8 @@ When the app stops (`app.stop()`, or `app.run()` after a signal), `STOP_SEQUENCE
   into app code.
 - R3.3 `on_start` hooks run in registration order before any participant is admitted; if one fails,
   `app.start()` runs the stop sequence for what already started and re-raises.
+  A caller awaiting `start()` receives `RuntimeError("app stopped during start")` if stop cancelled startup;
+  cancellation of the caller itself still propagates as `CancelledError`.
 - R3.4 `app.stop()` is idempotent: a second call returns after the first finishes.
 - R3.5 Clients are closed only after every task that can use them has drained.
 

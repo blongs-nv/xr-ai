@@ -37,6 +37,9 @@ camera device is needed for these tests.
 
 ## Run the suite
 
+For real-audio model and hardware comparisons through App SDK
+samples, refer to {doc}`evaluating-sample-models`.
+
 From the repository root:
 
 ```bash

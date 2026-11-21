@@ -22,6 +22,7 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from xr_ai_voicegate._phrases import STOP_RE
 from xr_ai_voicegate._speaker import _SpeakerConfig
 
+from ..diagnostics import _emit
 from .._frames import (
     ParticipantJoinedFrame,
     ParticipantLeftFrame,
@@ -140,6 +141,7 @@ class _SpeakerSttProcessor(FrameProcessor):
                 self._drop_backlog(pid, queue, len(frame.audio))
                 return
             self._queued_bytes[pid] += len(frame.audio)
+            _emit("queue", pid, seconds=self._queued_bytes[pid] / 32000)
             self._queued_frames[pid] += 1
             queue.put_nowait((frame.audio, pts_us))
             return
@@ -147,6 +149,7 @@ class _SpeakerSttProcessor(FrameProcessor):
 
     def _drop_backlog(self, pid: str, queue: asyncio.Queue, skipped: int) -> None:
         """Replace queued audio with one marker for the dropped byte count."""
+        _emit("drop", pid)
         while True:
             try:
                 audio, value = queue.get_nowait()
@@ -244,6 +247,7 @@ class _SpeakerSttProcessor(FrameProcessor):
         return True
 
     async def _reset(self, pid: str, *, retry: bool = True) -> None:
+        _emit("reset", pid)
         if retry:
             self._retry_after[pid] = time.monotonic() + 2.0
         else:
@@ -268,6 +272,7 @@ class _SpeakerSttProcessor(FrameProcessor):
         await self.push_frame(frame)
 
     async def _event(self, pid: str, event: dict) -> None:
+        _emit("speaker", pid, event=event.get("kind"))
         kind = event["kind"]
         if kind in {"one_shot", "wake_ready"}:
             if self._cfg.mode not in {"always_on", "wake_only", "hybrid"} or pid in self._enrolled:

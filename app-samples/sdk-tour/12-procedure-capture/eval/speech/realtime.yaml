@@ -1,0 +1,94 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: capture app speech performance
+duration_s: 300
+steps:
+- join: p1
+- at: 0
+  image: scene-f3bb47fd8ac10996.png
+- at: 0
+  audio:
+    path: 151eeaa4f88d654d2132c030dc94b2f360187fb6f95466de7b8d56cdb37d0c7f.wav
+    text: Start talking to me
+    handler: false
+- at: 12
+  audio:
+    path: 151eeaa4f88d654d2132c030dc94b2f360187fb6f95466de7b8d56cdb37d0c7f.wav
+    text: Start talking to me
+    handler: false
+- at: 25
+  audio:
+    path: 0b960eb82be240c2e9884b491e9d9da375fcbac34e89237d2aa66ace62ea7129.wav
+    text: Start capture.
+    reply: false
+- at: 25.1
+  expect:
+    said: Capture started
+    within_s: 35
+- at: 50
+  audio:
+    path: 55bd46213a98473b316e795f2c2e9d547e6c21be185f5db664000ccd3210fffe.wav
+    text: I am showing a blue rectangle. This is the first step.
+    reply: false
+- at: 80
+  image: scene-cc1a5db39ee3ded2.png
+- at: 80
+  audio:
+    path: b5eec4ec82c6ead9330bf95a7684904e8e1ae8c40016444dc6c918ccfd1cc53a.wav
+    text: Now the rectangle is red. This is the second step.
+    reply: false
+- at: 105
+  audio:
+    path: 5905a3e5f2c29d0827871bb8d2657c2c0ed0cc90ec0648735fc41c302fb285df.wav
+    text: The demonstration is complete.
+    reply: false
+- at: 130
+  audio:
+    path: 4c9fa00cb9aaca1cdf6d3ac0cbd52d1f122a94a5fd7d76717064e782db460e43.wav
+    text: Stop capture.
+    reply: false
+- at: 130.1
+  expect:
+    said: Capture stopped
+    within_s: 35
+- at: 165
+  image: scene-912fe2cee5f69127.png
+- at: 165
+  audio:
+    path: 0b960eb82be240c2e9884b491e9d9da375fcbac34e89237d2aa66ace62ea7129.wav
+    text: Start capture.
+    reply: false
+- at: 165.1
+  expect:
+    said: Capture started
+    within_s: 35
+- at: 195
+  audio:
+    path: d4444913618121f94b3659f3fe8cbc73d47e71e9c4e48a7dbc112a4c0f0a9fa7.wav
+    text: The second demonstration shows a card that says Cedar task two.
+    reply: false
+- at: 260
+  audio:
+    path: 4c9fa00cb9aaca1cdf6d3ac0cbd52d1f122a94a5fd7d76717064e782db460e43.wav
+    text: Stop capture.
+    reply: false
+- at: 260.1
+  expect:
+    said: Capture stopped
+    within_s: 35
+- at: 285
+  audio:
+    path: 9a1fc8237ee4cf19eae41383a29fdde1a8c1b965b655149bca495498eab86da6.wav
+    text: Stop talking to me.
+    handler: false
+fixtures:
+  factory: fixtures.py:prepare
+  options:
+    images:
+      scene-f3bb47fd8ac10996.png:
+        rectangle: blue
+      scene-cc1a5db39ee3ded2.png:
+        rectangle: red
+      scene-912fe2cee5f69127.png:
+        text: CEDAR TASK TWO

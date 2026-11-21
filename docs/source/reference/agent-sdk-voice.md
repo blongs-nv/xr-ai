@@ -553,3 +553,15 @@ filtering does not currently emit STT scopes. The media pipeline emits one
 sample rate plus a transcript result mark; TTS records its sentence. Raw audio
 is never written to Relay events, and these timings end at provider handoff,
 not client playback.
+
+## Voice diagnostics
+
+`xr_ai_voice.diagnostics.observe(callback)` observes tasks created in its scope. Events
+are dictionaries with `kind` and `participant`: speaker-STT queue events add `seconds`,
+speaker events add `event`, and drop/reset events identify a disruption. Batch-STT queue
+depth is not measured. Response events carry completed assistant text handed to the TTS
+path and request metadata; they do not establish completed audible playback. Runtime
+streams closed by idle timeout, eviction or shutdown without a producer terminator emit
+no response event. Audio and input transcripts are omitted. Callbacks are synchronous
+and must not block; callback failures are contained. Leaving the scope restores the
+previous observer.

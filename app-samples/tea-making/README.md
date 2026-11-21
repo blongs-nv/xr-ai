@@ -144,3 +144,5 @@ looking away) with a scripted person, scored by the step type's own rules
 in a state and check what it does with what the user says (questions such
 as "what's the next step?", controls, chatter, negated or quoted
 controls). See `eval/README.md`.
+
+For speech replay and performance reports, see [`eval/speech/`](eval/speech/).

@@ -6,6 +6,8 @@
     python -m xr_ai_app.devkit run  path/to/app.py scenario.yaml --out runs/x/            # scripted replies beside it
     python -m xr_ai_app.devkit run  path/to/app.py scenarios/ --out runs/                 # every scenario in a folder
     python -m xr_ai_app.devkit run  path/to/app.py scenarios/ --real-models --media-dir ~/recordings --out runs/
+    python -m xr_ai_app.devkit prepare path/to/app.py speech.yaml --out media/
+    python -m xr_ai_app.devkit run path/to/app.py speech.yaml --real-models --real-audio --clock real --media-dir media/
     python -m xr_ai_app.devkit serve path/to/app.py --fakes fakes.yaml --port 8765
     python -m xr_ai_app.devkit exercise path/to/app.py fn:units.py:bed_clear --video clip.mp4 --from 12 --to 31.5 \
         --fakes fakes.yaml --expect Verification --between 14 30 --out runs/bed/
@@ -81,6 +83,12 @@ def main(argv: list[str] | None = None) -> int:
                 "--real-models",
             )
         if name == "run":
+            p.add_argument("--real-audio", action="store_true", help="Replay WAVs through real hub/STT/TTS")
+            p.add_argument("--image", action="append", default=[], help="Image NAME=PATH override")
+            p.add_argument("--metadata", help="Operator JSON file describing hardware and serving configuration")
+            p.add_argument("--profile", help="Model profile name or path, local or hosted")
+            p.add_argument("--drain", type=float, default=10.0, help="Real-audio response drain, seconds")
+            p.add_argument("--ready-timeout", type=float, default=600.0, help="Startup deadline, seconds")
             p.add_argument("scenario", help="a scenario file, or a folder: every scenario in it")
             p.add_argument("--media-dir", help="look for the scenarios' media here first (your own recordings)")
             p.add_argument("--out", default=None, help="report directory")
@@ -98,9 +106,37 @@ def main(argv: list[str] | None = None) -> int:
         group.add_argument("--fakes", help="YAML of scripted role replies")
         group.add_argument("--real-models", action="store_true", help="use the app's model profile (real calls)")
         p.add_argument("--speed", type=float, default=1.0, help="media playback speed")
+    prepare = sub.add_parser("prepare", help="Synthesize and pin fixed speech/media before measurement")
+    prepare.add_argument("app", help="the app file (its module-level `app`)")
+    prepare.add_argument("scenario", help="Real-audio scenario file")
+    prepare.add_argument("--profile", help="Model profile name or path, local or hosted")
+    prepare.add_argument("--out", required=True, help="Directory for pinned fixtures")
+    prepare.add_argument("--tts-entry", help="Explicit TTS model entry for fixture synthesis")
+    prepare.add_argument("--image", action="append", default=[], help="Image NAME=PATH input")
     args = parser.parse_args(argv)
+    if args.command == "prepare" or args.real_models:
+        try:
+            from xr_ai_launcher import load_credentials  # noqa: PLC0415
+        except ModuleNotFoundError as exc:
+            if exc.name != "xr_ai_launcher":
+                raise
+            sys.stderr.write("Credential store unavailable; use environment credentials or install xr-ai-app[audio].\n")
+        else:
+            load_credentials()
+    if args.command == "prepare":
+        from ._fixtures import _prepare_fixtures  # noqa: PLC0415
+
+        scenario = Scenario.load(args.scenario)
+        app = load_app(args.app, profile=args.profile)
+        result = asyncio.run(
+            _prepare_fixtures(app, scenario, args.out, images=_image_bindings(args.image), tts_entry=args.tts_entry)
+        )
+        sys.stdout.write(str(result) + "\n")
+        return 0
 
     if args.command == "run":
+        if args.real_audio and (not args.real_models or args.clock != "real" or args.speed != 1):
+            parser.error("--real-audio requires --real-models --clock real --speed 1")
         return _run(args)
     app = load_app(args.app)
     models = _models(args)
@@ -158,8 +194,13 @@ def _exercise(app, models, args: argparse.Namespace) -> int:  # noqa: ANN001
 
 
 def _run(args: argparse.Namespace) -> int:
+    import json  # noqa: PLC0415
     from pathlib import Path  # noqa: PLC0415
 
+    metadata = json.loads(Path(args.metadata).read_text()) if args.metadata else None
+    if metadata is not None and not isinstance(metadata, dict):
+        raise ValueError("metadata must be a JSON object")
+    images = _image_bindings(args.image)
     path = Path(args.scenario)
     files = sorted(f for f in path.iterdir() if _is_scenario(f)) if path.is_dir() else [path]
     if not files:
@@ -168,7 +209,9 @@ def _run(args: argparse.Namespace) -> int:
     runner = run_virtual if args.clock == "virtual" else asyncio.run
     reports = []
     for file in files:
-        app = load_app(args.app)  # a fresh app for each scenario: an app starts once
+        scenario = Scenario.load(file)
+        # An app starts once, so each scenario gets a fresh instance.
+        app = load_app(args.app, profile=args.profile)
         if args.real_models:
             models = "real"
         elif args.fakes:
@@ -180,18 +223,36 @@ def _run(args: argparse.Namespace) -> int:
         report = runner(
             run_scenario(
                 app,
-                Scenario.load(file),
+                scenario,
                 models=models,
                 speed=args.speed,
                 clock="fast" if args.clock == "virtual" else args.clock,
                 out=out,
                 relay=args.relay,
                 media_dir=args.media_dir,
+                real_audio=args.real_audio,
+                drain_s=args.drain,
+                ready_timeout_s=args.ready_timeout,
+                metadata=metadata,
+                images=images,
             )
         )
         reports.append((file, report))
         if not path.is_dir():
             sys.stdout.write(report.transcript())
+        if report.performance is not None:
+            fields = (
+                "execution_status",
+                "timing_comparable",
+                "handler_coverage",
+                "reply_coverage",
+                "error_events",
+                "stt",
+                "max_sender_lateness_s",
+            )
+            sys.stdout.write(
+                json.dumps({"scenario": report.scenario, **{key: report.performance[key] for key in fields}}) + "\n"
+            )
     if path.is_dir():
         for file, report in reports:
             sys.stdout.write(f"{'PASS' if report.passed else 'FAIL'}  {report.scenario}  ({file.name})\n")
@@ -227,6 +288,19 @@ def _option(value: str, base):  # noqa: ANN001, ANN202
         path = Path(value[1:])
         return yaml.safe_load((path if path.is_absolute() else base / path).read_text(encoding="utf-8"))
     return json.loads(value)
+
+
+def _image_bindings(values):
+    from pathlib import Path  # noqa: PLC0415
+
+    images = {}
+    for value in values:
+        name, separator, path = value.partition("=")
+        name = name if Path(name).suffix else name + ".png"
+        if not separator or name == ".png" or not path or name in images:
+            raise ValueError("images must be unique NAME=PATH bindings")
+        images[name] = Path(path).expanduser().resolve()
+    return images
 
 
 if __name__ == "__main__":

@@ -166,3 +166,5 @@ the `tests/` project, not the samples' own).
 Each app adds `Hub()` (the device connection: without it nobody joins, so no
 turn reaches the app) and gets its speech models from the profile's
 `speech_in` and `speech_out`; its `app.yaml` names the shared voice gate.
+
+Real-speech model/hardware cases are provided for [guided procedure](10-guided-procedure/eval/speech/README.md) and [procedure capture](12-procedure-capture/eval/speech/README.md). Both use the [devkit real-audio runner](../../app-sdk/xr-ai-app/docs/REAL_AUDIO.md) and the samples' normal profiles and voice configuration.

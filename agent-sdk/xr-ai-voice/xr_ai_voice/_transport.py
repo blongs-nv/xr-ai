@@ -47,8 +47,9 @@ from ._audio import float32_to_int16, int16_to_float32
 from ._capture_frames import _CaptureTtsCaptionFrame
 from ._frames import ParticipantJoinedFrame, ParticipantLeftFrame, _OutputDoneFrame, _TrackedInputAudioFrame
 
-_HUB_PUB  = "ipc:///tmp/xr_hub_pub"
-_HUB_PUSH = "ipc:///tmp/xr_hub_in"
+from xr_ai_hub.isolation import DEFAULT_ENDPOINTS
+
+_HUB_PUB, _HUB_PUSH = DEFAULT_ENDPOINTS
 
 SAMPLE_RATE            = 16_000
 NUM_CHANNELS           = 1

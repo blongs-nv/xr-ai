@@ -116,3 +116,12 @@ after one of its own shutdown paths has removed the shared-memory name; unrelate
 processes must not unlink it. Application payloads
 extend the msgpack codec with `register_encoder()` and `register_decoder()`;
 new types use new wire identifiers rather than changing existing tags.
+
+## Isolated execution
+
+`xr_ai_hub.isolation.isolated_endpoints(sub_addr=..., push_addr=...)` redirects standard
+hub endpoints created in its task context and child tasks to a private IPC pair.
+`DEFAULT_ENDPOINTS` defines the standard `(sub_addr, push_addr)` pair. Explicit foreign
+addresses and file subscriptions are rejected before connection. Leaving the scope
+restores routing for subsequent endpoint creation; endpoints already created and
+endpoints in other processes are unaffected.

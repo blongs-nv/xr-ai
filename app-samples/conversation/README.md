@@ -104,3 +104,5 @@ uv --config-file ../../uv.toml run pytest
 uv --config-file ../../uv.toml run xr-ai-dev run app.py scenarios/ \
     --real-models --out runs/real/      # the model servers must be running
 ```
+
+For speech replay and performance reports, see [`eval/speech/`](eval/speech/).
